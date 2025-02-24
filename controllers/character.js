@@ -10,8 +10,6 @@ exports.createcharacter = async (req, res) => {
 
     const { id } = req.user
     const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body
-    
-    console.log(username, gender, outfit, hair, eyes, facedetails, color, itemindex)
    
     if(!id){
         return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
