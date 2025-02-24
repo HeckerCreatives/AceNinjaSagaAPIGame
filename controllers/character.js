@@ -24,7 +24,7 @@ exports.createcharacter = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "No special characters are allowed for username"})
     }
 
-    if(!outfit || !hair || !eyes || !facedetails){
+    if(!hair){
         return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
     }
 
