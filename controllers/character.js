@@ -9,7 +9,9 @@ const Rankings = require("../models/Ranking")
 exports.createcharacter = async (req, res) => {
 
     const { id } = req.user
-    const { username, gender, outfit, hair, eyes, facedetails, color } = req.body
+    const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body
+    
+    console.log(username, gender, outfit, hair, eyes, facedetails, color, itemindex)
    
     if(!id){
         return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
@@ -24,7 +26,7 @@ exports.createcharacter = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "No special characters are allowed for username"})
     }
 
-    if(!gender || !outfit || !hair || !eyes || !facedetails || !color){
+    if(!gender || !outfit || !hair || !eyes || !facedetails){
         return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
     }
 
@@ -48,10 +50,11 @@ exports.createcharacter = async (req, res) => {
                 eyes: eyes,
                 facedetails: facedetails,
                 color: color,
-                title: "",
+                title: 0,
                 experience: 0,
                 level: 1,
-                badge: ""
+                badge: "",
+                itemindex: itemindex
             })
             .then(async data => {
                 await CharacterStats.create({
@@ -215,6 +218,43 @@ exports.getplayerdata = async (req, res) => {
     const characterData = await Characterdata.aggregate(matchCondition)
 
     return res.status(200).json({ message: "success", data: characterData})
+}
+
+exports.getplayercharacters = async (req, res) => {
+    const {id} = req.user
+
+    const tempdata = await Characterdata.find({owner: new mongoose.Types.ObjectId(id)})
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem while fetching character datas for user: ${id}. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
+    })
+
+    const data = {}
+
+    tempdata.forEach(temp => {
+        const {_id, username, gender, outfit, hair, eyes, facedetails, color, title, experience, badge, itemindex} = temp;
+
+        data[itemindex] = {
+            id: _id,
+            Username: username,
+            CharacterCostume: {
+                Gender: gender,
+                OutfitId: outfit,
+                HairId: hair,
+                EyesId: eyes,
+                FaceDetailsId: facedetails,
+                ColorId: color,
+            },
+            Title: title,
+            CurrentXP: experience,
+            badge: badge,
+            Level: 1,
+        }
+    })
+
+    return res.json({message: "success", data: data})
 }
 
 exports.getinventory = async (req, res) => {

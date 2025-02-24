@@ -12,11 +12,11 @@ const CharacterDataSchema = new mongoose.Schema(
             index: true,
         },
         gender: {
-            type: String,
+            type: Number,
             index: true
         },
         outfit: {
-            type: String,
+            type: Number,
             index: true
         },
         hair: {
@@ -24,19 +24,19 @@ const CharacterDataSchema = new mongoose.Schema(
             index: true
         },
         eyes: {
-            type: String,
+            type: Number,
             index: true
         },
         facedetails: {
-            type: String,
+            type: Number,
             index: true
         },
         color: {
-            type: String,
+            type: Number,
             index: true
         },
         title: {
-            type: String,
+            type: Number,
             index: true
         },
         experience: {
@@ -47,6 +47,9 @@ const CharacterDataSchema = new mongoose.Schema(
         },
         badge: {
             type: String
+        },
+        itemindex: {
+            type: Number
         }
     },
     {

@@ -59,7 +59,7 @@ exports.register = async (req, res) => {
 exports.authlogin = async(req, res) => {
     const { username, password } = req.query;
 
-    Users.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i') } })
+    await Users.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i') } })
     .then(async user => {
         if (user && (await user.matchPassword(password))){
             if (user.status != "active"){
@@ -81,9 +81,9 @@ exports.authlogin = async(req, res) => {
                         return res.status(500).json({ error: 'Internal Server Error', data: "There's a problem signing in! Please contact customer support for more details! Error 004" });
                     }
 
-                    res.cookie('sessionToken', jwtoken, { secure: true, sameSite: 'None' } )
                     return res.json({message: "success", data: {
-                            auth: user.auth
+                            auth: user.auth,
+                            token: jwtoken
                         }
                     })
                 })
@@ -106,13 +106,16 @@ exports.authlogin = async(req, res) => {
                         return res.status(500).json({ error: 'Internal Server Error', data: "There's a problem signing in! Please contact customer support for more details! Error 004" });
                     }
                     
-                    res.cookie('sessionToken', jwtoken, { secure: true, sameSite: 'None' } )
                     return res.json({message: "success", data: {
                         auth: "player",
+                        token: jwtoken
                     }})
                 })
                 .catch(err => res.status(400).json({ message: "bad-request2", data: "There's a problem with your account! There's a problem with your account! Please contact customer support for more details."  + err }))
             }
+        }
+        else{
+            return res.status(400).json({message: "failed", data: "Account not found! Please enter your right credentials"})
         }
     })
     .catch(err => res.status(400).json({ message: "bad-request1", data: "There's a problem with your account! There's a problem with your account! Please contact customer support for more details." }))

@@ -16,16 +16,20 @@ const verifyJWT = async (token) => {
 };
 
 exports.protectplayer = async (req, res, next) => {
-    const token = req.headers.cookie?.split('; ').find(row => row.startsWith('sessionToken='))?.split('=')[1]
-
-    console.log(token);
+    const token = req.headers.authorization
 
     if (!token){
         return res.status(401).json({ message: 'Unauthorized', data: "You are not authorized to view this page. Please login the right account to view the page." });
     }
 
     try{
-        const decodedToken = await verifyJWT(token);
+        if (!token.startsWith("Bearer")){
+            return res.status(300).json({ message: 'Unauthorized', data: "You are not authorized to view this page. Please login the right account to view the page." });
+        }
+        
+        const headerpart = token.split(' ')[1]
+
+        const decodedToken = await verifyJWT(headerpart);
 
         if (decodedToken.auth != "player"){
             return res.status(401).json({ message: 'Unauthorized', data: "You are not authorized to view this page. Please login the right account to view the page." });
