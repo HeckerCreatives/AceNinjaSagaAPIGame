@@ -1,10 +1,10 @@
 const { default: mongoose } = require("mongoose")
 const Characterdata = require("../models/Characterdata")
-const Characterinventory = require("../models/Characterinventory")
 const CharacterStats = require("../models/Characterstats")
 const Charactertitle = require("../models/Charactertitles")
 const Characterwallet = require("../models/Characterwallet")
 const Rankings = require("../models/Ranking")
+const { CharacterInventory } = require("../models/Market")
 
 exports.createcharacter = async (req, res) => {
 
@@ -92,7 +92,7 @@ exports.createcharacter = async (req, res) => {
                     res.status(400).json({ message: "bad-request", data: error.message })
                 })
 
-                const walletListData = ["coins", "crystal"];
+                const walletListData = ["coins", "crystal", "emerald"];
                 const walletBulkwrite = walletListData.map(walletData => ({
                     insertOne: {
                         document: { owner: data._id, type: walletData, amount: "0" }
@@ -115,7 +115,7 @@ exports.createcharacter = async (req, res) => {
                     }
                 }));
 
-                await Characterinventory.bulkWrite(inventoryBulkWrite)
+                await CharacterInventory.bulkWrite(inventoryBulkWrite)
                 .catch(async error => {
                     await Characterdata.findByIdAndDelete(data._id)
                     await CharacterStats.findOneAndDelete({ owner: data._id })
@@ -262,13 +262,16 @@ exports.getinventory = async (req, res) => {
         res.status(400).json({ message: "failed", data: "Please input characterId"})
     }
 
-    const inventorydata = await Characterinventory.find({ owner: new mongoose.Types.ObjectId(characterid)})
+    const inventorydata = await CharacterInventory.find({ owner: new mongoose.Types.ObjectId(characterid)})
+    .populate('items.item') // Changed from items.itemid to items.item
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem while fetching inventory data for user: ${characterid}. Error: ${err}`)
 
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
+
+    console.log(inventorydata)
 
     const data = []
     inventorydata.forEach(temp => {

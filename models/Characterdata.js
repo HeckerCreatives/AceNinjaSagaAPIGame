@@ -31,6 +31,10 @@ const CharacterDataSchema = new mongoose.Schema(
             type: Number,
             index: true
         },
+        weapon: {
+            type: Number,
+            index: true
+        },
         color: {
             type: Number,
             index: true
