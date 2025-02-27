@@ -61,5 +61,5 @@ const CharacterDataSchema = new mongoose.Schema(
     }
 )
 
-const Characterdata = mongoose.model("CharacterData", CharacterDataSchema)
+const Characterdata = mongoose.model("Characterdata", CharacterDataSchema)
 module.exports = Characterdata

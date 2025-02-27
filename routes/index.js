@@ -7,8 +7,9 @@ const routers = app => {
     app.use("/maintenance", require("./maintenance"))
     app.use("/marketplace", require("./marketplace"))
     app.use("/news", require("./news"))
-    app.use("/user", require("./user"))
+    app.use("/ranking", require("./ranking"))
     app.use("/transaction", require("./transaction"))
+    app.use("/user", require("./user"))
 }
 
 module.exports = routers

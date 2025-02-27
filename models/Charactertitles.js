@@ -12,6 +12,10 @@ const CharacterTitleSchema = new mongoose.Schema(
                 itemid: {
                     type: String,
                     index: true
+                },
+                isEquipped: {
+                    type: Boolean,
+                    default: false    
                 }
             }
         ]
