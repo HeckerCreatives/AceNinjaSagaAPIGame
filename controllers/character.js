@@ -5,134 +5,278 @@ const Charactertitle = require("../models/Charactertitles")
 const Characterwallet = require("../models/Characterwallet")
 const Rankings = require("../models/Ranking")
 const { CharacterInventory } = require("../models/Market")
+const { CharacterSkillTree } = require("../models/Skills")
+
 
 exports.createcharacter = async (req, res) => {
+    const session = await mongoose.startSession();
+    try {
+        await session.startTransaction();
 
-    const { id } = req.user
-    const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body
-   
-    if(!id){
-        return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
-    }
+        const { id } = req.user;
+        const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body;
 
-    const usernameRegex = /^[a-zA-Z0-9]+$/;
-
-    if(username.length < 5 || username.length > 20){
-        return res.status(400).json({ message: "failed", data: "Username length should be greater than 5 and less than 20 characters."})
-    }
-    if(!usernameRegex.test(username)){
-        return res.status(400).json({ message: "failed", data: "No special characters are allowed for username"})
-    }
-
-    if(!hair){
-        return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
-    }
-
-
-    const characterCount = await Characterdata.countDocuments({ owner: id });
-    if (characterCount >= 4) {
-        return res.status(400).json({ message: "failed", data: "Character limit reached. You cannot create more than 4 characters." });
-    }   
-
-    await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
-    .then(async character => {
-        if(character){
-            return res.json({ message: "failed", data: "Username already exist."})
-        } else {      
-            await Characterdata.create({ 
-                owner: id, 
-                username: username,
-                gender: gender, 
-                outfit: outfit,
-                hair: hair,
-                eyes: eyes,
-                facedetails: facedetails,
-                color: color,
-                title: 0,
-                experience: 0,
-                level: 1,
-                badge: "",
-                itemindex: itemindex
-            })
-            .then(async data => {
-                await CharacterStats.create({
-                    owner: data._id,
-                    health: 100,
-                    energy: 50,
-                    armor: 20,
-                    magicresist: 15,
-                    speed: 10,
-                    attackdamage: 9,
-                    armorpen: 0,
-                    magicpen: 0,
-                    critchance: 0,
-                    magicdamage: 15,
-                    lifesteal: 0,
-                    omnivamp: 0,
-                    healshieldpower: 0,
-                    critdamage: 0,
-                })
-                .catch(async error => {
-                    await Characterdata.findByIdAndDelete(data._id)
-                    res.status(400).json({ message: "bad-request", data: error.message })
-                })
-
-                await Charactertitle.create({ owner: data._id, items: [{ itemid: "" }]})
-                .catch(async error => {
-                    await Characterdata.findByIdAndDelete(data._id)
-                    await CharacterStats.findOneAndDelete({ owner: data._id })
-                    res.status(400).json({ message: "bad-request", data: error.message })
-                })
-                
-                await Rankings.create({ owner: data._id, mmr: 10 })
-                .catch(async error => {
-                    await Characterdata.findByIdAndDelete(data._id)
-                    await CharacterStats.findOneAndDelete({ owner: data._id })
-                    await Charactertitle.findOneAndDelete({ owner: data._id })
-                    res.status(400).json({ message: "bad-request", data: error.message })
-                })
-
-                const walletListData = ["coins", "crystal", "emerald"];
-                const walletBulkwrite = walletListData.map(walletData => ({
-                    insertOne: {
-                        document: { owner: data._id, type: walletData, amount: "0" }
-                    }
-                }));
-
-                await Characterwallet.bulkWrite(walletBulkwrite)
-                .catch(async error => {
-                    await Characterdata.findByIdAndDelete(data._id)
-                    await CharacterStats.findOneAndDelete({ owner: data._id })
-                    await Charactertitle.findOneAndDelete({ owner: data._id })
-                    await Rankings.findOneAndDelete({ owner: data._id })
-                    res.status(400).json({ message: "bad-request", data: error.message })
-                })
-
-                const inventoryListData = ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins"];
-                const inventoryBulkWrite = inventoryListData.map(inventoryData => ({
-                    insertOne: {
-                        document: { owner: data._id, type: inventoryData }
-                    }
-                }));
-
-                await CharacterInventory.bulkWrite(inventoryBulkWrite)
-                .catch(async error => {
-                    await Characterdata.findByIdAndDelete(data._id)
-                    await CharacterStats.findOneAndDelete({ owner: data._id })
-                    await Charactertitle.findOneAndDelete({ owner: data._id })
-                    await Characterwallet.deleteMany({ owner: data._id })
-                    await Rankings.findOneAndDelete({ owner: data._id })
-                    res.status(400).json({ message: "bad-request", data: error.message })
-                })
-
-                return res.status(200).json({ message: "success"})
-            })
-          .catch(error => res.status(400).json({ message: "bad-request", data: error.message }))
+        // Validation checks...
+        if(!id) {
+            return res.status(401).json({ 
+                message: "failed", 
+                data: "You are not authorized to view this page. Please login the right account to view the page."
+            });
         }
-    })
-    .catch(error => res.status(400).json({ message: "bad-request", data: error.message }))
 
-}
+            
+        const usernameRegex = /^[a-zA-Z0-9]+$/;
+
+        if(username.length < 5 || username.length > 20){
+            return res.status(400).json({ message: "failed", data: "Username length should be greater than 5 and less than 20 characters."})
+        }
+        if(!usernameRegex.test(username)){
+            return res.status(400).json({ message: "failed", data: "No special characters are allowed for username"})
+        }
+
+        if(!hair){
+            return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
+        }
+
+
+        const characterCount = await Characterdata.countDocuments({ owner: id });
+        if (characterCount >= 4) {
+            return res.status(400).json({ message: "failed", data: "Character limit reached. You cannot create more than 4 characters." });
+        }   
+
+        const exists = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
+
+        if(!exists){
+            return res.status(400).json({ message: "failed", data: "Username already used." });
+        }
+        // Create character data
+        const data = await Characterdata.create([{ 
+            owner: id, 
+            username,
+            gender, 
+            outfit,
+            hair,
+            eyes,
+            facedetails,
+            color,
+            title: 0,
+            experience: 0,
+            level: 1,
+            badge: "",
+            itemindex
+        }], { session });
+
+        const characterId = data[0]._id;
+
+        // Create character stats
+        await CharacterStats.create([{
+            owner: characterId,
+            health: 100,
+            energy: 50,
+            armor: 20,
+            magicresist: 15,
+            speed: 10,
+            attackdamage: 9,
+            armorpen: 0,
+            magicpen: 0,
+            critchance: 0,
+            magicdamage: 15,
+            lifesteal: 0,
+            omnivamp: 0,
+            healshieldpower: 0,
+            critdamage: 0,
+        }], { session });
+
+        // Create character titles
+        await Charactertitle.create([{ 
+            owner: characterId, 
+            items: [{ itemid: "" }]
+        }], { session });
+
+        // Create rankings
+        await Rankings.create([{ 
+            owner: characterId, 
+            mmr: 10 
+        }], { session });
+
+        // Create skill tree
+        await CharacterSkillTree.create([{ 
+            owner: characterId, 
+            skillPoints: 0, 
+            skills: [], 
+            unlockedSkills: [] 
+        }], { session });
+
+        // Create wallets
+        const walletListData = ["coins", "crystal", "emerald"];
+        const walletBulkwrite = walletListData.map(walletData => ({
+            insertOne: {
+                document: { owner: characterId, type: walletData, amount: "0" }
+            }
+        }));
+        await Characterwallet.bulkWrite(walletBulkwrite, { session });
+
+        // Create inventory
+        const inventoryListData = ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins"];
+        const inventoryBulkWrite = inventoryListData.map(inventoryData => ({
+            insertOne: {
+                document: { owner: characterId, type: inventoryData }
+            }
+        }));
+        await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
+
+        await session.commitTransaction();
+        return res.status(200).json({ message: "success" });
+
+    } catch (error) {
+        await session.abortTransaction();
+        console.log(`Error in character creation: ${error}`);
+        return res.status(400).json({ 
+            message: "bad-request", 
+            data: error.message 
+        });
+    } finally {
+        session.endSession();
+    }
+};
+
+
+// exports.createcharacter = async (req, res) => {
+
+//     const { id } = req.user
+//     const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body
+   
+//     if(!id){
+//         return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
+//     }
+
+//     const usernameRegex = /^[a-zA-Z0-9]+$/;
+
+//     if(username.length < 5 || username.length > 20){
+//         return res.status(400).json({ message: "failed", data: "Username length should be greater than 5 and less than 20 characters."})
+//     }
+//     if(!usernameRegex.test(username)){
+//         return res.status(400).json({ message: "failed", data: "No special characters are allowed for username"})
+//     }
+
+//     if(!hair){
+//         return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
+//     }
+
+
+//     const characterCount = await Characterdata.countDocuments({ owner: id });
+//     if (characterCount >= 4) {
+//         return res.status(400).json({ message: "failed", data: "Character limit reached. You cannot create more than 4 characters." });
+//     }   
+
+//     await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
+//     .then(async character => {
+//         if(character){
+//             return res.json({ message: "failed", data: "Username already exist."})
+//         } else {      
+//             await Characterdata.create({ 
+//                 owner: id, 
+//                 username: username,
+//                 gender: gender, 
+//                 outfit: outfit,
+//                 hair: hair,
+//                 eyes: eyes,
+//                 facedetails: facedetails,
+//                 color: color,
+//                 title: 0,
+//                 experience: 0,
+//                 level: 1,
+//                 badge: "",
+//                 itemindex: itemindex
+//             })
+//             .then(async data => {
+//                 const stat = await CharacterStats.create({
+//                     owner: data._id,
+//                     health: 100,
+//                     energy: 50,
+//                     armor: 20,
+//                     magicresist: 15,
+//                     speed: 10,
+//                     attackdamage: 9,
+//                     armorpen: 0,
+//                     magicpen: 0,
+//                     critchance: 0,
+//                     magicdamage: 15,
+//                     lifesteal: 0,
+//                     omnivamp: 0,
+//                     healshieldpower: 0,
+//                     critdamage: 0,
+//                 })
+//                 .catch(async error => {
+//                     await Characterdata.findByIdAndDelete(data._id)
+//                     res.status(400).json({ message: "bad-request", data: error.message })
+//                 })
+
+//               const title =  await Charactertitle.create({ owner: data._id, items: [{ itemid: "" }]})
+//                 .catch(async error => {
+//                     await Characterdata.findByIdAndDelete(data._id)
+//                     await CharacterStats.findOneAndDelete({ _id: stat._id, owner: data._id })
+//                     res.status(400).json({ message: "bad-request", data: error.message })
+//                 })
+                
+//               const rank = await Rankings.create({ owner: data._id, mmr: 10 })
+//                 .catch(async error => {
+//                     await Characterdata.findByIdAndDelete(data._id)
+//                     await CharacterStats.findOneAndDelete({ _id: stat._id, owner: data._id })
+//                     await Charactertitle.findOneAndDelete({ _id: title._id, owner: data._id })
+//                     res.status(400).json({ message: "bad-request", data: error.message })
+//                 })
+
+//                const st = await CharacterSkillTree.create({ owner: data._id, skillPoints: 0, skills: [], unlockedSkills: [] })
+//                 .catch(async error => {
+//                     await Characterdata.findByIdAndDelete(data._id)
+//                     await CharacterStats.findOneAndDelete({ _id: stat._id, owner: data._id })
+//                     await Charactertitle.findOneAndDelete({ _id: title._id, owner: data._id })
+//                     await Rankings.findOneAndDelete({ _id: st._id, owner: data._id })
+//                 })
+
+//                 const walletListData = ["coins", "crystal", "emerald"];
+//                 const walletBulkwrite = walletListData.map(walletData => ({
+//                     insertOne: {
+//                         document: { owner: data._id, type: walletData, amount: "0" }
+//                     }
+//                 }));
+
+//                 await Characterwallet.bulkWrite(walletBulkwrite)
+//                 .catch(async error => {
+//                     await Characterdata.findByIdAndDelete(data._id)
+//                     await CharacterStats.findOneAndDelete({ owner: data._id })
+//                     await Charactertitle.findOneAndDelete({ owner: data._id })
+//                     await Rankings.findOneAndDelete({ owner: data._id })
+//                     await CharacterSkillTree.findOneAndDelete({ owner: data._id })
+//                     res.status(400).json({ message: "bad-request", data: error.message })
+//                 })
+
+//                 const inventoryListData = ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins"];
+//                 const inventoryBulkWrite = inventoryListData.map(inventoryData => ({
+//                     insertOne: {
+//                         document: { owner: data._id, type: inventoryData }
+//                     }
+//                 }));
+
+//                 await CharacterInventory.bulkWrite(inventoryBulkWrite)
+//                 .catch(async error => {
+//                     await Characterdata.findByIdAndDelete(data._id)
+//                     await CharacterStats.findOneAndDelete({ owner: data._id })
+//                     await Charactertitle.findOneAndDelete({ owner: data._id })
+//                     await Characterwallet.deleteMany({ owner: data._id })
+//                     await Rankings.findOneAndDelete({ owner: data._id })
+//                     res.status(400).json({ message: "bad-request", data: error.message })
+//                 })
+
+//                 return res.status(200).json({ message: "success"})
+//             })
+//           .catch(error => res.status(400).json({ message: "bad-request", data: error.message }))
+//         }
+//     })
+//     .catch(error => res.status(400).json({ message: "bad-request", data: error.message }))
+
+// }
 
 
 exports.getplayerdata = async (req, res) => {

@@ -8,6 +8,7 @@ const routers = app => {
     app.use("/marketplace", require("./marketplace"))
     app.use("/news", require("./news"))
     app.use("/ranking", require("./ranking"))
+    app.use("/skills", require("./skills"))
     app.use("/transaction", require("./transaction"))
     app.use("/user", require("./user"))
 }
