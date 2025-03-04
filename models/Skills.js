@@ -18,7 +18,7 @@ const SkillSchema = new mongoose.Schema({
     }, // Only for Basic skills
     type: {
         type: String,
-        enum: ['Active', 'Passive', 'Stat', "Buff"],
+        enum: ['Active', 'Passive', 'Stat'],
         required: true
     },
     description: {

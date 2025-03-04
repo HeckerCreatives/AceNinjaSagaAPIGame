@@ -329,9 +329,7 @@ exports.equipitem = async (req, res) => {
             );
         }
 
-        const itemData = item.items[0];
 
-        console.log(itemData)
         // Update inventory
         await CharacterInventory.findOneAndUpdate(
             { 'items.item': itemid, owner: characterid },

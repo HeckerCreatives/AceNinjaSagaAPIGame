@@ -515,71 +515,97 @@ exports.getcharactertitles = async (req, res) => {
 }
 
 exports.addxp = async (req, res) => {
-    const { characterid, xp } = req.body
+    const { characterid, xp } = req.body;
 
-    if(!characterid || !xp){
-        return res.status(400).json({ message: "failed", data: "Please input character ID and XP."})
+    if(!characterid || !xp) {
+        return res.status(400).json({ 
+            message: "failed", 
+            data: "Please input character ID and XP."
+        });
     }
 
+    try {
+        const character = await Characterdata.findOne({ 
+            _id: new mongoose.Types.ObjectId(characterid)
+        });
 
-    const character = await Characterdata.findOne({ _id: new mongoose.Types.ObjectId(characterid)})
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem encountered while fetching character data. Error: ${err}`)
+        if(!character) {
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "Character not found."
+            });
+        }
 
-        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
-    })
+        let currentLevel = character.level;
+        let currentXP = character.experience + xp;
+        let levelsGained = 0;
 
-    if(!character){
-        return res.status(400).json({ message: "failed", data: "Character not found."})
-    }
-
-    let level = character.level
-    let expneeded = 80 * level
-
-    let newxp = xp
-
-    if(character.experience + xp >= expneeded){
-        level += 1
-        newxp = (character.experience + xp) - expneeded
-        
-        await CharacterStats.findOneAndUpdate({ owner: characterid }, {
-            $inc: {
-                health: 10,
-                energy: 5,
-                armor: 2,
-                magicresist: 1,
-                speed: 1,
-                attackdamage: 1,
-                armorpen: 1,
-                magicpen: 1,
-                critchance: 0,
-                magicdamage: 1,
-                lifesteal: 0,
-                omnivamp: 0,
-                healshieldpower: 0,
-                critdamage: 1,
+        // Calculate multiple level ups
+        while (true) {
+            let xpNeeded = 80 * currentLevel;
+            
+            if (currentXP >= xpNeeded) {
+                currentLevel++;
+                currentXP -= xpNeeded;
+                levelsGained++;
+            } else {
+                break;
             }
-         })
-    
+        }
+
+        // If levels were gained, update stats and skill points
+        if (levelsGained > 0) {
+            await CharacterStats.findOneAndUpdate(
+                { owner: characterid }, 
+                {
+                    $inc: {
+                        health: 10 * levelsGained,
+                        energy: 5 * levelsGained,
+                        armor: 2 * levelsGained,
+                        magicresist: 1 * levelsGained,
+                        speed: 1 * levelsGained,
+                        attackdamage: 1 * levelsGained,
+                        armorpen: 1 * levelsGained,
+                        magicpen: 1 * levelsGained,
+                        magicdamage: 1 * levelsGained,
+                        critdamage: 1 * levelsGained
+                    }
+                }
+            );
+
+            await CharacterSkillTree.findOneAndUpdate(
+                { owner: characterid }, 
+                {
+                    $inc: {
+                        skillPoints: 4 * levelsGained
+                    }
+                }
+            );
+        }
+
+        // Update character level and experience
+        character.level = currentLevel;
+        character.experience = currentXP;
+        await character.save();
+
+        return res.status(200).json({ 
+            message: "success",
+            data: {
+                newLevel: currentLevel,
+                levelsGained,
+                currentXP,
+                nextLevelXP: 80 * currentLevel
+            }
+        });
+
+    } catch (err) {
+        console.log(`Error in XP addition: ${err}`);
+        return res.status(500).json({
+            message: "failed",
+            data: "There's a problem with the server. Please contact support for more details."
+        });
     }
-
-
-
-    character.experience += newxp
-    character.level = level
-
-    await character.save()
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem encountered while saving character data. Error: ${err}`)
-
-        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
-    })
-
-
-    return res.status(200).json({ message: "success"})
-}
+};
 
 
 exports.updateplayerprofile = async (req, res) => {
