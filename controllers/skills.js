@@ -339,6 +339,8 @@ exports.acquirespbasedskills = async (req, res) => {
 exports.acquirebuybasedskills = async (req, res) => {
     const { characterid, skillid } = req.body;
 
+    console.log(characterid, skillid)
+
     try {
         // Validate required parameters
         if (!characterid || !skillid) {
@@ -527,47 +529,68 @@ exports.equipskill = async (req, res) => {
 
         // Check if skill is passive
         const isPassive = skill.skill.type === 'Passive';
-        const isPathSkill = skill.skill.category === 'Path';
+        // const isPathSkill = skill.skill.category === 'Path';
 
         // Get currently equipped skills based on category
-        const equippedPathSkills = skillTree.skills.filter(s => 
-            s.isEquipped && s.skill.category === 'Path' && s.skill.type === (isPassive ? 'Passive' : 'Active')
-        );
+        // const equippedPathSkills = skillTree.skills.filter(s => 
+        //     s.isEquipped && s.skill.category === 'Path' && s.skill.type === (isPassive ? 'Passive' : 'Active')
+        // );
+        
+        // const equippedNonPathSkills = skillTree.skills.filter(s => 
+        //     s.isEquipped && s.skill.category !== 'Path' && s.skill.type === (isPassive ? 'Passive' : 'Active')
+        // );
 
-        const equippedNonPathSkills = skillTree.skills.filter(s => 
-            s.isEquipped && s.skill.category !== 'Path' && s.skill.type === (isPassive ? 'Passive' : 'Active')
-        );
+        const equippedPassiveSkills = skillTree.skills.filter(s => s.isEquipped && s.skill.type === 'Passive');
 
-        // Check limits based on skill category
-        if (isPathSkill) {
-            // Path skills (Mage, Samurai, etc.)
-            if (isPassive && equippedPathSkills.length >= 3) {
+        const equippedActiveSkills = skillTree.skills.filter(s => s.isEquipped && s.skill.type === 'Active');
+
+        if (isPassive){
+            if (equippedPassiveSkills.length >= 4){
                 return res.status(400).json({
                     message: "failed",
-                    data: "Maximum path passive skills (3) already equipped"
-                });
-            }
-            if (!isPassive && equippedPathSkills.length >= 4) {
-                return res.status(400).json({
-                    message: "failed",
-                    data: "Maximum path active skills (4) already equipped"
-                });
-            }
-        } else {
-            // Non-path skills (Attack, Defense, Utility, Guild, Raid, etc.)
-            if (isPassive && equippedNonPathSkills.length >= 3) {
-                return res.status(400).json({
-                    message: "failed",
-                    data: "Maximum non-path passive skills (3) already equipped"
-                });
-            }
-            if (!isPassive && equippedNonPathSkills.length >= 4) {
-                return res.status(400).json({
-                    message: "failed",
-                    data: "Maximum non-path active skills (4) already equipped"
+                    data: "Maximum passive skills (4) already equipped"
                 });
             }
         }
+        else{
+            if (equippedActiveSkills.length >= 8){
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Maximum active passive skills (8) already equipped"
+                });
+            }
+        }
+
+        // Check limits based on skill category
+        // if (isPathSkill) {
+        //     // Path skills (Mage, Samurai, etc.)
+        //     if (isPassive && equippedPathSkills.length >= 3) {
+        //         return res.status(400).json({
+        //             message: "failed",
+        //             data: "Maximum path passive skills (3) already equipped"
+        //         });
+        //     }
+        //     if (!isPassive && equippedPathSkills.length >= 4) {
+        //         return res.status(400).json({
+        //             message: "failed",
+        //             data: "Maximum path active skills (4) already equipped"
+        //         });
+        //     }
+        // } else {
+        //     // Non-path skills (Attack, Defense, Utility, Guild, Raid, etc.)
+        //     if (isPassive && equippedNonPathSkills.length >= 3) {
+        //         return res.status(400).json({
+        //             message: "failed",
+        //             data: "Maximum non-path passive skills (3) already equipped"
+        //         });
+        //     }
+        //     if (!isPassive && equippedNonPathSkills.length >= 4) {
+        //         return res.status(400).json({
+        //             message: "failed",
+        //             data: "Maximum non-path active skills (4) already equipped"
+        //         });
+        //     }
+        // }
 
         // Equip skill
         skill.isEquipped = true;
@@ -575,21 +598,29 @@ exports.equipskill = async (req, res) => {
         // Save changes
         await skillTree.save();
 
+        // if (isPassive){
+        //     equippedPassiveSkills.push(skill)
+        // }
+        // else{
+        //     equippedActiveSkills.push(skill)
+        // }
+
         return res.status(200).json({
             message: "success",
-            data: {
-                skillTree,
-                equipped: {
-                    pathSkills: {
-                        active: equippedPathSkills.length + (!isPassive && isPathSkill ? 1 : 0),
-                        passive: equippedPathSkills.length + (isPassive && isPathSkill ? 1 : 0)
-                    },
-                    nonPathSkills: {
-                        active: equippedNonPathSkills.length + (!isPassive && !isPathSkill ? 1 : 0),
-                        passive: equippedNonPathSkills.length + (isPassive && !isPathSkill ? 1 : 0)
-                    }
-                }
-            }
+            // data: {
+            //     active: equippedActiveSkills,
+            //     passive: equippedPassiveSkills
+            //     // equipped: {
+            //     //     pathSkills: {
+            //     //         active: equippedPathSkills.length + (!isPassive && isPathSkill ? 1 : 0),
+            //     //         passive: equippedPathSkills.length + (isPassive && isPathSkill ? 1 : 0)
+            //     //     },
+            //     //     nonPathSkills: {
+            //     //         active: equippedNonPathSkills.length + (!isPassive && !isPathSkill ? 1 : 0),
+            //     //         passive: equippedNonPathSkills.length + (isPassive && !isPathSkill ? 1 : 0)
+            //     //     }
+            //     // }
+            // }
         });
     } catch (err) {
         console.log(`Error in skill equip: ${err}`);
@@ -685,71 +716,79 @@ exports.getequippedskills = async (req, res) => {
             return res.status(200).json({
                 message: "success",
                 data: {
-                    path: { active: {}, passive: {} },
-                    nonpath: { active: {}, passive: {} }
+                    active: {}, passive: {} 
+                    // path: { active: {}, passive: {} },
+                    // nonpath: { active: {}, passive: {} }
                 },
-                counts: {
-                    path: {
-                        active: 0,
-                        passive: 0,
-                        activeRemaining: 4,
-                        passiveRemaining: 3
-                    },
-                    nonpath: {
-                        active: 0,
-                        passive: 0,
-                        activeRemaining: 4,
-                        passiveRemaining: 3
-                    }
-                }
+                // counts: {
+                //     path: {
+                //         active: 0,
+                //         passive: 0,
+                //         activeRemaining: 4,
+                //         passiveRemaining: 3
+                //     },
+                //     nonpath: {
+                //         active: 0,
+                //         passive: 0,
+                //         activeRemaining: 4,
+                //         passiveRemaining: 3
+                //     }
+                // }
             });
         }
 
         // Format skills by category and type
         const formattedSkills = equippedSkills.reduce((acc, skill) => {
-            const isPathSkill = skill.skill.category === 'Path';
-            const category = isPathSkill ? 'path' : 'nonpath';
+            // const isPathSkill = skill.skill.category === 'Path';
+            // const category = isPathSkill ? 'path' : 'nonpath';
             const type = skill.skill.type.toLowerCase();
 
             // Initialize category if needed
-            if (!acc[category]) {
-                acc[category] = { active: {}, passive: {} };
+            if (!acc[type]) {
+                acc[type] = {};
             }
 
-            // Add skill to appropriate category
-            const skillCount = Object.keys(acc[category][type]).length + 1;
-            acc[category][type][skillCount] = {
-                ...skill.skill.toObject(),
-                level: skill.level,
-                slot: skillCount
-            };
+            // // Add skill to appropriate category
+            // const skillCount = Object.keys(acc[category][type]).length + 1;
+            // acc[category][type][skillCount] = {
+            //     ...skill.skill.toObject(),
+            //     level: skill.level,
+            //     slot: skillCount
+            // };
 
+            const skillCount = Object.keys(acc[type]).length + 1;
+
+            acc[type][skillCount] = {
+                ...skill.skill.toObject()
+            };
             return acc;
         }, {
-            path: { active: {}, passive: {} },
-            nonpath: { active: {}, passive: {} }
+            active: {},
+            passive: {}
+            // path: { active: {}, passive: {} },
+            // nonpath: { active: {}, passive: {} }
         });
 
         // Calculate counts
-        const counts = {
-            path: {
-                active: Object.keys(formattedSkills.path.active).length,
-                passive: Object.keys(formattedSkills.path.passive).length,
-                activeRemaining: 4 - Object.keys(formattedSkills.path.active).length,
-                passiveRemaining: 3 - Object.keys(formattedSkills.path.passive).length
-            },
-            nonpath: {
-                active: Object.keys(formattedSkills.nonpath.active).length,
-                passive: Object.keys(formattedSkills.nonpath.passive).length,
-                activeRemaining: 4 - Object.keys(formattedSkills.nonpath.active).length,
-                passiveRemaining: 3 - Object.keys(formattedSkills.nonpath.passive).length
-            }
-        };
+        // const counts = {
+        //     path: {
+        //         active: Object.keys(formattedSkills.path.active).length,
+        //         passive: Object.keys(formattedSkills.path.passive).length,
+        //         activeRemaining: 4 - Object.keys(formattedSkills.path.active).length,
+        //         passiveRemaining: 3 - Object.keys(formattedSkills.path.passive).length
+        //     },
+        //     nonpath: {
+        //         active: Object.keys(formattedSkills.nonpath.active).length,
+        //         passive: Object.keys(formattedSkills.nonpath.passive).length,
+        //         activeRemaining: 4 - Object.keys(formattedSkills.nonpath.active).length,
+        //         passiveRemaining: 3 - Object.keys(formattedSkills.nonpath.passive).length
+        //     }
+        // };
 
         return res.status(200).json({
             message: "success",
             data: formattedSkills,
-            counts: counts
+            // counts: counts
         });
 
     } catch (err) {

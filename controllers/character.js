@@ -46,7 +46,7 @@ exports.createcharacter = async (req, res) => {
 
         const exists = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
 
-        if(!exists){
+        if(exists){
             return res.status(400).json({ message: "failed", data: "Username already used." });
         }
         // Create character data
@@ -378,10 +378,10 @@ exports.getplayercharacters = async (req, res) => {
     const data = {}
 
     tempdata.forEach(temp => {
-        const {_id, username, gender, outfit, hair, eyes, facedetails, color, title, experience, badge, itemindex} = temp;
+        const {_id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex} = temp;
 
         data[itemindex] = {
-            id: _id,
+            UserID: _id,
             Username: username,
             CharacterCostume: {
                 Gender: gender,
@@ -392,9 +392,9 @@ exports.getplayercharacters = async (req, res) => {
                 ColorId: color,
             },
             Title: title,
+            Level: level,
             CurrentXP: experience,
             badge: badge,
-            Level: 1,
         }
     })
 
@@ -468,13 +468,10 @@ exports.getWallet = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
     })
 
-    const data = []
+    const data = {}
 
     walletData.forEach(temp => {
-        data.push({
-            type: temp.type,
-            amount: temp.amount
-        })
+        data[temp.type] = temp.amount
     })
 
     return res.status(200).json({ message: "success", data: data})
@@ -539,19 +536,29 @@ exports.addxp = async (req, res) => {
         let currentLevel = character.level;
         let currentXP = character.experience + xp;
         let levelsGained = 0;
+        let xpNeeded = 80 * currentLevel;
 
         // Calculate multiple level ups
-        while (true) {
-            let xpNeeded = 80 * currentLevel;
-            
-            if (currentXP >= xpNeeded) {
-                currentLevel++;
-                currentXP -= xpNeeded;
-                levelsGained++;
-            } else {
-                break;
-            }
+        while (currentXP >= xpNeeded && xpNeeded > 0){
+            const overflowXP = currentXP - xpNeeded;
+
+            currentLevel++
+            levelsGained++;
+            currentXP = overflowXP
+            xpNeeded = 80 * currentLevel
         }
+
+
+        // while (true) {
+            
+        //     if (currentXP >= xpNeeded) {
+        //         currentLevel++;
+        //         currentXP -= xpNeeded;
+        //         levelsGained++;
+        //     } else {
+        //         break;
+        //     }
+        // }
 
         // If levels were gained, update stats and skill points
         if (levelsGained > 0) {
