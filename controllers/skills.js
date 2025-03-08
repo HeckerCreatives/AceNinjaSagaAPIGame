@@ -107,7 +107,7 @@ exports.getSkillsWithCharacter = async (req, res) => {
                 cs.skill._id.toString() === skill._id.toString()
             );
 
-            acc[index + 1] = {
+            acc[skill.name] = {
                 ...skill.toObject(),
                 acquired: !!characterSkill,
                 currentLevel: characterSkill ? characterSkill.level : 0,
