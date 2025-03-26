@@ -7,6 +7,7 @@ const Rankings = require("../models/Ranking")
 const { CharacterInventory } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
+const { Battlepass } = require("../models/Battlepass")
 
 
 exports.createcharacter = async (req, res) => {
