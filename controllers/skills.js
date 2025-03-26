@@ -109,7 +109,7 @@ exports.getSkillsWithCharacter = async (req, res) => {
             const characterSkill = characterSkills.find(cs => 
                 cs.skill?._id.toString() === skill._id.toString()
             );
-            acc[skill.name + ` level: ${skill.levelRequirement}`] = {
+            acc[category == 'Basic' ? skill.name + ` level: ${skill.levelRequirement}` : skill.name] = {
                 ...skill.toObject(),
                 acquired: !!characterSkill,
                 currentLevel: characterSkill ? characterSkill.level : 0,
