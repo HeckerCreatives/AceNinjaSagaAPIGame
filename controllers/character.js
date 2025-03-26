@@ -6,6 +6,7 @@ const Characterwallet = require("../models/Characterwallet")
 const Rankings = require("../models/Ranking")
 const { CharacterInventory } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
+const Season = require("../models/Season")
 
 
 exports.createcharacter = async (req, res) => {
@@ -93,10 +94,13 @@ exports.createcharacter = async (req, res) => {
             items: [{ itemid: "" }]
         }], { session });
 
+        const currentseason = await Season.findOne({ isActive: "active" })
         // Create rankings
         await Rankings.create([{ 
             owner: characterId, 
-            mmr: 10 
+            mmr: 10,
+            season: currentseason._id,
+            rank: new mongoose.Types.ObjectId("67e35214166a3ba7e0fd5ea1")
         }], { session });
 
         // Create skill tree
@@ -123,7 +127,7 @@ exports.createcharacter = async (req, res) => {
                 document: { owner: characterId, type: inventoryData }
             }
         }));
-        await Characterinventory.bulkWrite(inventoryBulkWrite, { session });
+        await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
 
         const battlepassData = await Battlepass.findOne
         ({ owner: id, season: 1 })
@@ -344,28 +348,9 @@ exports.getplayerdata = async (req, res) => {
                 experience: 1,
                 badge: 1,
                 itemindex: 1,
+                createdAt: 1,
                 stats: { $arrayElemAt: ["$stats", 0] },      // Flatten stats
                 mmr: { $arrayElemAt: ["$ranking.mmr", 0] },      // Flatten ranking.mmr
-                wallet: {                 
-                    $map: {               
-                        input: "$wallet", 
-                        as: "w",          
-                        in: {             
-                            type: "$$w.type",      
-                            amount: "$$w.amount"  
-                        }
-                    }
-                },
-                inventory: {                 
-                    $map: {               
-                        input: "$inventory", 
-                        as: "w",          
-                        in: {             
-                            type: "$$w.type",      
-                            items: "$$w.items"  
-                        }
-                    }
-                },
             }
         }
     ];
