@@ -55,14 +55,6 @@ const BattlepassSchema = new mongoose.Schema(
                 type: Date
             }
         }],
-        seasonStart: {
-            type: Date,
-            required: true
-        },
-        seasonEnd: {
-            type: Date,
-            required: true
-        },
         status: {
             type: String,
             enum: ['active', 'completed', 'expired'],

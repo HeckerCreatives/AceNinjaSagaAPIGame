@@ -26,6 +26,7 @@ exports.createcharacter = async (req, res) => {
             });
         }
 
+
             
         const usernameRegex = /^[a-zA-Z0-9]+$/;
 
@@ -38,6 +39,13 @@ exports.createcharacter = async (req, res) => {
 
         if(!hair){
             return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
+        }
+
+        if(!gender || !outfit || !hair || !eyes || !facedetails || !color || !itemindex) {
+            return res.status(400).json({
+                message: "failed",
+                data: "Incomplete input data"
+            })
         }
 
 
@@ -55,7 +63,7 @@ exports.createcharacter = async (req, res) => {
         const data = await Characterdata.create([{ 
             owner: id, 
             username,
-            gender, 
+            gender: gender, 
             outfit,
             hair,
             eyes,
@@ -66,7 +74,8 @@ exports.createcharacter = async (req, res) => {
             level: 1,
             badge: "",
             itemindex
-        }], { session });
+        }], { session })
+      
 
         const characterId = data[0]._id;
 
@@ -131,7 +140,7 @@ exports.createcharacter = async (req, res) => {
         await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
 
         const battlepassData = await Battlepass.findOne
-        ({ owner: id, season: 1 })
+        ({ owner: id, season: currentseason._id })
 
         if(!battlepassData){
             await Battlepass.create([{
