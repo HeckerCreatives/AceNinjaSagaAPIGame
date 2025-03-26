@@ -8,6 +8,7 @@ const { CharacterInventory } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
 const { Battlepass } = require("../models/Battlepass")
+const { checkcharacter } = require("../utils/character")
 
 
 exports.createcharacter = async (req, res) => {
@@ -771,158 +772,157 @@ exports.updateplayertitle = async (req, res) => {
 //     }
 // };
 
-// exports.getcharacterstats = async (req, res) => {
-//     try {
-//         const { id } = req.user;
-//         const { characterid } = req.query;
+exports.getcharacterstats = async (req, res) => {
+    try {
+        const { id } = req.user;
+        const { characterid } = req.query;
 
-//         if(!characterid){
-//             return res.status(400).json({ 
-//                 message: "failed", 
-//                 data: "Please input character ID."
-//             });
-//         }
+        if(!characterid){
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "Please input character ID."
+            });
+        }
 
-//         const checker = await checkcharacter(id, characterid);
-//         if (checker === "failed") {
-//             return res.status(400).json({
-//                 message: "Unauthorized",
-//                 data: "You are not authorized to view this page."
-//             });
-//         }
+        const checker = await checkcharacter(id, characterid);
+        if (checker === "failed") {
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to view this page."
+            });
+        }
 
-//         // Fetch base character stats
-//         const characterStats = await CharacterStats.findOne({ 
-//             owner: new mongoose.Types.ObjectId(characterid) 
-//         });
+        // Fetch base character stats
+        const characterStats = await CharacterStats.findOne({ 
+            owner: new mongoose.Types.ObjectId(characterid) 
+        });
 
-//         if (!characterStats) {
-//             return res.status(404).json({
-//                 message: "failed",
-//                 data: "Character stats not found"
-//             });
-//         }
+        if (!characterStats) {
+            return res.status(404).json({
+                message: "failed",
+                data: "Character stats not found"
+            });
+        }
 
-//         // Fetch equipped items and their stats
-//         const characterInventory = await CharacterInventory.aggregate([
-//             { 
-//                 $match: { 
-//                     owner: new mongoose.Types.ObjectId(characterid) 
-//                 }
-//             },
-//             { 
-//                 $unwind: "$items" 
-//             },
-//             { 
-//                 $match: { 
-//                     "items.isEquipped": true 
-//                 }
-//             },
-//             {
-//                 $lookup: {
-//                     from: "items",
-//                     localField: "items.item",
-//                     foreignField: "_id",
-//                     as: "itemDetails"
-//                 }
-//             },
-//             { 
-//                 $unwind: "$itemDetails" 
-//             }
-//         ]);
+        // Fetch equipped items and their stats
+        const characterInventory = await CharacterInventory.aggregate([
+            { 
+                $match: { 
+                    owner: new mongoose.Types.ObjectId(characterid) 
+                }
+            },
+            { 
+                $unwind: "$items" 
+            },
+            { 
+                $match: { 
+                    "items.isEquipped": true 
+                }
+            },
+            {
+                $lookup: {
+                    from: "items",
+                    localField: "items.item",
+                    foreignField: "_id",
+                    as: "itemDetails"
+                }
+            },
+            { 
+                $unwind: "$itemDetails" 
+            }
+        ]);
 
-//         // Fetch equipped skills and their effects
-//         const characterSkills = await CharacterSkillTree.aggregate([
-//             {
-//                 $match: {
-//                     owner: new mongoose.Types.ObjectId(characterid)
-//                 }
-//             },
-//             {
-//                 $unwind: "$skills"
-//             },
-//             {
-//                 $lookup: {
-//                     from: "skills",
-//                     localField: "skills.skill",
-//                     foreignField: "_id",
-//                     as: "skillDetails"
-//                 }
-//             },
-//             {
-//                 $unwind: "$skillDetails"
-//             },
-//             {
-//                 $match: {
-//                     "skillDetails.type": "stats" // Only get stats-type skills
-//                 }
-//             }
-//         ]);
+        // Fetch equipped skills and their effects
+        const characterSkills = await CharacterSkillTree.aggregate([
+            {
+                $match: {
+                    owner: new mongoose.Types.ObjectId(characterid)
+                }
+            },
+            {
+                $unwind: "$skills"
+            },
+            {
+                $lookup: {
+                    from: "skills",
+                    localField: "skills.skill",
+                    foreignField: "_id",
+                    as: "skillDetails"
+                }
+            },
+            {
+                $unwind: "$skillDetails"
+            },
+            {
+                $match: {
+                    "skillDetails.type": "Stat" // Only get stats-type skills
+                }
+            }
+        ]);
 
-//         // Calculate total stats
-//         const totalStats = {
-//             health: characterStats.health,
-//             energy: characterStats.energy,
-//             armor: characterStats.armor,
-//             magicresist: characterStats.magicresist,
-//             speed: characterStats.speed,
-//             attackdamage: characterStats.attackdamage,
-//             armorpen: characterStats.armorpen,
-//             magicpen: characterStats.magicpen,
-//             critchance: characterStats.critchance,
-//             magicdamage: characterStats.magicdamage,
-//             lifesteal: characterStats.lifesteal,
-//             omnivamp: characterStats.omnivamp,
-//             healshieldpower: characterStats.healshieldpower,
-//             critdamage: characterStats.critdamage
-//         };
 
-//         // Add equipment bonuses
-//         characterInventory.forEach(item => {
-//             if (item.itemDetails.stats) {
-//                 Object.entries(item.itemDetails.stats).forEach(([stat, value]) => {
-//                     if (totalStats.hasOwnProperty(stat)) {
-//                         totalStats[stat] += value;
-//                     }
-//                 });
-//             }
-//         });
+        const totalStats = {
+            health: characterStats.health,
+            energy: characterStats.energy,
+            armor: characterStats.armor,
+            magicresist: characterStats.magicresist,
+            speed: characterStats.speed,
+            attackdamage: characterStats.attackdamage,
+            armorpen: characterStats.armorpen,
+            magicpen: characterStats.magicpen,
+            critchance: characterStats.critchance,
+            magicdamage: characterStats.magicdamage,
+            lifesteal: characterStats.lifesteal,
+            omnivamp: characterStats.omnivamp,
+            healshieldpower: characterStats.healshieldpower,
+            critdamage: characterStats.critdamage
+        };
 
-//         // Add skill bonuses
-//         characterSkills.forEach(skill => {
-//             if (skill.skillDetails.effects) {
-//                 const effects = new Map(Object.entries(skill.skillDetails.effects));
-//                 effects.forEach((value, stat) => {
-//                     if (totalStats.hasOwnProperty(stat)) {
-//                         totalStats[stat] += value * skill.skills.level;
-//                     }
-//                 });
-//             }
-//         });
+        characterInventory.forEach(item => {
+            if (item.itemDetails.stats) {
+                Object.entries(item.itemDetails.stats).forEach(([stat, value]) => {
+                    if (totalStats.hasOwnProperty(stat)) {
+                        totalStats[stat] += value;
+                    }
+                });
+            }
+        });
 
-//         return res.json({
-//             message: "success",
-//             data: {
-//                 baseStats: characterStats,
-//                 equipmentBonuses: characterInventory.map(item => ({
-//                     name: item.itemDetails.name,
-//                     type: item.itemDetails.type,
-//                     stats: item.itemDetails.stats
-//                 })),
-//                 skillBonuses: characterSkills.map(skill => ({
-//                     name: skill.skillDetails.name,
-//                     level: skill.skills.level,
-//                     effects: Object.fromEntries(skill.skillDetails.effects)
-//                 })),
-//                 totalStats
-//             }
-//         });
+        characterSkills.forEach(skill => {
+            if (skill.skillDetails.effects) {
+                const effects = new Map(Object.entries(skill.skillDetails.effects));
 
-//     } catch (error) {
-//         console.error('Error in getcharacterstats:', error);
-//         return res.status(500).json({
-//             message: "failed",
-//             data: "An error occurred while fetching character stats"
-//         });
-//     }
-// };
+                effects.forEach((value, stat) => {
+                    if (totalStats.hasOwnProperty(stat)) {
+                        totalStats[stat] += value * skill.skills.level;
+                    }
+                });
+            }
+        });
+
+        return res.json({
+            message: "success",
+            data: {
+                baseStats: characterStats,
+                equipmentBonuses: characterInventory.map(item => ({
+                    name: item.itemDetails.name,
+                    type: item.itemDetails.type,
+                    stats: item.itemDetails.stats
+                })),
+                // skillBonuses: characterSkills.map(skill => ({
+                //     name: skill.skillDetails.name,
+                //     level: skill.skills.level,
+                //     effects: Object.fromEntries(skill.skillDetails.effects)
+                // })),
+                totalStats
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in getcharacterstats:', error);
+        return res.status(500).json({
+            message: "failed",
+            data: "An error occurred while fetching character stats"
+        });
+    }
+};

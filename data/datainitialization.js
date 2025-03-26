@@ -11,7 +11,7 @@ exports.weaponData = [
             level: 2,
             damage: 50,
             defense: 0,
-            speed: 0
+            speed: 0,
         },
         imageUrl: ""
     },
