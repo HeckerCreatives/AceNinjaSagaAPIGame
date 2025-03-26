@@ -6,16 +6,15 @@ const NewsSchema = new mongoose.Schema(
             type: String,
             index: true
         },
-        content: [
-            {
-                type: {
-                    type: String
-                }, // video  description  image
-                value: {
-                    type: String
-                }
-            }
-        ]
+        content: {
+            type: String,
+        },
+        type: {
+            type: String,
+        },
+        url: {
+            type: String,
+        }
     },
     {
         timestamps: true

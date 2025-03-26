@@ -4,6 +4,7 @@ const routers = app => {
     app.use("/auth", require("./auth"))
     app.use("/announcement", require("./announcement"))
     app.use("/character", require("./character"))
+    app.use("/downloadlinks", require("./downloadlinks"))
     app.use("/maintenance", require("./maintenance"))
     app.use("/marketplace", require("./marketplace"))
     app.use("/news", require("./news"))

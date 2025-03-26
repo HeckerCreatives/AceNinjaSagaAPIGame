@@ -125,7 +125,7 @@ exports.initialize = async () => {
                 levelRequirement: 0,
                 currency: "skillpoints",                
                 spCost: 1,
-                maxLevel: 1,
+                maxLevel: 39,
                 effects: { "energy": 40 },
                 prerequisites: []
             })
@@ -271,7 +271,7 @@ exports.initialize = async () => {
                 levelRequirement: 0,
                 currency: "skillpoints",                
                 spCost: 1,
-                maxLevel: 1,
+                maxLevel: 39,
                 effects: { "health": 40 },
                 prerequisites: []
             })
@@ -416,7 +416,7 @@ exports.initialize = async () => {
                 levelRequirement: 0,
                 currency: "skillpoints",                
                 spCost: 1,
-                maxLevel: 1,
+                maxLevel: 39,
                 effects: { "speed": 1 },
                 prerequisites: []
             })

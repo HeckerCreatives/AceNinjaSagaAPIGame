@@ -43,10 +43,10 @@ const CharacterDataSchema = new mongoose.Schema(
             type: Number,
             index: true
         },
-        level: {
+        experience: {
             type: Number
         },
-        experience: {
+        level: {
             type: Number
         },
         badge: {

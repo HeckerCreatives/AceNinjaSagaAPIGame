@@ -10,7 +10,9 @@ const MaintenanceSchema = new mongoose.Schema(
             type: String
         },
         value: {
-            type: Boolean
+            type: String,
+            enum: ["0", "1"],
+            default: "0"
         }
     },
     {

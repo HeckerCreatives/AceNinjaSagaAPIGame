@@ -87,8 +87,11 @@ exports.getSkillsWithCharacter = async (req, res) => {
         // Get all available skills with pagination
         const skills = await Skill.find(query)
             .skip(pageOptions.page * pageOptions.limit)
-            .limit(pageOptions.limit);
+            .limit(pageOptions.limit)
+            .sort({ levelRequirement: 1 });
 
+
+            console.log(skills)
         // Get character's skill tree if characterid is provided
         let characterSkills = [];
         if (characterid) {
@@ -104,10 +107,9 @@ exports.getSkillsWithCharacter = async (req, res) => {
         const formattedSkills = skills.reduce((acc, skill, index) => {
             // Find if character has this skill
             const characterSkill = characterSkills.find(cs => 
-                cs.skill._id.toString() === skill._id.toString()
+                cs.skill?._id.toString() === skill._id.toString()
             );
-
-            acc[skill.name] = {
+            acc[skill.name + ` level: ${skill.levelRequirement}`] = {
                 ...skill.toObject(),
                 acquired: !!characterSkill,
                 currentLevel: characterSkill ? characterSkill.level : 0,
@@ -167,8 +169,10 @@ exports.getcharacterSkills = async (req, res) => {
 
         // Filter out stat type skills and format response
         const nonStatSkills = characterSkills.skills.filter(skill => 
-            skill.skill.type !== 'Stat'
+            skill.skill?.type !== 'Stat'
         );
+
+        console.log(nonStatSkills)
 
         const formattedResponse = {
             data: nonStatSkills.reduce((acc, skill, index) => {
@@ -243,7 +247,7 @@ exports.acquirespbasedskills = async (req, res) => {
 
         // Check if character already has this skill
         const existingSkill = skillTree.skills.find(s => 
-            s.skill._id.toString() === skillid
+            s.skill?._id.toString() === skillid
         );
 
         if (existingSkill) {
@@ -260,7 +264,7 @@ exports.acquirespbasedskills = async (req, res) => {
         if (skill.prerequisites && skill.prerequisites.length > 0) {
             const hasPrerequisites = skill.prerequisites.every(prereqId => {
                 return skillTree.skills.some(s => 
-                    s.skill._id.toString() === prereqId.toString() &&
+                    s.skill?._id.toString() === prereqId.toString() &&
                     s.level >= 1
                 );
             });
@@ -321,10 +325,6 @@ exports.acquirespbasedskills = async (req, res) => {
 
         return res.status(200).json({
             message: "success",
-            data: {
-                skillTree: skillTree,
-                remainingPoints: character.skillpoints
-            }
         });
 
     } catch (err) {
