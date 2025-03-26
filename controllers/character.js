@@ -372,7 +372,7 @@ exports.getplayerdata = async (req, res) => {
 
     const characterData = await Characterdata.aggregate(matchCondition)
 
-    return res.status(200).json({ message: "success", data: characterData})
+    return res.status(200).json({ message: "success", data: characterData[0]})
 }
 
 exports.getplayercharacters = async (req, res) => {
