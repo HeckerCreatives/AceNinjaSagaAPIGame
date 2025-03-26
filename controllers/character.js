@@ -136,7 +136,7 @@ exports.createcharacter = async (req, res) => {
         if(!battlepassData){
             await Battlepass.create([{
                 owner: id,
-                season: 1,
+                season: currentseason._id,
                 level: 1,
                 xp: 0,
                 rewards: []

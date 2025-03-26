@@ -9,9 +9,9 @@ const BattlepassSchema = new mongoose.Schema(
             index: true
         },
         season: {
-            type: Number,
-            required: true,
-            index: true
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Season",
+            required: true
         },
         level: {
             type: Number,
@@ -119,9 +119,9 @@ BattlepassSchema.methods.claimReward = async function(level, type) {
 const BattlepassRewardsSchema = new mongoose.Schema(
     {
         season: {
-            type: Number,
-            required: true,
-            index: true
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Season",
+            required: true
         },
         level: {
             type: Number,
