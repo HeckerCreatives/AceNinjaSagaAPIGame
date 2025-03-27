@@ -1,5 +1,5 @@
-const { getleaderboards, addmmr } = require('../controllers/ranking');
-const { protectplayer } = require('../middleware/middleware');
+const { getleaderboards, addmmr, getpvpleaderboards } = require('../controllers/ranking');
+const { protectplayer, protectsuperadmin } = require('../middleware/middleware');
 
 const router = require('express').Router();
 

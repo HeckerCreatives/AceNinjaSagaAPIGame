@@ -1,12 +1,10 @@
-const { creatnews, getnews, editnews, deletenews } = require("../controllers/news")
-
 const router = require("express").Router()
+const { getnews } = require("../controllers/news")
+const { protectplayer } = require("../middleware/middleware")
 
 
 router
-.post("/createnews", creatnews)
-.get("/getnews", getnews)
-.post("/editnews", editnews)
-.get("/deletenews", deletenews)
+
+ .get("/getnews", protectplayer, getnews)
 
 module.exports = router

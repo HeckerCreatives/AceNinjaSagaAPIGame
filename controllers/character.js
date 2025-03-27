@@ -10,6 +10,7 @@ const Season = require("../models/Season")
 const { Battlepass } = require("../models/Battlepass")
 const { checkcharacter } = require("../utils/character")
 
+const Companion = require("../models/Companion")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -27,7 +28,6 @@ exports.createcharacter = async (req, res) => {
             });
         }
 
-
             
         const usernameRegex = /^[a-zA-Z0-9]+$/;
 
@@ -40,13 +40,6 @@ exports.createcharacter = async (req, res) => {
 
         if(!hair){
             return res.status(400).json({ message: "failed", data: "Character creation failed: Missing required attributes. Please select gender, outfit, hair, eyes, face details, and color."})
-        }
-
-        if(!gender || !outfit || !hair || !eyes || !facedetails || !color || !itemindex) {
-            return res.status(400).json({
-                message: "failed",
-                data: "Incomplete input data"
-            })
         }
 
 
@@ -64,7 +57,7 @@ exports.createcharacter = async (req, res) => {
         const data = await Characterdata.create([{ 
             owner: id, 
             username,
-            gender: gender, 
+            gender, 
             outfit,
             hair,
             eyes,
@@ -75,8 +68,7 @@ exports.createcharacter = async (req, res) => {
             level: 1,
             badge: "",
             itemindex
-        }], { session })
-      
+        }], { session });
 
         const characterId = data[0]._id;
 
@@ -105,13 +97,10 @@ exports.createcharacter = async (req, res) => {
             items: [{ itemid: "" }]
         }], { session });
 
-        const currentseason = await Season.findOne({ isActive: "active" })
         // Create rankings
         await Rankings.create([{ 
             owner: characterId, 
-            mmr: 10,
-            season: currentseason._id,
-            rank: new mongoose.Types.ObjectId("67e35214166a3ba7e0fd5ea1")
+            mmr: 10 
         }], { session });
 
         // Create skill tree
@@ -141,17 +130,120 @@ exports.createcharacter = async (req, res) => {
         await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
 
         const battlepassData = await Battlepass.findOne
-        ({ owner: id, season: currentseason._id })
+        ({ owner: id, season: 1 })
 
         if(!battlepassData){
             await Battlepass.create([{
                 owner: id,
-                season: currentseason._id,
+                season: 1,
                 level: 1,
                 xp: 0,
                 rewards: []
             }], { session })
         }
+
+        await MonthlyLogin.create({
+            owner: characterId,
+            month: new Date().getMonth(),
+            year: new Date().getFullYear()
+        }, { session })
+        
+        await SpinnerRewards.create({
+            owner: characterId
+        }, { session })
+
+        const companions = [
+            {
+                owner: characterId,
+                name: "Viper",
+                isEquipped: false,
+                passivedescription: "Grant player immunity to poison effect. Each turn player recovers 50 health and energy.",
+                activedescription: "Reduce opponents max. health by 10% and stun them for 1 turn. Can only be used once in combat.",
+                passiveeffects: new Map([
+                    ['health', 50],
+                    ['energy', 50],
+                    ['poisonimmunity', 100]
+                ]),
+                activeeffects: new Map([
+                    ['maxhealthreduce', 10],
+                    ['stun', 1]
+                ]),
+                imageUrl: "",
+                locked: false
+            },
+            {
+                owner: characterId,
+                name: "Terra",
+                isEquipped: false,
+                passivedescription: "Grant player 20 armor and magic resist.",
+                activedescription: "Heal player for 30% max health. Can only be used once in combat.",
+                passiveeffects: new Map([
+                    ['armor', 20],
+                    ['magicresist', 20]
+                ]),
+                activeeffects: new Map([
+                    ['healpercentage', 30]
+                ]),
+                imageUrl: "",
+                locked: true
+            },
+            {
+                owner: characterId,
+                name: "Gale",
+                isEquipped: false,
+                passivedescription: "Grant player 10% critical chance and 15% bonus critical damage.",
+                activedescription: "Deal 1000 damage to all the enemies. This skill can not be blocked or dodged. Can be used only once in combat.",
+                passiveeffects: new Map([
+                    ['critchance', 10],
+                    ['critdamage', 15]
+                ]),
+                activeeffects: new Map([
+                    ['damage', 1000],
+                    ['cannotdodge', 100],
+                    ['cannotblock', 100],
+                    ['targetall', 100]
+                ]),
+                imageUrl: "",
+                locked: true
+            },
+            {
+                owner: characterId,
+                name: "Shade",
+                isEquipped: false,
+                passivedescription: "Grant player 150 additional damage when above 50% max. health, and 150 damage reduction when below 50% max. health.",
+                activedescription: "Remove all negative effects from the player and recover 500 energy.",
+                passiveeffects: new Map([
+                    ['conditionaldamage', 150],
+                    ['healththreshold', 50],
+                    ['damagereduction', 150]
+                ]),
+                activeeffects: new Map([
+                    ['cleanse', 100],
+                    ['energy', 500]
+                ]),
+                imageUrl: "",
+                locked: true
+            },
+            {
+                owner: characterId,
+                name: "Blaze",
+                isEquipped: false,
+                passivedescription: "Grant player bonus 10 speed. Player's every damage attack reduces 2% max. health from the target.",
+                activedescription: "Give player immunity to negative effects for 3 turns.",
+                passiveeffects: new Map([
+                    ['speed', 10],
+                    ['maxhealthreduction', 2]
+                ]),
+                activeeffects: new Map([
+                    ['immunity', 100],
+                    ['immunityturns', 3]
+                ]),
+                imageUrl: "",
+                locked: true
+            }
+        ];
+        
+            await Companion.insertMany({companions}, { session });
 
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
@@ -167,7 +259,6 @@ exports.createcharacter = async (req, res) => {
         session.endSession();
     }
 }
-
 // exports.createcharacter = async (req, res) => {
 
 //     const { id } = req.user

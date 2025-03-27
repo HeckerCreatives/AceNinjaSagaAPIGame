@@ -11,15 +11,30 @@ const CompanionSchema = new mongoose.Schema(
         name: {
             type: String
         },
-        rarity: {
+        isEquipped: {
+            type: Boolean,
+            default: false
+        },
+        activedescription: {
             type: String
         },
-        skill: {
+        passiveDescription: {
             type: String
         },
-        effects: {
+        passiveeffects: {
             type: Map, 
             of: Number 
+        },
+        activeeffects: {
+            type: Map, 
+            of: Number 
+        },
+        imageUrl: {
+            type: String
+        },
+        locked: {
+            type: Boolean,
+            default: false
         }
     },
     {
