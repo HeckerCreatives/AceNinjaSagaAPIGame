@@ -929,3 +929,69 @@ exports.getcharacterstats = async (req, res) => {
         });
     }
 };
+
+
+exports.equipunequiptitle = async (req, res) => {
+
+    const { id } = req.user
+    const { characterid, titleindex } = req.body
+
+    if(!id){
+        return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
+    }
+    if(!characterid || !titleindex){
+        return res.status(400).json({ message: "failed", data: "Please input character ID and title index."})
+    }
+
+    const checker = await checkcharacter(id, characterid);
+
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page."
+        });
+    }
+
+    await Characterdata.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(characterid)}, { $set: { title: titleindex } })
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem encountered while fetching character title. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
+    })
+
+    return res.status(200).json({ message: "success" })
+}
+
+
+exports.equipunequipbadge = async (req, res) => {
+
+    const { id } = req.user
+    const { characterid, badgeindex } = req.body
+
+    if(!id){
+        return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
+    }
+    if(!characterid || !badgeindex){
+        return res.status(400).json({ message: "failed", data: "Please input character ID and badge index."})
+    }
+
+    const checker = await checkcharacter(id, characterid);
+
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page."
+        });
+    }
+
+    await Characterdata.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(characterid)}, { $set: { badge: badgeindex } })
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem encountered while fetching character badge. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
+    })
+
+    return res.status(200).json({ message: "success" })
+}
