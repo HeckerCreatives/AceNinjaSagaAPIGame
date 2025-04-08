@@ -41,6 +41,7 @@ const CharacterDataSchema = new mongoose.Schema(
         },
         title: {
             type: Number,
+            index: true
         },
         experience: {
             type: Number

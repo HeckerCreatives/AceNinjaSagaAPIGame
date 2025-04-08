@@ -2731,6 +2731,7 @@ exports.initialize = async () => {
 
         const allcharacters = await Characterdata.find()
 
+
         // for (let i = 0; i < allcharacters.length; i++) {
             
         //     const emeraldwallet = await Characterwallet.findOne({ owner: allcharacters[i]._id, type: "emerald" })
