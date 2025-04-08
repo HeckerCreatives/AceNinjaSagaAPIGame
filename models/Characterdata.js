@@ -40,7 +40,7 @@ const CharacterDataSchema = new mongoose.Schema(
             index: true
         },
         title: {
-            type: String,
+            type: Number,
         },
         experience: {
             type: Number
@@ -49,7 +49,7 @@ const CharacterDataSchema = new mongoose.Schema(
             type: Number
         },
         badge: {
-            type: String
+            type: Number
         },
         itemindex: {
             type: Number
