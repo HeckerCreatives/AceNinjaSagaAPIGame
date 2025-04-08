@@ -127,7 +127,16 @@ exports.buyitem = async (req, res) => {
             }
 
             const itemData = item.items[0];
+            // Check if item already exists in inventory
+            const inventory = await CharacterInventory.findOne(
+                { owner: characterid, 'items.item': itemid },
+                { 'items.$': 1 }
+            ).session(session);
 
+            if (inventory?.items[0]) {
+                return res.status(400).json({ message: "failed", data: "Item already exists in inventory" });
+            } 
+            
             // Check wallet balance
             const wallet = await Characterwallet.findOne({ 
                 owner: new mongoose.Types.ObjectId(characterid), 
@@ -138,7 +147,7 @@ exports.buyitem = async (req, res) => {
                 await session.abortTransaction();
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
-
+            
             if (wallet.amount < itemData.price) {
                 await session.abortTransaction();
                 return res.status(400).json({ message: "failed", data: "Insufficient balance" });
@@ -152,26 +161,13 @@ exports.buyitem = async (req, res) => {
             );
 
 
-            // Check if item already exists in inventory
-            const inventory = await CharacterInventory.findOne(
-                { owner: characterid, 'items.item': itemid },
-                { 'items.$': 1 }
-            ).session(session);
-
-            if (inventory?.items[0]) {
-                await CharacterInventory.findOneAndUpdate(
-                    { owner: characterid, 'items.item': itemid },
-                    { $inc: { 'items.$.quantity': 1 } },
-                    { session }
-                );
-            } else {
             // Update inventory
             await CharacterInventory.findOneAndUpdate(
                 { owner: characterid, type: itemData.type },
                 { $push: { items: { item: itemData._id } } },
                 { upsert: true, new: true, session }
             );
-            }
+            
             // Commit transaction
             await session.commitTransaction();
             return res.status(200).json({ 
