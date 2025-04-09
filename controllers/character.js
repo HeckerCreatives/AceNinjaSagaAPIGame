@@ -649,6 +649,10 @@ exports.updateplayerprofile = async (req, res) => {
 
     const wallet = await Characterwallet.findOne({owner: new mongoose.Types.ObjectId(characterid), type: "crystal"})
 
+    if (wallet.amount <= 500){
+        return res.status(400).json({message: "faield", data: "Crystals not enough! Please buy more to change your name"})
+    }
+
     const usernameRegex = /^[a-zA-Z0-9]+$/;
 
     if(username.length < 5 || username.length > 20){
@@ -667,6 +671,8 @@ exports.updateplayerprofile = async (req, res) => {
 
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
     })
+
+    await Characterwallet.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid), type: "crystal"}, {$inc: {amount: -500}})
 
     return res.status(200).json({ message: "success"})
 
