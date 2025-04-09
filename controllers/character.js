@@ -57,7 +57,7 @@ exports.createcharacter = async (req, res) => {
         }
         // Create character data
         const data = await Characterdata.create([{ 
-            owner: id, 
+            owner: new mongoose.Types.ObjectId(id), 
             username,
             gender, 
             outfit,
@@ -68,11 +68,14 @@ exports.createcharacter = async (req, res) => {
             title: 0,
             experience: 0,
             level: 1,
-            badge: "",
+            badge: 0,
             itemindex
         }], { session });
 
+
         const characterId = data[0]._id;
+
+        console.log("hello")
 
         // Create character stats
         await CharacterStats.create([{
@@ -92,6 +95,7 @@ exports.createcharacter = async (req, res) => {
             healshieldpower: 0,
             critdamage: 0,
         }], { session });
+        console.log("hi")
 
         // Create character titles
         await Charactertitle.create([{ 
@@ -101,6 +105,7 @@ exports.createcharacter = async (req, res) => {
 
         const getranktier = await RankTier.findOne({ name: "Rookie" })
         const currentseason = await Season.findOne({ isActive: "active" })
+
         // Create rankings
         await Rankings.create([{ 
             owner: characterId, 
