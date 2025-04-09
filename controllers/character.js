@@ -109,7 +109,7 @@ exports.createcharacter = async (req, res) => {
         // Create rankings
         await Rankings.create([{ 
             owner: characterId, 
-            mmr: 10,
+            mmr: 0,
             ranktier: getranktier._id, 
             season: currentseason._id
         }], { session });
