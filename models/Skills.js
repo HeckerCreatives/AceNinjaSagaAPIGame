@@ -32,7 +32,7 @@ const SkillSchema = new mongoose.Schema({
     },
     currency: {
         type: String,
-        enum: ['coins', 'crystal', 'emerald', 'skillpoints']
+        enum: ['coins', 'crystal', 'skillpoints']
     },
     spCost: { 
         type: Number, 

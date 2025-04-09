@@ -53,7 +53,7 @@ exports.weaponData = [
         rarity: "legendary",
         gender: "unisex",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "Increase Max health by 300 and all damage by 150 points.",
         stats: {
             level: 14,
@@ -85,7 +85,7 @@ exports.weaponData = [
         rarity: "legendary",
         gender: "unisex",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "Recover 150 health and energy each turn. Reduce skill cooldown by 1 after each weapon attack.",
         stats: {
             level: 24,
@@ -149,7 +149,7 @@ exports.weaponData = [
         rarity: "rare",
         gender: "unisex",
         price: 200,
-        currency: "emerald",
+        currency: "crystal",
         description: "Increase all damage by 500 every 3 turns. Every weapon attack reduces target’s 5% max. health and has 35% chance to remove all buffs from the target.",
         stats: {
             level: 40,
@@ -264,7 +264,7 @@ exports.outfitData = [
         rarity: "common",
         gender: "male",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -280,7 +280,7 @@ exports.outfitData = [
         rarity: "common",
         gender: "male",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -296,7 +296,7 @@ exports.outfitData = [
         rarity: "common",
         gender: "male",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -312,7 +312,7 @@ exports.outfitData = [
         rarity: "rare",
         gender: "male",
         price: 500,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -328,7 +328,7 @@ exports.outfitData = [
         rarity: "rare",
         gender: "male",
         price: 500,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -443,7 +443,7 @@ exports.hairData = [
         rarity: "common",
         gender: "male",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -459,7 +459,7 @@ exports.hairData = [
         rarity: "common",
         gender: "male",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -475,7 +475,7 @@ exports.hairData = [
         rarity: "common",
         gender: "male",
         price: 100,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -491,7 +491,7 @@ exports.hairData = [
         rarity: "rare",
         gender: "male",
         price: 250,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,
@@ -507,7 +507,7 @@ exports.hairData = [
         rarity: "rare",
         gender: "male",
         price: 250,
-        currency: "emerald",
+        currency: "crystal",
         description: "N/A",
         stats: {
             level: 1,

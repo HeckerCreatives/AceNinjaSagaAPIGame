@@ -118,7 +118,7 @@ exports.createcharacter = async (req, res) => {
         }], { session });
 
         // Create wallets
-        const walletListData = ["coins", "crystal", "emerald"];
+        const walletListData = ["coins", "crystal"];
         const walletBulkwrite = walletListData.map(walletData => ({
             insertOne: {
                 document: { owner: characterId, type: walletData, amount: "0" }
@@ -641,6 +641,8 @@ exports.updateplayerprofile = async (req, res) => {
     if(!character){
         return res.status(400).json({ message: "failed", data: "Character not found."})
     }
+
+    const wallet = await Characterwallet.findOne({owner: new mongoose.Types.ObjectId(characterid), type: "crystal"})
 
     const usernameRegex = /^[a-zA-Z0-9]+$/;
 
