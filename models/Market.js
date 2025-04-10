@@ -65,6 +65,11 @@ const itemSchema = new mongoose.Schema({
 // Market Schema
 const MarketSchema = new mongoose.Schema({
     items: [itemSchema],
+    marketType: {
+        type: String,
+        required: true,
+        enum: ['market', 'shop']
+    },
     lastUpdated: {
         type: Date,
         default: Date.now

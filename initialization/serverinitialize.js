@@ -92,6 +92,7 @@ exports.initialize = async () => {
                 // Create initial market with all available items
                 const newMarket = await Market.create({
                     items: availableItems,
+                    
                     lastUpdated: new Date()
                 });
     
@@ -2731,24 +2732,6 @@ exports.initialize = async () => {
 
         const allcharacters = await Characterdata.find()
 
-
-        // for (let i = 0; i < allcharacters.length; i++) {
-            
-        //     const emeraldwallet = await Characterwallet.findOne({ owner: allcharacters[i]._id, type: "emerald" })
-
-        //     if(!emeraldwallet){
-        //         await Characterwallet.create({ owner: allcharacters[i]._id, type: "emerald", amount: 0 })
-        //         .catch(err => {
-        //             console.log(`Error saving emerald wallet data: ${err}`)
-        //             return
-        //         })
-
-        //         console.log('Emerald wallet created for', allcharacters[i].username)
-        //     }
-        // }
-
-        // initialize skill tree for existing users
-
         for (let i = 0; i < allcharacters.length; i++) {
             
             const skilltree = await CharacterSkillTree.findOne({ owner: allcharacters[i]._id })
@@ -2756,7 +2739,7 @@ exports.initialize = async () => {
             if(!skilltree){
                 await CharacterSkillTree.create({ owner: allcharacters[i]._id, skillPoints: 0, skills: [], unlockedSkills: []})
                 .catch(err => {
-                    console.log(`Error saving emerald wallet data: ${err}`)
+                    console.log(`Error saving character skill tree data: ${err}`)
                     return
                 })
 

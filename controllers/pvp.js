@@ -5,6 +5,8 @@ const Rankings = require("../models/Ranking")
 const PvpStats = require("../models/PvpStats")
 const Characterdata = require("../models/Characterdata")
 const { RemainingTime, getSeasonRemainingTimeInMilliseconds } = require("../utils/datetimetools")
+const RankTier = require("../models/RankTier")
+const { Battlepass } = require("../models/Battlepass")
 
 exports.getpvphistory = async (req, res) => {
     try {
@@ -259,70 +261,86 @@ exports.getcharacterpvpstats = async (req, res) => {
 };
 
 exports.pvpmatchresult = async (req, res) => {
+    const session = await mongoose.startSession();
     try {
+        await session.startTransaction();
+
         const { id } = req.user;
         const { opponent, status, characterid } = req.body;
 
         if (!opponent || status === undefined) {
-            return res.status(400).json({ message: "failed", data: "Opponent character ID and match status are required." });
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "Opponent character ID and match status are required." 
+            });
         }
 
-        const activeSeason = await Season.findOne({ isActive: "active" });
-
+        const activeSeason = await Season.findOne({ isActive: "active" }).session(session);
         if (!activeSeason) {
-            return res.status(400).json({ message: "failed", data: "No active season found." });
+            await session.abortTransaction();
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "No active season found." 
+            });
         }
 
-
-        const newMatch = await Pvp.create({
+        // Create match records
+        await Pvp.create([{
             owner: characterid,
             opponent,
             status,
             season: activeSeason._id
-        });
-
-        const newMatch1 = await Pvp.create({
+        }], { session });
+        
+        await Pvp.create([{
             owner: opponent,
             opponent: characterid,
-            status,
+            status: status === 1 ? 0 : 1, // Inverse status for opponent
             season: activeSeason._id
-        });
+        }], { session });
 
-        let ranking = await PvpStats.findOne({ owner: characterid });
-        let enemy = await PvpStats.findOne({ owner: opponent });
-
-        let rankingmmr = await Rankings.findOne({ owner: characterid });
-        let enemymmr = await Rankings.findOne({ owner: opponent });
+        // Get or create PVP stats
+        let [ranking, enemy] = await Promise.all([
+            PvpStats.findOne({ owner: characterid }).session(session),
+            PvpStats.findOne({ owner: opponent }).session(session)
+        ]);
 
         if (!enemy) {
-            enemy = await PvpStats.create({
+            enemy = await PvpStats.create([{
                 owner: opponent,
                 mmr: 0,
                 win: 0,
                 lose: 0,
                 totalMatches: 0,
                 winRate: 0
-            });
+            }], { session });
+            enemy = enemy[0];
         }
-
+        
         if (!ranking) {
-            ranking = await PvpStats.create({
+            ranking = await PvpStats.create([{
                 owner: characterid,
                 mmr: 0,
                 win: 0,
                 lose: 0,
                 totalMatches: 0,
                 winRate: 0
-            });
+            }], { session });
+            ranking = ranking[0];
         }
 
-        if (rankingmmr.mmr < 10) rankingmmr.mmr = 10; // Ensure baseline MMR is at least 10
-        if (enemymmr.mmr < 10) enemymmr.mmr = 10; // Ensure baseline MMR is at least 10
+        // Get or update MMR rankings
+        let [rankingmmr, enemymmr] = await Promise.all([
+            Rankings.findOne({ owner: characterid }).session(session),
+            Rankings.findOne({ owner: opponent }).session(session)
+        ]);
+
+        // Calculate MMR changes
+        if (rankingmmr.mmr < 10) rankingmmr.mmr = 10;
+        if (enemymmr.mmr < 10) enemymmr.mmr = 10;
         
         const BASE_K_FACTOR = 32;
         const PLACEMENT_K_FACTOR = 64;
-        
-        // Use higher K-factor for first 10 matches (placement matches)
         const kFactor = (ranking.totalMatches < 10 || enemy.totalMatches < 10) 
             ? PLACEMENT_K_FACTOR 
             : BASE_K_FACTOR;
@@ -330,48 +348,87 @@ exports.pvpmatchresult = async (req, res) => {
         const mmrGap = rankingmmr.mmr - enemymmr.mmr;
         const expectedScore = 1 / (1 + Math.pow(10, mmrGap / 400));
         const mmrChange = Math.round(kFactor * (1 - expectedScore));
-        
-        // Ensure minimum MMR change to avoid stagnation
-        const minMMRGain = 1; // Ensures at least 1 MMR gain/loss per match
-        
+        const minMMRGain = 1;
+
+        // Update stats based on match result
         if (status === 1) {
             ranking.win += 1;
             enemy.lose += 1;
-        
             rankingmmr.mmr = Math.max(10, rankingmmr.mmr + Math.max(mmrChange, minMMRGain));
             enemymmr.mmr = Math.max(10, enemymmr.mmr - Math.max(mmrChange, minMMRGain));
-        
         } else {
             enemy.win += 1;
             ranking.lose += 1;
-            console.log("before",enemymmr.mmr)
-            console.log("before",rankingmmr.mmr)
-        
             enemymmr.mmr = Math.max(10, enemymmr.mmr + Math.max(mmrChange, minMMRGain));
             rankingmmr.mmr = Math.max(10, rankingmmr.mmr - Math.max(mmrChange, minMMRGain));
-
-            console.log("after",enemymmr.mmr)
-            console.log("after",rankingmmr.mmr)
         }
-        
+
+        // Update total matches and win rates
         enemy.totalMatches = enemy.win + enemy.lose;
         enemy.winRate = enemy.totalMatches > 0 ? (enemy.win / enemy.totalMatches) * 100 : 0;
-
-    
-
         ranking.totalMatches = ranking.win + ranking.lose;
         ranking.winRate = ranking.totalMatches > 0 ? (ranking.win / ranking.totalMatches) * 100 : 0;
 
-        await rankingmmr.save();
-        await enemymmr.save();
-        await enemy.save();
-        await ranking.save();
+        // Get rank tiers and update ranks
+        const rankTiers = await RankTier.find({})
+            .sort({ requiredmmr: 1 })
+            .session(session);
 
-        return res.status(200).json({ message: "success" });
+        // Update rank tiers based on MMR
+        for (const tier of rankTiers) {
+            if (rankingmmr.mmr >= parseInt(tier.requiredmmr)) {
+                rankingmmr.rank = tier._id;
+            }
+            if (enemymmr.mmr >= parseInt(tier.requiredmmr)) {
+                enemymmr.rank = tier._id;
+            }
+        }
+
+        // Update battle pass
+        const [winnerBP, loserBP] = await Promise.all([
+            Battlepass.findOne({ 
+                owner: status === 1 ? characterid : opponent,
+                season: activeSeason._id 
+            }).session(session),
+            Battlepass.findOne({ 
+                owner: status === 1 ? opponent : characterid,
+                season: activeSeason._id 
+            }).session(session)
+        ]);
+
+        if (winnerBP) await winnerBP.addExperience(100); // Winner gets 100 XP
+        if (loserBP) await loserBP.addExperience(50);    // Loser gets 50 XP
+
+        // Save all changes
+        await Promise.all([
+            rankingmmr.save(),
+            enemymmr.save(),
+            enemy.save(),
+            ranking.save()
+        ]);
+
+        await session.commitTransaction();
+
+        return res.status(200).json({ 
+            message: "success",
+            data: {
+                winner: status === 1 ? characterid : opponent,
+                mmrChange: mmrChange,
+                newRanks: {
+                    [characterid]: rankingmmr.rank,
+                    [opponent]: enemymmr.rank
+                }
+            }
+        });
 
     } catch (err) {
-        console.error(`Error creating PvP match: ${err}`);
-        return res.status(500).json({ message: "server-error", data: "There's a problem with the server. Please try again later." });
+        await session.abortTransaction();
+        console.error(`Error creating PVP match: ${err}`);
+        return res.status(500).json({ 
+            message: "server-error", 
+            data: "There's a problem with the server. Please try again later." 
+        });
+    } finally {
+        session.endSession();
     }
 };
-

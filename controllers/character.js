@@ -72,10 +72,7 @@ exports.createcharacter = async (req, res) => {
             itemindex
         }], { session });
 
-
         const characterId = data[0]._id;
-
-        console.log("hello")
 
         // Create character stats
         await CharacterStats.create([{
@@ -95,7 +92,6 @@ exports.createcharacter = async (req, res) => {
             healshieldpower: 0,
             critdamage: 0,
         }], { session });
-        console.log("hi")
 
         // Create character titles
         await Charactertitle.create([{ 
@@ -140,14 +136,13 @@ exports.createcharacter = async (req, res) => {
         }));
         await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
 
-
-            await Battlepass.create([{
-                owner: characterId,
-                season: currentseason._id,
-                level: 1,
-                xp: 0,
-                rewards: []
-            }], { session })
+        await Battlepass.create([{
+            owner: characterId,
+            season: currentseason._id,
+            level: 1,
+            xp: 0,
+            rewards: []
+        }], { session })
 
         await MonthlyLogin.create([{
             owner: characterId,
@@ -164,8 +159,6 @@ exports.createcharacter = async (req, res) => {
             isClaimed: "0",
             lastClaimed: new Date()
         }], { session });
-
-
 
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
