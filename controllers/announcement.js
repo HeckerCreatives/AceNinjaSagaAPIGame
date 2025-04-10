@@ -100,24 +100,32 @@ exports.getannouncement = async (req, res) => {
 
     const totalList = await Announcement.countDocuments({ announcementtype: filter });
 
-    const finalData = []
-
-
-    AnnouncementData.forEach(data => {
-        const { id, title, content, type, url,announcementtype } = data
-
-        finalData.push({
-            id: id,
-            title: title,
-            content: content,
-            type: type,
-            url: url,
-            announcementtype: announcementtype
-        })
+    const formattedResponse = {
+        data: AnnouncementData.reduce((acc, data, index) => {
+            const { id, title, content, type, url, announcementtype } = data;
+            acc[index + 1] = {
+                id,
+                title,
+                content,
+                type,
+                url,
+                announcementtype
+            };
+            return acc;
+        }, {}),
+        pagination: {
+            total: totalList,
+            page: pageOptions.page,
+            limit: pageOptions.limit,
+            pages: Math.ceil(totalList / pageOptions.limit)
+        }
+    };
+    
+    return res.status(200).json({
+        message: "success",
+        data: formattedResponse.data,
+        pagination: formattedResponse.pagination
     });
-
-    return res.status(200).json({ message: "success", data: finalData, totalPages: Math.ceil(totalList / pageOptions.limit)})
-
 }
 
 exports.deleteannouncement = async (req, res) => {
