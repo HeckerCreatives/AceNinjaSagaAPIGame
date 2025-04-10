@@ -124,26 +124,28 @@ exports.getFriends = async (req, res) => {
             ]
         }).populate('character friend', 'username level badge');
 
-        // Format the response to only include the friend's data
-        const formattedFriends = friends.map(friendship => {
-            const friendData = friendship.character._id.toString() === characterId 
-                ? friendship.friend 
-                : friendship.character;
-            
-            return {
-                friendId: friendData._id,
-                username: friendData.username,
-                level: friendData.level,
-                badge: friendData.badge,
-                status: friendship.status,
-                friendSince: friendship.friendSince
-            };
-        });
-
-        res.status(200).json({
+        const formattedResponse = {
+            data: friends.reduce((acc, friendship, index) => {
+                const friendData = friendship.character._id.toString() === characterId 
+                    ? friendship.friend 
+                    : friendship.character;
+                
+                acc[index + 1] = {
+                    friendId: friendData._id,
+                    username: friendData.username,
+                    level: friendData.level,
+                    badge: friendData.badge,
+                    status: friendship.status,
+                    friendSince: friendship.friendSince
+                };
+                
+                return acc;
+            }, {})
+        };
+        
+        return res.status(200).json({
             message: "success",
-            count: formattedFriends.length,
-            friends: formattedFriends
+            data: formattedResponse.data,
         });
 
     } catch (error) {
@@ -155,55 +157,6 @@ exports.getFriends = async (req, res) => {
     }
 };
 
-exports.getFriendssa = async (req, res) => {
-    try {
-        const { id } = req.user;
-        const { characterId } = req.query;
-
-
-
-        const friends = await Friends.find({
-            $and: [
-                {
-                    $or: [
-                        { character: characterId },
-                        { friend: characterId }
-                    ]
-                },
-                { status: 'accepted' }
-            ]
-        }).populate('character friend', 'username level badge');
-
-        // Format the response to only include the friend's data
-        const formattedFriends = friends.map(friendship => {
-            const friendData = friendship.character._id.toString() === characterId 
-                ? friendship.friend 
-                : friendship.character;
-            
-            return {
-                friendId: friendData._id,
-                username: friendData.username,
-                level: friendData.level,
-                badge: friendData.badge,
-                status: friendship.status,
-                friendSince: friendship.friendSince
-            };
-        });
-
-        res.status(200).json({
-            message: "success",
-            count: formattedFriends.length,
-            friends: formattedFriends
-        });
-
-    } catch (error) {
-        console.log(`There's a problem encountered while getting friends. Error: ${error}`);
-        res.status(400).json({
-            message: "bad-request",
-            data: "There's a problem with the server! Please contact support for more details."
-        });
-    }
-};
 
 // Get all friend requests for a character
 
@@ -234,71 +187,21 @@ exports.getFriendRequests = async (req, res) => {
             status: 'pending'
         }).populate('character', 'username level badge');
 
-        const formattedRequests = friendRequests.map(request => {
-            return {
-                characterId: request.character._id,
-                username: request.character.username,
-                level: request.character.level,
-                badge: request.character.badge
-            };
-        });
+        const formattedResponse = {
+            data: friendRequests.reduce((acc, request, index) => {
+                acc[index + 1] = {
+                    characterId: request.character._id,
+                    username: request.character.username,
+                    level: request.character.level,
+                    badge: request.character.badge
+                };
+                return acc;
+            }, {})
+        };
 
         res.status(200).json({
             message: "success",
-            count: formattedRequests.length,
-            friendRequests: formattedRequests
-        });
-
-    } catch (error) {
-
-        console.log(`There's a problem encountered while getting friend requests. Error: ${error}`);
-        res.status(400).json({
-            message: "bad-request",
-            data: "There's a problem with the server! Please contact support for more details."
-        });
-    }
-}
-
-exports.getFriendRequestssa = async (req, res) => {
-
-    const { id } = req.user;
-    const { characterId, userid } = req.query;
-
-    if(!characterId || !mongoose.Types.ObjectId.isValid(characterId)){
-        return res.status(400).json({
-            message: "failed",
-            data: "Invalid character ID"
-        });
-    }
-
-    const checker = await checkcharacter(userid, characterId);
-
-    if (checker === "failed") {
-        return res.status(400).json({
-            message: "Unauthorized",
-            data: "You are not authorized to view this page. Please login the right account to view the page."
-        });
-    }
-
-    try {
-        const friendRequests = await Friends.find({
-            friend: characterId,
-            status: 'pending'
-        }).populate('character', 'username level badge');
-
-        const formattedRequests = friendRequests.map(request => {
-            return {
-                characterId: request.character._id,
-                username: request.character.username,
-                level: request.character.level,
-                badge: request.character.badge
-            };
-        });
-
-        res.status(200).json({
-            message: "success",
-            count: formattedRequests.length,
-            friendRequests: formattedRequests
+            friendRequests: formattedResponse.data,
         });
 
     } catch (error) {
@@ -389,7 +292,6 @@ exports.acceptrejectFriendRequest = async (req, res) => {
 
 }
 
-
 exports.playerlist = async (req, res) => {
     try {
         const { id } = req.user;
@@ -449,18 +351,29 @@ exports.playerlist = async (req, res) => {
 
         const totalPages = Math.ceil(totalData / pageOptions.limit);
 
-        const formatdata = players.map(player => ({
-            id: player._id,
-            username: player.username,
-            level: player.level,
-            badge: player.badge
-        }));
+
+        const formattedResponse = {
+            data: players.reduce((acc, player, index) => {
+                acc[index + 1] = {
+                    id: player._id,
+                    username: player.username,
+                    level: player.level,
+                    badge: player.badge
+                };
+                return acc;
+            }, {}),
+            pagination: {
+                total: totalData,
+                page: pageOptions.page,
+                limit: pageOptions.limit,
+                pages: totalPages
+            }
+        };
 
         return res.status(200).json({
             message: "success",
-            data: formatdata,
-            page: pageOptions.page,
-            totalPages
+            data: formattedResponse.data,
+            pagination: formattedResponse.pagination
         });
 
     } catch (error) {
