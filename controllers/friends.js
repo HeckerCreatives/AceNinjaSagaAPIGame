@@ -210,7 +210,7 @@ exports.getFriendRequests = async (req, res) => {
 
         res.status(200).json({
             message: "success",
-            friendRequests: formattedResponse.data,
+            data: formattedResponse.data,
         });
 
     } catch (error) {
