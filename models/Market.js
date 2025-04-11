@@ -51,6 +51,10 @@ const itemSchema = new mongoose.Schema({
     imageUrl: {
         type: String,
     },
+    isEquippable: {
+        type: Boolean,
+        default: true
+    },
     isOpenable: {
         type: Boolean,
         default: false
