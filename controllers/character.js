@@ -13,6 +13,7 @@ const { checkcharacter } = require("../utils/character")
 const Companion = require("../models/Companion")
 const RankTier = require("../models/RankTier")
 const { MonthlyLogin, SpinnerRewards } = require("../models/Rewards")
+const moment = require("moment")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -393,6 +394,9 @@ exports.getplayercharacters = async (req, res) => {
     tempdata.forEach(temp => {
         const {_id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt} = temp;
 
+        const createdAtDate = new moment(createdAt);
+
+        const formattedDate = createdAtDate.format("YYYY-MM-DD");
         data[itemindex] = {
             UserID: _id,
             Username: username,
@@ -408,7 +412,7 @@ exports.getplayercharacters = async (req, res) => {
             Level: level,
             CurrentXP: experience,
             badge: badge,
-            creationdate: createdAt,
+            creationdate: formattedDate,
         }
     })
 
