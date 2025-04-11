@@ -26,6 +26,13 @@ exports.addFriend = async (req, res) => {
             });
         }
 
+        if (characterId.toString() === friendId.toString()) {
+            return res.status(400).json({
+                message: "failed",
+                data: "You cannot send a friend request to yourself."
+            });
+        }
+
         const hasrequest = await Friends.findOne({
             $or: [
                 { character: characterId, friend: friendId },
