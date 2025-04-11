@@ -391,7 +391,7 @@ exports.getplayercharacters = async (req, res) => {
     const data = {}
 
     tempdata.forEach(temp => {
-        const {_id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex} = temp;
+        const {_id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt} = temp;
 
         data[itemindex] = {
             UserID: _id,
@@ -408,6 +408,7 @@ exports.getplayercharacters = async (req, res) => {
             Level: level,
             CurrentXP: experience,
             badge: badge,
+            creationdate: createdAt,
         }
     })
 

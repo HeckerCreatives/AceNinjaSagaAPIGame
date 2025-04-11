@@ -129,7 +129,7 @@ exports.getFriends = async (req, res) => {
                 },
                 { status: 'accepted' }
             ]
-        }).populate('character friend', 'username level badge');
+        }).populate('character friend', 'username level badge title');
 
         const formattedResponse = {
             data: friends.reduce((acc, friendship, index) => {
@@ -142,6 +142,7 @@ exports.getFriends = async (req, res) => {
                     username: friendData.username,
                     level: friendData.level,
                     badge: friendData.badge,
+                    title: friendData.title,
                     status: friendship.status,
                     friendSince: friendship.friendSince
                 };
@@ -192,7 +193,7 @@ exports.getFriendRequests = async (req, res) => {
         const friendRequests = await Friends.find({
             friend: characterId,
             status: 'pending'
-        }).populate('character', 'username level badge');
+        }).populate('character', 'username level badge title');
 
         const formattedResponse = {
             data: friendRequests.reduce((acc, request, index) => {
@@ -200,7 +201,8 @@ exports.getFriendRequests = async (req, res) => {
                     characterId: request.character._id,
                     username: request.character.username,
                     level: request.character.level,
-                    badge: request.character.badge
+                    badge: request.character.badge,
+                    title: request.character.title,
                 };
                 return acc;
             }, {})
@@ -352,7 +354,7 @@ exports.playerlist = async (req, res) => {
             Characterdata.find(query)
                 .limit(pageOptions.limit)
                 .skip(pageOptions.limit * pageOptions.page)
-                .select('_id username level badge'),
+                .select('_id username level badge title'),
             Characterdata.countDocuments(query)
         ]);
 
@@ -365,7 +367,8 @@ exports.playerlist = async (req, res) => {
                     id: player._id,
                     username: player.username,
                     level: player.level,
-                    badge: player.badge
+                    badge: player.badge,
+                    title: player.title,
                 };
                 return acc;
             }, {}),
