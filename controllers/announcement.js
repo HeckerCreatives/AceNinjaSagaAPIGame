@@ -109,7 +109,8 @@ exports.getannouncement = async (req, res) => {
                 content,
                 type,
                 url,
-                announcementtype
+                announcementtype,
+                createdAt: data.createdAt,
             };
             return acc;
         }, {}),

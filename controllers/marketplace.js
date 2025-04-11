@@ -2,10 +2,11 @@ const { default: mongoose } = require("mongoose")
 const Characterwallet = require("../models/Characterwallet")
 const { Market, CharacterInventory } = require("../models/Market")
 const Characterdata = require("../models/Characterdata")
+const { CharacterSkillTree, Skill } = require("../models/Skills")
 
 
 exports.getMarketItems = async (req, res) => {
-    const { page, limit, type, rarity, search } = req.query
+    const { page, limit, type, rarity, search, markettype } = req.query
 
     const pageOptions = {
         page: parseInt(page, 10) || 0,
@@ -15,17 +16,29 @@ exports.getMarketItems = async (req, res) => {
     try {
         // Build pipeline stages
         const pipeline = [
-            { $unwind: '$items' },
             {
                 $match: {
-                    $and: []
+                    marketType: markettype || { $in: ['market', 'shop'] }
                 }
-            }
+            },
+            { $unwind: '$items' },
+            {
+                $lookup: {
+                    from: 'skills',
+                    localField: 'items.skill',
+                    foreignField: '_id',
+                    as: 'skill'
+                }
+            },
+            { $unwind: { path: '$skill', preserveNullAndEmptyArrays: true } }
         ];
+
+        // Initialize match conditions
+        const matchConditions = [];
 
         // Add search conditions if search parameter exists
         if (search) {
-            pipeline[1].$match.$and.push({
+            matchConditions.push({
                 $or: [
                     { 'items.type': { $regex: new RegExp(search, "i") } },
                     { 'items.rarity': { $regex: new RegExp(search, "i") } },
@@ -36,17 +49,21 @@ exports.getMarketItems = async (req, res) => {
 
         // Add type filter if specified
         if (type) {
-            pipeline[1].$match.$and.push({ 'items.type': type });
+            matchConditions.push({ 'items.type': type });
         }
 
         // Add rarity filter if specified
         if (rarity) {
-            pipeline[1].$match.$and.push({ 'items.rarity': rarity });
+            matchConditions.push({ 'items.rarity': rarity });
         }
 
-        // If no conditions were added, remove the $and operator
-        if (pipeline[1].$match.$and.length === 0) {
-            delete pipeline[1].$match.$and;
+        // Add match stage only if there are conditions
+        if (matchConditions.length > 0) {
+            pipeline.push({
+                $match: {
+                    $and: matchConditions
+                }
+            });
         }
 
         // Add pagination
@@ -61,9 +78,33 @@ exports.getMarketItems = async (req, res) => {
                     type: '$items.type',
                     rarity: '$items.rarity',
                     price: '$items.price',
+                    currency: '$items.currency',
                     description: '$items.description',
                     stats: '$items.stats',
-                    imageUrl: '$items.imageUrl'
+                    imageUrl: '$items.imageUrl',
+                    gender: '$items.gender',
+                    isOpenable: '$items.isOpenable',
+                    crystals: {
+                        $cond: {
+                            if: { $eq: ['$items.type', 'crystalpacks'] },
+                            then: '$items.crystals',
+                            else: '$$REMOVE'
+                        }
+                    },
+                    coins: {
+                        $cond: {
+                            if: { $eq: ['$items.type', 'goldpacks'] },
+                            then: '$items.coins',
+                            else: '$$REMOVE'
+                        }
+                    },
+                    skill: {
+                        $cond: {
+                            if: { $eq: ['$items.type', 'skills'] },
+                            then: '$skill',
+                            else: '$$REMOVE'
+                        }
+                    }
                 }
             }
         );
@@ -161,12 +202,91 @@ exports.buyitem = async (req, res) => {
             );
 
 
-            // Update inventory
-            await CharacterInventory.findOneAndUpdate(
-                { owner: characterid, type: itemData.type },
-                { $push: { items: { item: itemData._id } } },
+            // if item type is skill then store it in Characterskills
+
+            if (itemData.type === "skills") {
+
+                const skill = await Skill.findById(itemData.skill).session(session);
+                if (!skill) {
+                    return res.status(404).json({
+                            message: "failed",
+                            data: "Skill not found"
+                    });
+                }
+                // Get character's skill tree
+                  let skillTree = await CharacterSkillTree.findOne({ owner: characterid }).session(session)
+                  .populate('skills.skill');
+
+              if (!skillTree) {
+                  skillTree = await CharacterSkillTree.create({
+                      owner: characterid,  // Fixed: changed characterid to owner
+                      skills: []
+                  });
+              }
+
+              // Check prerequisites are maxed
+              if (skill.prerequisites && skill.prerequisites.length > 0) {
+                  const hasMaxedPrerequisites = skill.prerequisites.every(prereqId => {
+                      const prereqSkill = skillTree.skills.find(s => 
+                          s.skill._id.toString() === prereqId.toString()
+                      );
+                      return prereqSkill && prereqSkill.level >= prereqSkill.skill.maxLevel;
+                  });
+
+                  if (!hasMaxedPrerequisites) {
+                      return res.status(400).json({
+                          message: "failed",
+                          data: "Prerequisites must be at maximum level"
+                      });
+                  }
+              }
+
+              // Check if character already has this skill
+              const existingSkill = skillTree.skills.find(s => 
+                  s.skill._id.toString() === itemData.skill.toString()
+              );
+
+              if (existingSkill && existingSkill.level >= skill.maxLevel) {
+                  return res.status(400).json({
+                      message: "failed",
+                      data: "Skill already at maximum level"
+                  });
+              }
+
+                if (existingSkill) {
+                    existingSkill.level += 1;
+                } else {
+                    skillTree.skills.push({
+                        skill: itemData.skill,
+                        level: 1,
+                    });
+                    if (!skillTree.unlockedSkills.includes(itemData.skill)) {
+                        skillTree.unlockedSkills.push(itemData.skill);
+                    }
+                }
+
+                await skillTree.save({ session });
+
+            } else if (itemData.type === "crystalpacks") {
+                await Characterwallet.findOneAndUpdate(
+                    { owner: characterid, type: 'crystal' },
+                    { $inc: { amount: itemData.crystals } },
+                    { new: true, session }
+                );
+
+            } else if (itemData.type === "goldpacks") {
+                await Characterwallet.findOneAndUpdate(
+                    { owner: characterid, type: 'coins' },
+                    { $inc: { amount: itemData.coins } },
+                    { new: true, session }
+                );
+            } else {
+                await CharacterInventory.findOneAndUpdate(
+                    { owner: characterid, type: itemData.inventorytype },
+                    { $push: { items: { item: itemData._id } } },
                 { upsert: true, new: true, session }
             );
+            }
             
             // Commit transaction
             await session.commitTransaction();

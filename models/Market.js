@@ -19,7 +19,20 @@ const itemSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['weapon', 'outfit', 'hair', 'face', 'eyes']
+        enum: ["weapon", "skins", "skills", "goldpacks", "crystalpacks", "chests", "freebie"]
+    },
+    // if type is skills we have to reference the skills collection
+    skill: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Skills',
+        required: function() {
+            return this.type === 'skills';
+        }
+    },
+    inventorytype: {
+        type: String,
+        required: true,
+        enum: ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins", "goldpacks", "crystalpacks", "chests", "freebie"]
     },
     gender: {
         type: String,
@@ -38,15 +51,27 @@ const itemSchema = new mongoose.Schema({
     imageUrl: {
         type: String,
     },
+    isOpenable: {
+        type: Boolean,
+        default: false
+    },
+    crystals: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    coins: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     stats: {
         level: {
             type: Number,
-            required: true,
             min: 1
         },
         damage: {
             type: Number,
-            required: true,
             min: 0
         },
         defense: {

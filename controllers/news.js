@@ -118,22 +118,32 @@ exports.getnews = async (req, res) => {
 
     const totalNews = await News.countDocuments();
 
-    const finalData = []
+    const formattedResponse = {
+        data: NewsData.reduce((acc, data, index) => {
+            const { _id, title, content, type, url } = data;
+            acc[index + 1] = {
+                id: _id,
+                title,
+                content,
+                type,
+                url,
+                createdAt: data.createdAt
+            };
+            return acc;
+        }, {}),
+        pagination: {
+            total: totalNews,
+            page: pageOptions.page,
+            limit: pageOptions.limit,
+            pages: Math.ceil(totalNews / pageOptions.limit)
+        }
+    };
 
-
-    NewsData.forEach(data => {
-        const { id, title, content, type, url } = data
-
-        finalData.push({
-            id: id,
-            title: title,
-            content: content,
-            type: type,
-            url: url
-        })
+    return res.status(200).json({
+        message: "success",
+        data:  formattedResponse.data,
+        pagination: formattedResponse.pagination
     });
-
-    return res.status(200).json({ message: "success", data: finalData, totalPages: Math.ceil(totalNews / pageOptions.limit)})
 
 }
 

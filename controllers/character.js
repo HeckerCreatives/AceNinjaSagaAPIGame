@@ -119,7 +119,7 @@ exports.createcharacter = async (req, res) => {
         }], { session });
 
         // Create wallets
-        const walletListData = ["coins", "crystal"];
+        const walletListData = ["coins", "crystal", "topupcredit"];
         const walletBulkwrite = walletListData.map(walletData => ({
             insertOne: {
                 document: { owner: characterId, type: walletData, amount: "0" }
@@ -128,7 +128,7 @@ exports.createcharacter = async (req, res) => {
         await Characterwallet.bulkWrite(walletBulkwrite, { session });
 
         // Create inventory
-        const inventoryListData = ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins"];
+        const inventoryListData = ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins", "goldpacks", "crystalpacks", "chests", "freebie"];
         const inventoryBulkWrite = inventoryListData.map(inventoryData => ({
             insertOne: {
                 document: { owner: characterId, type: inventoryData }
