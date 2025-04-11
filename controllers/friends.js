@@ -101,6 +101,7 @@ exports.getFriends = async (req, res) => {
     try {
         const { id } = req.user;
         const { characterId } = req.query;
+        const FRIEND_LIMIT = 200;
 
         if(!characterId || !mongoose.Types.ObjectId.isValid(characterId)){
             return res.status(400).json({
@@ -117,6 +118,22 @@ exports.getFriends = async (req, res) => {
                 data: "You are not authorized to view this page. Please login the right account to view the page."
             });
         }
+
+        const friendCount = await Friends.countDocuments({
+            $or: [
+                { character: characterId },
+                { friend: characterId }
+            ],
+            status: 'accepted'
+        });
+
+        if (friendCount >= FRIEND_LIMIT) {
+            return res.status(400).json({
+                message: "failed",
+                data: `You have reached the maximum friend limit of ${FRIEND_LIMIT}`
+            });
+        }
+
 
 
         const friends = await Friends.find({
