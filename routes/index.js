@@ -14,6 +14,7 @@ const routers = app => {
     app.use("/skills", require("./skills"))
     app.use("/transaction", require("./transaction"))
     app.use("/user", require("./user"))
+    app.use("/uploads", require("./uploads"))
 }
 
 module.exports = routers
