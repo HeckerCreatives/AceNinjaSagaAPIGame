@@ -114,17 +114,19 @@ exports.getannouncement = async (req, res) => {
             return acc;
         }, {}),
         pagination: {
-            total: totalList,
-            page: pageOptions.page,
-            limit: pageOptions.limit,
-            pages: Math.ceil(totalList / pageOptions.limit)
+            
         }
     };
     
     return res.status(200).json({
         message: "success",
-        data: formattedResponse.data,
-        pagination: formattedResponse.pagination
+        data: {
+            announcements: formattedResponse.data,
+            total: totalList,
+            page: pageOptions.page,
+            limit: pageOptions.limit,
+            pages: Math.ceil(totalList / pageOptions.limit)
+        }
     });
 }
 
