@@ -3,22 +3,22 @@ const { default: mongoose } = require("mongoose");
 
 const CompanionSchema = new mongoose.Schema(
     {
-        owner: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Characterdata",
-            index: true
-        },
         name: {
             type: String
         },
-        isEquipped: {
-            type: Boolean,
-            default: false
+        levelrequirement: {
+            type: Number
+        },
+        price: {
+            type: Number
+        },
+        currency: {
+            type: String
         },
         activedescription: {
             type: String
         },
-        passiveDescription: {
+        passivedescription: {
             type: String
         },
         passiveeffects: {
@@ -29,10 +29,25 @@ const CompanionSchema = new mongoose.Schema(
             type: Map, 
             of: Number 
         },
-        imageUrl: {
-            type: String
+    },
+    {
+        timestamps: true
+    }
+)
+
+const CharacterCompanionSchema = new mongoose.Schema(
+    {
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Characterdata",
+            index: true
         },
-        locked: {
+        companion: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Companion",
+            index: true
+        },
+        isEquipped: {
             type: Boolean,
             default: false
         }
@@ -42,5 +57,10 @@ const CompanionSchema = new mongoose.Schema(
     }
 )
 
+
+const CharacterCompanion = mongoose.model("CharacterCompanion", CharacterCompanionSchema)
 const Companion = mongoose.model("Companion", CompanionSchema);
-module.exports = Companion;
+module.exports = {
+    Companion,
+    CharacterCompanion
+};
