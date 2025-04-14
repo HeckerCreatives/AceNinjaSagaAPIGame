@@ -32,7 +32,7 @@ exports.addFriend = async (req, res) => {
         if(!sfriend){
             return res.status(400).json({
                 message: "failed",
-                data: "Friend not found"
+                data: "User not found"
             });
         } else {
             friendId = sfriend._id;
@@ -87,7 +87,7 @@ exports.addFriend = async (req, res) => {
         if (existingFriendship) {
             return res.status(400).json({
                 message: "failed",
-                data: 'Friendship already exists'
+                data: 'You already added this user to your friends list'
             });
         }
 
