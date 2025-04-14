@@ -10,10 +10,10 @@ exports.addFriend = async (req, res) => {
         const { id } = req.user;
         const { characterId, friendname } = req.body;
 
-        if(!characterId || !friendname || !mongoose.Types.ObjectId.isValid(characterId) ){
+        if(!characterId || !friendname){
             return res.status(400).json({
                 message: "failed",
-                data: "Invalid character ID"
+                data: "Invalid character username"
             });
         }
 
