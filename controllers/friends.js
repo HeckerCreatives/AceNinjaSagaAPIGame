@@ -8,9 +8,9 @@ exports.addFriend = async (req, res) => {
     try {
 
         const { id } = req.user;
-        const { characterId, friendId } = req.body;
+        const { characterId, friendname } = req.body;
 
-        if(!characterId || !friendId || !mongoose.Types.ObjectId.isValid(characterId) || !mongoose.Types.ObjectId.isValid(friendId)){
+        if(!characterId || !friendname || !mongoose.Types.ObjectId.isValid(characterId) ){
             return res.status(400).json({
                 message: "failed",
                 data: "Invalid character ID"
@@ -25,6 +25,19 @@ exports.addFriend = async (req, res) => {
                 data: "You are not authorized to view this page. Please login the right account to view the page."
             });
         }
+
+        let friendId = ""
+
+        const sfriend = await Characterdata.findOne({ username: { $regex: new RegExp('^' + friendname + '$', 'i') } });
+        if(!sfriend){
+            return res.status(400).json({
+                message: "failed",
+                data: "Friend not found"
+            });
+        } else {
+            friendId = sfriend._id;
+        }
+        
 
         if (characterId.toString() === friendId.toString()) {
             return res.status(400).json({
