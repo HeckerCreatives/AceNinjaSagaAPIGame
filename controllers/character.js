@@ -804,10 +804,11 @@ exports.getcharacterstats = async (req, res) => {
         }
 
         const checker = await checkcharacter(id, characterid);
+
         if (checker === "failed") {
             return res.status(400).json({
                 message: "Unauthorized",
-                data: "You are not authorized to view this page."
+                data: "You are not authorized to view this page. Please login the right account to view the page."
             });
         }
 
@@ -822,34 +823,6 @@ exports.getcharacterstats = async (req, res) => {
                 data: "Character stats not found"
             });
         }
-
-        // Fetch equipped items and their stats
-        const characterInventory = await CharacterInventory.aggregate([
-            { 
-                $match: { 
-                    owner: new mongoose.Types.ObjectId(characterid) 
-                }
-            },
-            { 
-                $unwind: "$items" 
-            },
-            { 
-                $match: { 
-                    "items.isEquipped": true 
-                }
-            },
-            {
-                $lookup: {
-                    from: "items",
-                    localField: "items.item",
-                    foreignField: "_id",
-                    as: "itemDetails"
-                }
-            },
-            { 
-                $unwind: "$itemDetails" 
-            }
-        ]);
 
         // Fetch equipped skills and their effects
         const characterSkills = await CharacterSkillTree.aggregate([
@@ -897,16 +870,6 @@ exports.getcharacterstats = async (req, res) => {
             critdamage: characterStats.critdamage
         };
 
-        characterInventory.forEach(item => {
-            if (item.itemDetails.stats) {
-                Object.entries(item.itemDetails.stats).forEach(([stat, value]) => {
-                    if (totalStats.hasOwnProperty(stat)) {
-                        totalStats[stat] += value;
-                    }
-                });
-            }
-        });
-
         characterSkills.forEach(skill => {
             if (skill.skillDetails.effects) {
                 const effects = new Map(Object.entries(skill.skillDetails.effects));
@@ -921,15 +884,7 @@ exports.getcharacterstats = async (req, res) => {
 
         return res.json({
             message: "success",
-            data: {
-                baseStats: characterStats,
-                equipmentBonuses: characterInventory.map(item => ({
-                    name: item.itemDetails.name,
-                    type: item.itemDetails.type,
-                    stats: item.itemDetails.stats
-                })),
-                totalStats
-            }
+            data: totalStats
         });
 
     } catch (error) {
@@ -940,7 +895,6 @@ exports.getcharacterstats = async (req, res) => {
         });
     }
 };
-
 
 exports.equipunequiptitle = async (req, res) => {
 
