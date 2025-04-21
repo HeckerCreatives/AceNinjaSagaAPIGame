@@ -7,7 +7,7 @@ const RankingTierSchema = new mongoose.Schema(
             index: true,
         },
         requiredmmr:{
-            type: String
+            type: Number
         },
         icon:{
             type: String
