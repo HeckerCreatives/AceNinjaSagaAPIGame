@@ -12,6 +12,7 @@ const routers = app => {
     app.use("/news", require("./news"))
     app.use("/pvp", require("./pvp"))
     app.use("/ranking", require("./ranking"))
+    app.use("/rewards", require("./rewards"))
     app.use("/skills", require("./skills"))
     app.use("/transaction", require("./transaction"))
     app.use("/user", require("./user"))

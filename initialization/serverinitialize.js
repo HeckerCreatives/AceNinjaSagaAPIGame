@@ -3,6 +3,7 @@ const Characterdata = require("../models/Characterdata")
 const Characterwallet = require("../models/Characterwallet")
 const Maintenance = require("../models/Maintenance")
 const { Item, Market } = require("../models/Market")
+const { DailySpin, DailyExpSpin, WeeklyLogin, MonthlyLogin } = require("../models/Rewards")
 const { Skill, CharacterSkillTree } = require("../models/Skills")
 const Users = require("../models/Users")
 const { default: mongoose } = require("mongoose")
@@ -2746,6 +2747,9 @@ exports.initialize = async () => {
                 console.log('Character Skill Tree created for', allcharacters[i].username)
             }
         }
+
+
+
 
 
     console.log("SERVER DATA INITIALIZED")

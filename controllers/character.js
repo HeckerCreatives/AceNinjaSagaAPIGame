@@ -12,8 +12,9 @@ const { checkcharacter } = require("../utils/character")
 
 const Companion = require("../models/Companion")
 const RankTier = require("../models/RankTier")
-const { MonthlyLogin, SpinnerRewards } = require("../models/Rewards")
+const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
 const moment = require("moment")
+const { CharacterChapter, CharacterChapterHistory } = require("../models/Chapter")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -145,21 +146,62 @@ exports.createcharacter = async (req, res) => {
             rewards: []
         }], { session })
 
-        await MonthlyLogin.create([{
+        await CharacterMonthlyLogin.create([{
             owner: characterId,
-            month: new Date().getMonth().toString(), 
-            year: new Date().getFullYear().toString(), 
-            login: 0,
-            isClaimed: "0",
-            lastClaimed: new Date()
-        }], { session });
+            daily: {
+            day1: false,
+            day2: false, 
+            day3: false,
+            day4: false,
+            day5: false,
+            day6: false,
+            day7: false,
+            day8: false,
+            day9: false,
+            day10: false,
+            day11: false,
+            day12: false,
+            day13: false,
+            day14: false,
+            day15: false,
+            day16: false,
+            day17: false,
+            day18: false,
+            day19: false,
+            day20: false,
+            day21: false,
+            day22: false,
+            day23: false,
+            day24: false,
+            day25: false,
+            day26: false,
+            day27: false,
+            day28: false
+            },
+            currentDay: "day1",
+            lastClaimed: new Date(Date.now() - 24*60*60*1000)
+        }], { session })
 
-        await SpinnerRewards.create([{
+        await CharacterWeeklyLogin.create({
             owner: characterId,
-            daily: 0,
-            isClaimed: "0",
-            lastClaimed: new Date()
-        }], { session });
+            daily: {
+            day1: false,
+            day2: false, 
+            day3: false,
+            day4: false,
+            day5: false,
+            day6: false,
+            day7: false,
+            },
+            currentDay: "day1",
+            lastClaimed: new Date(Date.now() - 24*60*60*1000)
+        }, { session })
+
+        await CharacterDailySpin.create({
+            owner: characterId,
+            spin: false,
+            expspin: false,
+        }, { session })
 
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
@@ -959,4 +1001,308 @@ exports.equipunequipbadge = async (req, res) => {
     })
 
     return res.status(200).json({ message: "success" })
+}
+
+exports.getcharacterchapters = async (req, res) => {
+
+    const { id } = req.user
+
+    const { characterid } = req.query
+
+    if(!characterid){
+        return res.status(400).json({ message: "failed", data: "Please input character ID."})
+    }
+
+    const checker = await checkcharacter(id, characterid);
+
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }    
+
+    const characterchapters = await CharacterChapter.find({ owner: new mongoose.Types.ObjectId(characterid)}).sort({ chapter: 1 })
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem encountered while fetching character chapters. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
+    })
+
+    const formattedResponse = {
+        data: characterchapters.reduce((acc, chapter, index) => {
+            acc[index + 1] = {
+                id: chapter._id,
+                name: chapter.name,
+                completed: chapter.completed,
+                chapter: chapter.chapter
+            }
+            return acc
+        }, {})
+    }
+
+    return res.status(200).json({ 
+        message: "success", 
+        data: formattedResponse.data 
+    })
+}
+
+exports.challengechapter = async (req, res) => {
+    const session = await mongoose.startSession();
+    try {
+        await session.startTransaction();
+
+        const { id } = req.user;
+        const { characterid, chapter, challenge, status } = req.body;
+
+        if (!characterid || !chapter || !challenge || !status) {
+            await session.abortTransaction();
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "Please input character ID, chapter, challenge, and status." 
+            });
+        }
+
+        const checker = await checkcharacter(id, characterid);
+
+        if (checker === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to view this page. Please login the right account to view the page."
+            });
+        }
+
+        const charchapter = await CharacterChapter.findOne({ 
+            owner: new mongoose.Types.ObjectId(characterid), 
+            name: `chapter${chapter}challenge${challenge}` 
+        }).session(session);
+
+        if (!charchapter) {
+            await session.abortTransaction();
+            return res.status(404).json({ 
+                message: "failed", 
+                data: "Chapter challenge not found." 
+            });
+        }
+
+        charchapter.completed = true;
+        await charchapter.save({ session });
+
+        await CharacterChapterHistory.create([{
+            owner: new mongoose.Types.ObjectId(characterid),
+            chapter: chapter,
+            challenge: challenge,
+            status: status
+        }], { session });
+
+        const character = await Characterdata.findOne({ 
+            _id: new mongoose.Types.ObjectId(characterid) 
+        }).session(session);
+
+        if (!character) {
+            await session.abortTransaction();
+            return res.status(404).json({ 
+                message: "failed", 
+                data: "Character not found." 
+            });
+        }
+
+        const rewards = {
+            exp: character.level * 10,
+            gold: character.level * 50,
+            crystal: character.level * 2,
+        };
+
+        character.experience += rewards.exp;
+
+        let currentLevel = character.level;
+        let currentXP = character.experience;
+        let levelsGained = 0;
+        let xpNeeded = 80 * currentLevel;
+
+        while (currentXP >= xpNeeded && xpNeeded > 0) {
+            const overflowXP = currentXP - xpNeeded;
+            currentLevel++;
+            levelsGained++;
+            currentXP = overflowXP;
+            xpNeeded = 80 * currentLevel;
+        }
+
+        if (levelsGained > 0) {
+            await CharacterStats.findOneAndUpdate(
+                { owner: characterid },
+                {
+                    $inc: {
+                        health: 10 * levelsGained,
+                        energy: 5 * levelsGained,
+                        armor: 2 * levelsGained,
+                        magicresist: 1 * levelsGained,
+                        speed: 1 * levelsGained,
+                        attackdamage: 1 * levelsGained,
+                        armorpen: 1 * levelsGained,
+                        magicpen: 1 * levelsGained,
+                        magicdamage: 1 * levelsGained,
+                        critdamage: 1 * levelsGained
+                    }
+                },
+                { session }
+            );
+
+            await CharacterSkillTree.findOneAndUpdate(
+                { owner: characterid },
+                {
+                    $inc: {
+                        skillPoints: 4 * levelsGained
+                    }
+                },
+                { session }
+            );
+        }
+
+        character.level = currentLevel;
+        character.experience = currentXP;
+        await character.save({ session });
+
+        await Characterwallet.updateOne(
+            { owner: characterid, type: "coins" },
+            { $inc: { amount: rewards.gold } },
+            { session, upsert: true }
+        );
+
+        await Characterwallet.updateOne(
+            { owner: characterid, type: "crystal" },
+            { $inc: { amount: rewards.crystal } },
+            { session, upsert: true }
+        );
+
+        await session.commitTransaction();
+        return res.status(200).json({
+            message: "success",
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        console.error(`Error in challengechapter: ${error}`);
+        return res.status(500).json({ 
+            message: "failed", 
+            data: "There's a problem with the server. Please contact support for more details." 
+        });
+    } finally {
+        session.endSession();
+    }
+};
+
+
+exports.challengechapterhistory = async (req, res) => {
+
+    const { id } = req.user
+    const { characterid, page, limit, filter } = req.query
+    
+    if(!characterid){
+        return res.status(400).json({ message: "failed", data: "Please input character ID."})
+    }
+
+    const checker = await checkcharacter(id, characterid);
+
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
+
+    if (filter) {
+        let query = { owner: new mongoose.Types.ObjectId(characterid) };
+        
+        if (filter === 'win') {
+            query.status = true;
+        } else if (filter === 'lose') {
+            query.status = false;
+        }
+
+        const ctchallenge = await CharacterChapterHistory.find(query)
+            .sort({ createdAt: -1 })
+            .skip(pageOptions.page * pageOptions.limit)
+            .limit(pageOptions.limit);
+            
+        const totalCount = await CharacterChapterHistory.countDocuments(query);
+
+        const totalpages = Math.ceil(totalCount / pageOptions.limit);
+
+        const formattedResponse = {
+            data: ctchallenge.reduce((acc, chapter, index) => {
+                acc[index + 1] = {
+                    id: chapter._id,
+                    chapter: chapter.chapter, 
+                    challenge: chapter.challenge,
+                    status: chapter.status,
+                    createdAt: moment(chapter.createdAt).format("YYYY-MM-DD HH:mm:ss")
+                }
+                return acc;
+            }, {}),
+            totalCount: totalCount,
+            totalPages: totalpages, 
+            currentPage: pageOptions.page + 1
+        };
+
+        return res.status(200).json({
+            message: "success",
+            data: formattedResponse.data,
+            tSotalCount: totalCount,
+            totalPages: totalpages,
+            currentPage: pageOptions.page + 1
+        });
+    }
+
+    const pageOptions = {
+        page: parseInt(page) || 0,
+        limit: parseInt(limit) || 10,
+    }
+
+    const ctchallenge = await CharacterChapterHistory.find({ owner: new mongoose.Types.ObjectId(characterid) })
+    .sort({ createdAt: -1 })
+    .skip(pageOptions.page * pageOptions.limit)
+    .limit(pageOptions.limit)
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem encountered while fetching character chapter history. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
+    })
+
+    const totalCount = await CharacterChapterHistory.countDocuments({ owner: new mongoose.Types.ObjectId(characterid) })
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem encountered while fetching character chapter history. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
+    })
+
+    const totalpages = Math.ceil(totalCount / pageOptions.limit)
+
+    const formattedResponse = {
+        data: ctchallenge.reduce((acc, chapter, index) => {
+            acc[index + 1] = {
+                id: chapter._id,
+                chapter: chapter.chapter,
+                challenge: chapter.challenge,
+                status: chapter.status,
+                createdAt: moment(chapter.createdAt).format("YYYY-MM-DD HH:mm:ss")
+            }
+            return acc
+        }, {}),
+        totalCount: totalCount,
+        totalPages: totalpages,
+        currentPage: pageOptions.page + 1,
+    }
+
+
+    return res.status(200).json({ 
+        message: "success", 
+        data: formattedResponse.data,
+        totalCount: totalCount,
+        totalPages: totalpages,
+        currentPage: pageOptions.page + 1,
+    })
 }
