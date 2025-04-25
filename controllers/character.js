@@ -182,7 +182,7 @@ exports.createcharacter = async (req, res) => {
             lastClaimed: new Date(Date.now() - 24*60*60*1000)
         }], { session })
 
-        await CharacterWeeklyLogin.create({
+        await CharacterWeeklyLogin.create([{
             owner: characterId,
             daily: {
             day1: false,
@@ -195,13 +195,13 @@ exports.createcharacter = async (req, res) => {
             },
             currentDay: "day1",
             lastClaimed: new Date(Date.now() - 24*60*60*1000)
-        }, { session })
+        }], { session })
 
-        await CharacterDailySpin.create({
+        await CharacterDailySpin.create([{
             owner: characterId,
             spin: false,
             expspin: false,
-        }, { session })
+        }], { session })
 
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
@@ -431,15 +431,16 @@ exports.getplayercharacters = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
 
+    console.log(tempdata)
     const data = {}
 
+    let i = 1
     tempdata.forEach(temp => {
         const {_id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt} = temp;
-
         const createdAtDate = new moment(createdAt);
-
         const formattedDate = createdAtDate.format("YYYY-MM-DD");
-        data[itemindex] = {
+        
+        data[i] = {
             UserID: _id,
             Username: username,
             CharacterCostume: {
@@ -456,6 +457,7 @@ exports.getplayercharacters = async (req, res) => {
             badge: badge,
             creationdate: formattedDate,
         }
+        i++
     })
 
     return res.json({message: "success", data: data})

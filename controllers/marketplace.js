@@ -3,6 +3,7 @@ const Characterwallet = require("../models/Characterwallet")
 const { Market, CharacterInventory } = require("../models/Market")
 const Characterdata = require("../models/Characterdata")
 const { CharacterSkillTree, Skill } = require("../models/Skills")
+const { checkmaintenance } = require("../utils/maintenance")
 
 
 exports.getMarketItems = async (req, res) => {
@@ -13,6 +14,45 @@ exports.getMarketItems = async (req, res) => {
         limit: parseInt(limit, 10) || 10
     }
 
+    if (!markettype){
+
+        const maintenance = await checkmaintenance("market")
+        
+        if (maintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The market is currently under maintenance. Please try again later."
+                });
+            }
+        
+        const smaintenance = await checkmaintenance("store")
+        
+        if (smaintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The store is currently under maintenance. Please try again later."
+                });
+            }
+    } else if (markettype === "market") {
+        const maintenance = await checkmaintenance("market")
+        
+        if (maintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The market is currently under maintenance. Please try again later."
+                });
+            }
+    } else if (markettype === "shop") {
+        const smaintenance = await checkmaintenance("store")
+        
+        if (smaintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The market is currently under maintenance. Please try again later."
+                });
+            }
+    }
+            
     try {
         // Build pipeline stages
         const pipeline = [
@@ -189,6 +229,8 @@ exports.buyitem = async (req, res) => {
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
             
+            console.log(wallet.amount, itemData.price)
+            console.log(wallet.amount, itemData.currency)
             if (wallet.amount < itemData.price) {
                 await session.abortTransaction();
                 return res.status(400).json({ message: "failed", data: "Insufficient balance" });
