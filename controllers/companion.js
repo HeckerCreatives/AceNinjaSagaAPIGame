@@ -41,30 +41,31 @@ exports.getcharactercompanions = async (req, res) => {
     const totalData = await CharacterCompanion.countDocuments(query)
     const totalPages = Math.ceil(totalData / options.limit)
 
-    const finalData = []
+    const finalData = {
+        companions: {},
+        totalpages: totalPages
+    }
 
     companions.forEach(data => {
         const { companion, isEquipped, _id } = data
 
         const { id, name, activedescription, passivedescription, passiveeffects, activeeffects, levelrequirement } = companion
 
-        finalData.push({
+        finalData.companions[name] = {
             id: _id,
             companionid: id,
-            companionname: name,
             activedescription: activedescription,
             activeeffects: activeeffects,
             passivedescription: passivedescription,
             passiveeffects: passiveeffects,
             levelrequirement: levelrequirement,
             isEquipped: isEquipped
-        })
+        }
     });
 
     return res.status(200).json({
         message: "success", 
         data: finalData, 
-        totalpages: totalPages
     });
     
 }
@@ -159,7 +160,10 @@ exports.companionlist = async (req, res) => {
     const totalData = await Companion.countDocuments()
     const totalPages = Math.ceil(totalData / options.limit)
 
-    const finalData = []
+    const finalData = {
+        companions: {}, 
+        totalpages: totalPages
+    }
 
     companions.forEach(data => {
         const { id, name, activedescription, passivedescription, passiveeffects, activeeffects, levelrequirement, price, currency } = data
@@ -172,9 +176,8 @@ exports.companionlist = async (req, res) => {
             }
         })
 
-        finalData.push({
+        finalData.companions[name] = {
             id: id,
-            name: name,
             activedescription: activedescription,
             passivedescription: passivedescription,
             passiveeffects: passiveeffects,
@@ -183,13 +186,12 @@ exports.companionlist = async (req, res) => {
             price: price,
             currency: currency,
             isOwned: isOwned,
-        })
+        }
     });
 
     return res.status(200).json({
         message: "success", 
-        data: finalData, 
-        totalpages: totalPages
+        data: finalData
     });
 }
 
@@ -197,22 +199,26 @@ exports.companionlist = async (req, res) => {
 exports.buycompanion = async (req, res) => {
 
     const { id } = req.user
-    const { characterid, companionid } = req.body
+    const { characterid, companionname } = req.body
 
-    if(!characterid || !companionid){
-        return res.status(400).json({ message: "failed", data: "Please input character id and companion id."})
+    if(!companionname){
+        return res.status(400).json({ message: "failed", data: "Please select a valid companion."})
+    }
+
+    if (!characterid){
+        return res.status(401).json({ message: "failed", data: "Please select a valid character."})
     }
 
     const checker = await checkcharacter(id, characterid);
 
     if (checker === "failed") {
-        return res.status(400).json({
+        return res.status(401).json({
             message: "Unauthorized", 
             data: "You are not authorized to view this page. Please login the right account to view the page."
         });
     }
 
-    const companion = await Companion.findById(companionid)
+    const companion = await Companion.find({name: companionname})
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -243,7 +249,7 @@ exports.buycompanion = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "Character level not enough."})
     }
 
-    const charactercompanion = await CharacterCompanion.find({ owner: characterid, companion: companionid })
+    const charactercompanion = await CharacterCompanion.find({ owner: characterid, companion: companion[0]._id })
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -259,7 +265,7 @@ exports.buycompanion = async (req, res) => {
 
     // check price and currency and wallet balance
 
-    const { price, currency } = companion
+    const { price, currency } = companion[0]
 
     // check if character has enough currency
 
@@ -289,7 +295,7 @@ exports.buycompanion = async (req, res) => {
 
     // add companion to character
 
-    await CharacterCompanion.create({ owner: characterid, companion: companionid, isEquipped: false })
+    await CharacterCompanion.create({ owner: characterid, companion: companion[0]._id, isEquipped: false })
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)

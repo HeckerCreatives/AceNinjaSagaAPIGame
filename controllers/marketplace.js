@@ -7,7 +7,7 @@ const { checkmaintenance } = require("../utils/maintenance")
 
 
 exports.getMarketItems = async (req, res) => {
-    const { page, limit, type, rarity, search, markettype } = req.query
+    const { page, limit, type, rarity, search, markettype, gender } = req.query
 
     const pageOptions = {
         page: parseInt(page, 10) || 0,
@@ -104,6 +104,10 @@ exports.getMarketItems = async (req, res) => {
                     $and: matchConditions
                 }
             });
+        }
+        
+        if (gender){
+            matchConditions.push({ 'items.gender': gender})
         }
 
         // Add pagination
