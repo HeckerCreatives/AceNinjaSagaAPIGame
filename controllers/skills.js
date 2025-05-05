@@ -104,21 +104,32 @@ exports.getSkillsWithCharacter = async (req, res) => {
         }
 
         // Format response with character skill information
-        const formattedSkills = skills.reduce((acc, skill, index) => {
+        const formattedSkills = skills.reduce((acc, skill) => {
             // Find if character has this skill
-            const characterSkill = characterSkills.find(cs => 
+            const characterSkill = characterSkills.find(cs =>
                 cs.skill?._id.toString() === skill._id.toString()
             );
-            acc[category == 'Basic' ? skill.name + ` level: ${skill.levelRequirement}` : skill.name] = {
-                ...skill.toObject(),
+        
+            const skillObj = skill.toObject();
+        
+            // Convert Map to plain object if necessary
+            if (skillObj.effects instanceof Map || skill.effects instanceof Map) {
+                skillObj.effects = Object.fromEntries(skill.effects);
+            }
+        
+            acc[
+                category === 'Basic'
+                    ? `${skill.name} level: ${skill.levelRequirement}`
+                    : skill.name
+            ] = {
+                ...skillObj,
                 acquired: !!characterSkill,
                 currentLevel: characterSkill ? characterSkill.level : 0,
                 maxLevel: skill.maxLevel
             };
-            
+        
             return acc;
         }, {});
-
         // Get total count for pagination
         const total = await Skill.countDocuments(query);
 
@@ -132,6 +143,8 @@ exports.getSkillsWithCharacter = async (req, res) => {
                 pages: Math.ceil(total / pageOptions.limit)
             }
         };
+
+        console.log(formattedSkills)
 
         return res.status(200).json({
             message: "success",
