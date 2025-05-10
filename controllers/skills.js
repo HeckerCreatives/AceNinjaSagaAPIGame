@@ -1,6 +1,8 @@
+const { default: mongoose } = require("mongoose");
 const Characterdata = require("../models/Characterdata");
 const Characterwallet = require("../models/Characterwallet");
 const { Skill, CharacterSkillTree } = require("../models/Skills");
+const CharacterStats = require("../models/Characterstats")
 
 exports.getSkills = async (req, res) => {
     const { type, search, category, path, page, limit } = req.query;
@@ -60,7 +62,6 @@ exports.getSkills = async (req, res) => {
         });
     }
 };
-
 
 exports.getSkillsWithCharacter = async (req, res) => {
     const { type, search, category, path, page, limit, characterid } = req.query;
@@ -703,7 +704,6 @@ exports.unequipskill = async (req, res) => {
 
 }
 
-
 exports.getequippedskills = async (req, res) => {
     const { characterid } = req.query;
 
@@ -812,3 +812,62 @@ exports.getequippedskills = async (req, res) => {
         });
     }
 };
+
+exports.resetbasicskills = async (req, res) => {
+    const {id} = req.user
+
+    const {characterid} = req.body
+
+    const tempchardata = await Characterdata.findOne({owner: new mongoose.Types.ObjectId(id), _id: new mongoose.Types.ObjectId(characterid)})
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem with getting the user data. Error: ${err}`)
+
+        return res.status(400).json({message: "bad-request", data: "There's a problem with the server. Please try again later"})
+    })
+
+    if (!tempchardata){
+        return res.status(400).json({message: "failed", data: "Selected Character is not valid!"})
+    }
+
+    const skillTree = await CharacterSkillTree.findOne({owner: new mongoose.Types.ObjectId(characterid)})
+    .populate('skills.skill');
+    
+    if (!skillTree){
+        return res.status(400).json({message: "failed", data: "Selected Character doesn't have valid skill tree!"})
+    }
+
+    // Remove skills with category "Basic"
+    skillTree.skills = skillTree.skills.filter(
+        skillEntry => skillEntry.skill.category !== 'Basic'
+    );
+
+    // Also remove from unlockedSkills
+    // First, find all Skill IDs with category Basic
+    const basicSkillIds = (await Skill.find({ category: 'Basic' })).map(skill => skill._id.toString());
+
+    skillTree.unlockedSkills = skillTree.unlockedSkills.filter(
+        id => !basicSkillIds.includes(id.toString())
+    );
+
+    const totalSp = 4 * tempchardata.level
+
+    skillTree.skillPoints = totalSp;
+
+    await skillTree.save();
+
+    await CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
+        health: 10 * tempchardata.level,
+        energy: 5 * tempchardata.level,
+        armor: 2 * tempchardata.level,
+        magicresist: 1 * tempchardata.level,
+        speed: 1 * tempchardata.level,
+        attackdamage: 1 * tempchardata.level,
+        armorpen: 1 * tempchardata.level,
+        magicpen: 1 * tempchardata.level,
+        magicdamage: 1 * tempchardata.level,
+        critdamage: 1 * tempchardata.level
+    })
+
+    return res.json({message: "success"})
+}

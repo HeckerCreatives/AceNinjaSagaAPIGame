@@ -1,4 +1,4 @@
-const { getSkills, getcharacterSkills, getSkillsWithCharacter, acquirespbasedskills, acquirebuybasedskills, equipskill, unequipskill, getequippedskills } = require('../controllers/skills');
+const { getSkills, getcharacterSkills, getSkillsWithCharacter, acquirespbasedskills, acquirebuybasedskills, equipskill, unequipskill, getequippedskills, resetbasicskills } = require('../controllers/skills');
 const { protectplayer } = require('../middleware/middleware');
 
 const router = require('express').Router();
@@ -12,6 +12,7 @@ router
 .post("/acquirebuybasedskills", protectplayer, acquirebuybasedskills)
 .post("/equipskill", protectplayer, equipskill)
 .post("/unequipskill", protectplayer, unequipskill)
+.post("/resetbasicskills", protectplayer, resetbasicskills)
 .get("/getequippedskills", protectplayer, getequippedskills)
 
 module.exports = router;

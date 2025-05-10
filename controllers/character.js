@@ -400,6 +400,14 @@ exports.getplayerdata = async (req, res) => {
             }
         },
         {
+            $lookup: {
+                from: "characterskilltrees",
+                localField: "_id",
+                foreignField: "owner",
+                as: "skilltree"
+            }
+        },
+        {
             $project: {
                 id: 1,
                 username: 1,
@@ -411,6 +419,7 @@ exports.getplayerdata = async (req, res) => {
                 createdAt: 1,
                 stats: { $arrayElemAt: ["$stats", 0] },      // Flatten stats
                 mmr: { $arrayElemAt: ["$ranking.mmr", 0] },      // Flatten ranking.mmr
+                sp: { $arrayElemAt: ["$skilltree.skillPoints", 0]}
             }
         }
     ];
