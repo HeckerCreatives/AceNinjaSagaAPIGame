@@ -1,5 +1,6 @@
 const Characterdata = require("../models/Characterdata");
 const Rankings = require("../models/Ranking");
+const RankTier = require("../models/RankTier");
 
 
 
@@ -10,20 +11,40 @@ exports.addmmr = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "Please provide the necessary data!" })
     }
 
-    // increment mmr
-    await Rankings.findOneAndUpdate(
-        { owner: characterid },
-        { $inc: { mmr } },
-        { new: true }
-    )
-    .then(data => {
-        return res.json({ message: "success" })
-    })
-    .catch(err => {
+    try {
+        // increment mmr and get updated document
+        const updatedRanking = await Rankings.findOneAndUpdate(
+            { owner: characterid },
+            { $inc: { mmr } },
+            { new: true }
+        ).populate("rank"); // populate rank if needed
+
+        if (!updatedRanking) {
+            return res.status(404).json({ message: "not-found", data: "Ranking not found!" });
+        }
+
+        // Find all rank tiers sorted by requiredmmr ascending
+        const rankTiers = await RankTier.find({}).sort({ requiredmmr: 1 });
+
+        // Find the highest tier the player qualifies for
+        let newRank = updatedRanking.rank;
+        for (const tier of rankTiers) {
+            if (updatedRanking.mmr >= parseInt(tier.requiredmmr)) {
+                newRank = tier._id;
+            }
+        }
+
+        // Update rank if changed
+        if (!updatedRanking.rank || updatedRanking.rank.toString() !== newRank.toString()) {
+            updatedRanking.rank = newRank;
+            await updatedRanking.save();
+        }
+
+        return res.json({ message: "success" });
+    } catch (err) {
         console.log(`Error adding mmr: ${err}`)
         return res.status(400).json({ message: "bad-request", data: "There's a problem adding mmr!" })
-    })
-
+    }
 }
 
 exports.getleaderboards = async (req, res) => {

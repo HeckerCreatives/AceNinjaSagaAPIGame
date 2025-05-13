@@ -49,7 +49,7 @@ exports.protectplayer = async (req, res, next) => {
             return res.status(401).json({ message: 'failed', data: `Your account had been ${user.status}! Please contact support for more details.` });
         }
 
-        // if (decodedToken.token != user.webtoken){
+        // if (decodedToken.token != user.gametoken){
         //     res.clearCookie('sessionToken', { path: '/' })
         //     return res.status(401).json({ message: 'duallogin', data: `Your account had been opened on another device! You will now be logged out.` });
         // }
@@ -89,7 +89,7 @@ exports.protectsuperadmin = async (req, res, next) => {
             return res.status(401).json({ message: 'failed', data: `Your account had been ${user.status}! Please contact support for more details.` });
         }
 
-        if (decodedToken.token != user.webtoken){
+        if (decodedToken.token != user.gametoken){
             res.clearCookie('sessionToken', { path: '/' })
             return res.status(401).json({ message: 'duallogin', data: `Your account had been opened on another device! You will now be logged out.` });
         }

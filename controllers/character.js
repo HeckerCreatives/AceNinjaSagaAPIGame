@@ -15,6 +15,7 @@ const RankTier = require("../models/RankTier")
 const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
 const moment = require("moment")
 const { CharacterChapter, CharacterChapterHistory } = require("../models/Chapter")
+const PvP = require("../models/Pvp")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -424,9 +425,10 @@ exports.getplayerdata = async (req, res) => {
         }
     ];
 
+    const totalWins = await PvP.countDocuments({ status: 1, owner: new mongoose.Types.ObjectId(characterid) })
     const characterData = await Characterdata.aggregate(matchCondition)
 
-    return res.status(200).json({ message: "success", data: characterData[0]})
+    return res.status(200).json({ message: "success", data: characterData[0], totalWins: totalWins || 0})
 }
 
 exports.getplayercharacters = async (req, res) => {

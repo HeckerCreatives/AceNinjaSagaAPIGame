@@ -7,6 +7,7 @@ const Characterdata = require("../models/Characterdata")
 const { RemainingTime, getSeasonRemainingTimeInMilliseconds } = require("../utils/datetimetools")
 const RankTier = require("../models/RankTier")
 const { Battlepass } = require("../models/Battlepass")
+const { checkmaintenance } = require("../utils/maintenance")
 
 exports.getpvphistory = async (req, res) => {
     try {
@@ -393,20 +394,20 @@ exports.pvpmatchresult = async (req, res) => {
             }
         }
 
-        // Update battle pass
-        const [winnerBP, loserBP] = await Promise.all([
-            Battlepass.findOne({ 
-                owner: status === 1 ? characterid : opponent,
-                season: activeSeason._id 
-            }).session(session),
-            Battlepass.findOne({ 
-                owner: status === 1 ? opponent : characterid,
-                season: activeSeason._id 
-            }).session(session)
-        ]);
+        // // Update battle pass
+        // const [winnerBP, loserBP] = await Promise.all([
+        //     Battlepass.findOne({ 
+        //         owner: status === 1 ? characterid : opponent,
+        //         season: activeSeason._id 
+        //     }).session(session),
+        //     Battlepass.findOne({ 
+        //         owner: status === 1 ? opponent : characterid,
+        //         season: activeSeason._id 
+        //     }).session(session)
+        // ]);
 
-        if (winnerBP) await winnerBP.addExperience(100); // Winner gets 100 XP
-        if (loserBP) await loserBP.addExperience(50);    // Loser gets 50 XP
+        // if (winnerBP) await winnerBP.addExperience(100); // Winner gets 100 XP
+        // if (loserBP) await loserBP.addExperience(50);    // Loser gets 50 XP
 
         // Save all changes
         await Promise.all([
