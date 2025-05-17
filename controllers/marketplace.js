@@ -382,21 +382,15 @@ exports.sellitem = async (req, res) => {
 
             const itemData = item.items[0];
 
-            let coinsamount
-
-console.log(itemData)
+            let coinsamount = itemData.item.price * 0.5
 
             if (itemData.item.currency === "coins") {
-                coinsamount = itemData.item.price * 0.5
-
                 await Characterwallet.findOneAndUpdate(
                     { owner: characterid, type: 'coins' },
                     { $inc: { amount: coinsamount } }
                 );
 
             } else if(itemData.item.currency === "crystal") {
-                coinsamount = (itemData.item.price * 0.5) * 100
-
                 await Characterwallet.findOneAndUpdate(
                     { owner: characterid, type: 'crystal' },
                     { $inc: { amount: coinsamount } }
