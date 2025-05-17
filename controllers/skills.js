@@ -868,6 +868,5 @@ exports.resetbasicskills = async (req, res) => {
         magicdamage: 1 * tempchardata.level,
         critdamage: 1 * tempchardata.level
     })
-
     return res.json({message: "success"})
 }

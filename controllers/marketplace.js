@@ -367,15 +367,12 @@ exports.sellitem = async (req, res) => {
     const { itemid, characterid, quantity } = req.body
 
     try {
-        // Start transaction
-        const session = await mongoose.startSession();
-        await session.startTransaction();
-
         // Find item in inventory
             const item = await CharacterInventory.findOne(
                 { 'items.item': itemid },
                 { 'items.$': 1 }
-            ).session(session);
+            )
+            .populate('items.item')
 
 
             if (!item?.items[0]) {
@@ -387,62 +384,48 @@ exports.sellitem = async (req, res) => {
 
             let coinsamount
 
-
+console.log(itemData)
 
             if (itemData.item.currency === "coins") {
                 coinsamount = itemData.item.price * 0.5
+
+                await Characterwallet.findOneAndUpdate(
+                    { owner: characterid, type: 'coins' },
+                    { $inc: { amount: coinsamount } }
+                );
+
             } else if(itemData.item.currency === "crystal") {
                 coinsamount = (itemData.item.price * 0.5) * 100
+
+                await Characterwallet.findOneAndUpdate(
+                    { owner: characterid, type: 'crystal' },
+                    { $inc: { amount: coinsamount } }
+                );
             } else {
                 return res.status(400).json({ message: "failed", data: "Invalid currency" });
             }
 
             // Update wallet
 
-            await Characterwallet.findOneAndUpdate(
-                { owner: characterid, type: 'coins' },
-                { $inc: { amount: coinsamount } },
-                { new: true, session }
-            );
-
             // Update inventory
 
-            if (itemData.quantity > 1 && quantity < itemData.quantity) {
-                await CharacterInventory.findOneAndUpdate(
-                    { owner: characterid, type: itemData.item.type },
-                    { $inc: { 'items.$[elem].quantity': -quantity } },
-                    { arrayFilters: [{ 'elem.item': itemid }], session }
-                );
-            } else {
             await CharacterInventory.findOneAndUpdate(
-                { owner: characterid, type: itemData.item.type },
-                { $pull: { items: { item: itemid } } },
-                { session }
+                { owner: characterid, 'items.item': itemid  },
+                { $pull: { items: { item: itemid } } }
             );
-            }
-            // Commit transaction
-            await session.commitTransaction();
-            return res.status(200).json({ 
+            
+            return res.json({ 
                 message: "success",
-                data: {
-                    item: itemData.item.name,
-                    price: coinsamount,
-                    type: itemData.item.type
-                }
             });
 
 
         } catch (err) {
-        await session.abortTransaction();
         console.log(`Error in sell item transaction: ${err}`);
-    
         return res.status(500).json({ 
             message: "failed", 
-            data: "Failed to complete sale" 
+            data: "Failed to complete sale"
         });
 
-    } finally {
-        session.endSession();
     }
 }
 
@@ -452,6 +435,8 @@ exports.equipitem = async (req, res) => {
 
     const { itemid, characterid } = req.body
 
+    console.log(itemid)
+
     const session = await mongoose.startSession();
     try {
         // Start transaction
@@ -459,8 +444,7 @@ exports.equipitem = async (req, res) => {
 
         // Find item in inventory
         const item = await CharacterInventory.findOne(
-            { 'items.item': itemid },
-            { 'items.$': 1 }
+            { 'items.item': itemid }
         ).session(session);
 
         if (!item?.items[0]) {
@@ -479,25 +463,64 @@ exports.equipitem = async (req, res) => {
         // check if item is already equipped
 
         const hasEquipped = await CharacterInventory.findOne(
-            { owner: characterid, 'items.isEquipped': true, 'items.item': { $ne: itemid }, 'items.type': item.items[0].item.type },
-            { 'items.$': 1 }
+            { owner: characterid, type: item.type }
         ).session(session);
 
-        if (hasEquipped?.items[0]) {
+        let equippeditem = ""
+
+        hasEquipped.items.forEach(temp => {
+            const {item, isEquipped} = temp
+
+            if (isEquipped && itemid != item) equippeditem = item
+        })
+
+        if (equippeditem) {
             await CharacterInventory.findOneAndUpdate(
-                { owner: characterid, type: hasEquipped.items[0].item.type },
-                { $set: { 'items.$[elem].isEquipped': false } },
-                { arrayFilters: [{ 'elem.item': hasEquipped.items[0].item._id }], session }
+                {
+                    owner: characterid,
+                    type: hasEquipped.type,
+                    items: {
+                    $elemMatch: {
+                            item: new mongoose.Types.ObjectId(equippeditem)
+                        }
+                    }
+                },
+                {
+                    $set: {
+                    'items.$.isEquipped': false
+                    }
+                },
+                {
+                    session,
+                    new: true
+                }
             );
         }
 
 
         // Update inventory
         await CharacterInventory.findOneAndUpdate(
-            { 'items.item': itemid, owner: characterid },
-            { $set: { 'items.$[elem].isEquipped': true } },
-            { arrayFilters: [{ 'elem.item': itemid }], session }
+            {
+                owner: characterid,
+                type: hasEquipped.type,
+                items: {
+                $elemMatch: {
+                        item: new mongoose.Types.ObjectId(itemid)
+                    }
+                }
+            },
+            {
+                $set: {
+                'items.$.isEquipped': true
+                }
+            },
+            {
+                session,
+                new: true
+            }
         );
+
+        console.log("waaaat 1")
 
         // Commit transaction
         await session.commitTransaction();

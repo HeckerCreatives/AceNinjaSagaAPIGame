@@ -139,13 +139,15 @@ exports.createcharacter = async (req, res) => {
         }));
         await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
 
-        await Battlepass.create([{
-            owner: characterId,
-            season: currentseason._id,
-            level: 1,
-            xp: 0,
-            rewards: []
-        }], { session })
+        // await Battlepass.create([{
+        //     owner: characterId,
+        //     season: currentseason._id,
+        //     level: 1,
+        //     xp: 0,
+        //     rewards: []
+        // }], { session })
+
+        //  BATTLE PASS DOES NOT EXIST
 
         await CharacterMonthlyLogin.create([{
             owner: characterId,
