@@ -63,8 +63,6 @@ exports.authlogin = async(req, res) => {
     .then(async user => {
         const matchpassword = await user.matchPassword(password)
 
-        console.log(matchpassword)
-
         if (user && matchpassword){
             if (user.status != "active"){
                 return res.status(401).json({ message: 'failed', data: `Your account had been ${user.status}! Please contact support for more details.` });
@@ -72,7 +70,7 @@ exports.authlogin = async(req, res) => {
             if (user.auth === "superadmin"){
                 const token = await encrypt(privateKey)
 
-                await Users.findByIdAndUpdate({_id: user._id}, {$set: {webtoken: token}}, { new: true })
+                await Users.findByIdAndUpdate({_id: user._id}, {$set: {gametoken: token}}, { new: true })
                 .then(async () => {
                     const payload = { id: user._id, username: user.username, status: user.status, token: token, auth: user.auth }
 
@@ -97,7 +95,7 @@ exports.authlogin = async(req, res) => {
                
                const token = await encrypt(privateKey)
                
-               await Users.findByIdAndUpdate({_id: user._id}, {$set: {webtoken: token}}, { new: true })
+               await Users.findByIdAndUpdate({_id: user._id}, {$set: {gametoken: token}}, { new: true })
                .then(async () => {
                    const payload = { id: user._id, username: user.username, status: user.status, token: token, auth: "player" }
                    

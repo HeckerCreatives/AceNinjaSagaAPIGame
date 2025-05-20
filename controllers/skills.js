@@ -729,9 +729,9 @@ exports.getequippedskills = async (req, res) => {
             return res.status(200).json({
                 message: "success",
                 data: {
-                    active: {}, passive: {} 
-                    // path: { active: {}, passive: {} },
-                    // nonpath: { active: {}, passive: {} }
+                    active: {}, passive: {}, 
+                    path: { active: {}, passive: {} },
+                    nonpath: { active: {}, passive: {} }
                 },
                 // counts: {
                 //     path: {
@@ -752,35 +752,34 @@ exports.getequippedskills = async (req, res) => {
 
         // Format skills by category and type
         const formattedSkills = equippedSkills.reduce((acc, skill) => {
-            // const isPathSkill = skill.skill.category === 'Path';
-            // const category = isPathSkill ? 'path' : 'nonpath';
+            const isPathSkill = skill.skill.category === 'Path';
+            const category = isPathSkill ? 'path' : 'nonpath';
             const type = skill.skill.type.toLowerCase();
 
-            // Initialize category if needed
-            if (!acc[type]) {
-                acc[type] = {};
-            }
+            // Initialize categories if needed
+            if (!acc[type]) acc[type] = {};
+            if (!acc[category]) acc[category] = {};
+            if (!acc[category][type]) acc[category][type] = {};
+            if (!acc.allskills) acc.allskills = { active: {}, passive: {} };
 
-            // // Add skill to appropriate category
-            // const skillCount = Object.keys(acc[category][type]).length + 1;
-            // acc[category][type][skillCount] = {
-            //     ...skill.skill.toObject(),
-            //     level: skill.level,
-            //     slot: skillCount
-            // };
-
+            // Add to appropriate category and allskills
             const skillCount = Object.keys(acc[type]).length + 1;
-
-            acc[type][skillCount] = {
-                ...skill.skill.toObject()
+            const skillData = {
+                ...skill.skill.toObject(),
+                level: skill.level,
+                slot: skillCount
             };
+
+            acc.allskills[type][skillCount] = skillData;
+            acc[category][type][skillCount] = skillData;
+
             return acc;
         }, {
-            active: {},
-            passive: {}
-            // path: { active: {}, passive: {} },
-            // nonpath: { active: {}, passive: {} }
+            allskills: { active: {}, passive: {} },
+            path: { active: {}, passive: {} },
+            nonpath: { active: {}, passive: {} }
         });
+
 
         // Calculate counts
         // const counts = {
