@@ -93,7 +93,7 @@ exports.initialize = async () => {
                 // Create initial market with all available items
                 const newMarket = await Market.create({
                     items: availableItems,
-                    
+                    type: "shop",
                     lastUpdated: new Date()
                 });
     

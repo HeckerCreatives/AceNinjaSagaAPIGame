@@ -2,6 +2,8 @@ const Characterwallet = require("../models/Characterwallet");
 const Characterdata = require("../models/Characterdata");
 const {Companion, CharacterCompanion} = require("../models/Companion");
 const { checkcharacter } = require("../utils/character");
+const PvP = require("../models/Pvp");
+const { default: mongoose } = require("mongoose");
 
 exports.getcharactercompanions = async (req, res) => {
 
@@ -155,6 +157,11 @@ exports.companionlist = async (req, res) => {
     // check if user has the companion
 
     const charactercompanion = await CharacterCompanion.find({ owner: characterid })
+    const character = await Characterdata.findById(characterid)
+    .lean()
+    .then(data => data)
+    const totalWins = await PvP.countDocuments({ status: 1, owner: new mongoose.Types.ObjectId(characterid) })
+    
 
 
     const totalData = await Companion.countDocuments()
@@ -169,12 +176,21 @@ exports.companionlist = async (req, res) => {
         const { id, name, activedescription, passivedescription, passiveeffects, activeeffects, levelrequirement, price, currency } = data
 
         let isOwned = false
-
+        let islocked = false
         charactercompanion.forEach(companion => {
             if(companion.companion.toString() === id.toString()){
                 isOwned = true
             }
         })
+
+        if (name === "Blaze" &&(totalWins < 40 || character.level < 50)){
+            islocked = true
+        }
+        if (name === "Shade" && (totalWins < 20 || character.level < 40)) {
+            islocked = true
+        }
+
+        
 
         finalData.companions[name] = {
             id: id,
@@ -186,6 +202,7 @@ exports.companionlist = async (req, res) => {
             price: price,
             currency: currency,
             isOwned: isOwned,
+            islocked: islocked
         }
     });
 
