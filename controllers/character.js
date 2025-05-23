@@ -451,7 +451,12 @@ exports.getplayerdata = async (req, res) => {
     const totalWins = await PvP.countDocuments({ status: 1, owner: new mongoose.Types.ObjectId(characterid) })
     const characterData = await Characterdata.aggregate(matchCondition)
 
-    return res.status(200).json({ message: "success", data: characterData[0], totalWins: totalWins || 0})
+    if (characterData.length > 0){
+        characterData[0].pvpwins = totalWins || 0
+        // characterData[0].clanwarwins = totalClanWarWins || 0
+    }
+
+    return res.status(200).json({ message: "success", data: characterData[0]})
 }
 
 exports.getplayercharacters = async (req, res) => {
