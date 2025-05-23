@@ -168,7 +168,6 @@ exports.getcharacterSkills = async (req, res) => {
     try {
         const characterSkills = await CharacterSkillTree.findOne({ owner: characterid })
             .populate('skills.skill');
-        console.log(characterSkills)
 
         // If no skills found, return empty data
         if (!characterSkills || !characterSkills.skills) {
