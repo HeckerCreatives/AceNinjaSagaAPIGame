@@ -4,7 +4,7 @@ const CharacterStats = require("../models/Characterstats")
 const Charactertitle = require("../models/Charactertitles")
 const Characterwallet = require("../models/Characterwallet")
 const Rankings = require("../models/Ranking")
-const { CharacterInventory } = require("../models/Market")
+const { CharacterInventory, Item } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
 const { Battlepass } = require("../models/Battlepass")
@@ -31,6 +31,13 @@ exports.createcharacter = async (req, res) => {
                 message: "failed", 
                 data: "You are not authorized to view this page. Please login the right account to view the page."
             });
+        }
+
+        let searchgender = gender === 0 ? `Male Basic Attire ${Number(outfit) + 1}` : `Female Basic Attire ${Number(outfit) + 1}`;
+
+        const item = await Item.findOne({ name: searchgender })
+        if(!item){
+            return res.status(400).json({ message: "failed", data: "Item not found."})
         }
 
             
@@ -139,6 +146,20 @@ exports.createcharacter = async (req, res) => {
         }));
         await CharacterInventory.bulkWrite(inventoryBulkWrite, { session });
 
+        await CharacterInventory.findOneAndUpdate(
+        { owner: characterId, type: "outfit" },
+        {
+            $push: {
+                items: {
+                    item: item._id,
+                    quantity: 1,
+                    isEquipped: true, // Optionally equip it by default
+                    acquiredAt: new Date()
+                }
+            }
+        },
+        { session }
+    );
         // await Battlepass.create([{
         //     owner: characterId,
         //     season: currentseason._id,
