@@ -167,7 +167,8 @@ exports.getcharacterSkills = async (req, res) => {
 
     try {
         const characterSkills = await CharacterSkillTree.findOne({ owner: characterid })
-            .populate("skills.skill");
+            .populate('skills.skill');
+        console.log(characterSkills)
 
         // If no skills found, return empty data
         if (!characterSkills || !characterSkills.skills) {
@@ -541,70 +542,43 @@ exports.equipskill = async (req, res) => {
             });
         }
 
-        // Check if skill is passive
+        // Check if skill is passive or active
         const isPassive = skill.skill.type === 'Passive';
-        // const isPathSkill = skill.skill.category === 'Path';
+        const isPathSkill = skill.skill.category === 'Path';
 
-        // Get currently equipped skills based on category
-        // const equippedPathSkills = skillTree.skills.filter(s => 
-        //     s.isEquipped && s.skill.category === 'Path' && s.skill.type === (isPassive ? 'Passive' : 'Active')
-        // );
-        
-        // const equippedNonPathSkills = skillTree.skills.filter(s => 
-        //     s.isEquipped && s.skill.category !== 'Path' && s.skill.type === (isPassive ? 'Passive' : 'Active')
-        // );
+        // Get currently equipped skills by category and type
+        const equippedPathActive = skillTree.skills.filter(s => s.isEquipped && s.skill.category === 'Path' && s.skill.type === 'Active');
+        const equippedPathPassive = skillTree.skills.filter(s => s.isEquipped && s.skill.category === 'Path' && s.skill.type === 'Passive');
+        const equippedNonPathActive = skillTree.skills.filter(s => s.isEquipped && s.skill.category !== 'Path' && s.skill.type === 'Active');
+        const equippedNonPathPassive = skillTree.skills.filter(s => s.isEquipped && s.skill.category !== 'Path' && s.skill.type === 'Passive');
 
-        const equippedPassiveSkills = skillTree.skills.filter(s => s.isEquipped && s.skill.type === 'Passive');
-
-        const equippedActiveSkills = skillTree.skills.filter(s => s.isEquipped && s.skill.type === 'Active');
-
-        if (isPassive){
-            if (equippedPassiveSkills.length >= 4){
+        if (isPathSkill) {
+            if (isPassive && equippedPathPassive.length >= 3) {
                 return res.status(400).json({
                     message: "failed",
-                    data: "Maximum passive skills (4) already equipped"
+                    data: "Maximum path passive skills (3) already equipped"
+                });
+            }
+            if (!isPassive && equippedPathActive.length >= 5) {
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Maximum path active skills (5) already equipped"
+                });
+            }
+        } else {
+            if (isPassive && equippedNonPathPassive.length >= 4) {
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Maximum non-path passive skills (4) already equipped"
+                });
+            }
+            if (!isPassive && equippedNonPathActive.length >= 8) {
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Maximum non-path active skills (8) already equipped"
                 });
             }
         }
-        else{
-            if (equippedActiveSkills.length >= 8){
-                return res.status(400).json({
-                    message: "failed",
-                    data: "Maximum active passive skills (8) already equipped"
-                });
-            }
-        }
-
-        // Check limits based on skill category
-        // if (isPathSkill) {
-        //     // Path skills (Mage, Samurai, etc.)
-        //     if (isPassive && equippedPathSkills.length >= 3) {
-        //         return res.status(400).json({
-        //             message: "failed",
-        //             data: "Maximum path passive skills (3) already equipped"
-        //         });
-        //     }
-        //     if (!isPassive && equippedPathSkills.length >= 4) {
-        //         return res.status(400).json({
-        //             message: "failed",
-        //             data: "Maximum path active skills (4) already equipped"
-        //         });
-        //     }
-        // } else {
-        //     // Non-path skills (Attack, Defense, Utility, Guild, Raid, etc.)
-        //     if (isPassive && equippedNonPathSkills.length >= 3) {
-        //         return res.status(400).json({
-        //             message: "failed",
-        //             data: "Maximum non-path passive skills (3) already equipped"
-        //         });
-        //     }
-        //     if (!isPassive && equippedNonPathSkills.length >= 4) {
-        //         return res.status(400).json({
-        //             message: "failed",
-        //             data: "Maximum non-path active skills (4) already equipped"
-        //         });
-        //     }
-        // }
 
         // Equip skill
         skill.isEquipped = true;
@@ -612,29 +586,8 @@ exports.equipskill = async (req, res) => {
         // Save changes
         await skillTree.save();
 
-        // if (isPassive){
-        //     equippedPassiveSkills.push(skill)
-        // }
-        // else{
-        //     equippedActiveSkills.push(skill)
-        // }
-
         return res.status(200).json({
             message: "success",
-            // data: {
-            //     active: equippedActiveSkills,
-            //     passive: equippedPassiveSkills
-            //     // equipped: {
-            //     //     pathSkills: {
-            //     //         active: equippedPathSkills.length + (!isPassive && isPathSkill ? 1 : 0),
-            //     //         passive: equippedPathSkills.length + (isPassive && isPathSkill ? 1 : 0)
-            //     //     },
-            //     //     nonPathSkills: {
-            //     //         active: equippedNonPathSkills.length + (!isPassive && !isPathSkill ? 1 : 0),
-            //     //         passive: equippedNonPathSkills.length + (isPassive && !isPathSkill ? 1 : 0)
-            //     //     }
-            //     // }
-            // }
         });
     } catch (err) {
         console.log(`Error in skill equip: ${err}`);
@@ -644,7 +597,6 @@ exports.equipskill = async (req, res) => {
         });
     }
 };
-
 exports.unequipskill = async (req, res) => {
     const { characterid, skillid } = req.body;
 
@@ -733,22 +685,9 @@ exports.getequippedskills = async (req, res) => {
                     path: { active: {}, passive: {} },
                     nonpath: { active: {}, passive: {} }
                 },
-                // counts: {
-                //     path: {
-                //         active: 0,
-                //         passive: 0,
-                //         activeRemaining: 4,
-                //         passiveRemaining: 3
-                //     },
-                //     nonpath: {
-                //         active: 0,
-                //         passive: 0,
-                //         activeRemaining: 4,
-                //         passiveRemaining: 3
-                //     }
-                // }
             });
         }
+
 
         // Format skills by category and type
         const formattedSkills = equippedSkills.reduce((acc, skill) => {
@@ -763,15 +702,16 @@ exports.getequippedskills = async (req, res) => {
             if (!acc.allskills) acc.allskills = { active: {}, passive: {} };
 
             // Add to appropriate category and allskills
-            const skillCount = Object.keys(acc[type]).length + 1;
+            const categorySkillCount = Object.keys(acc[category][type]).length + 1;
+            const allSkillsCount = Object.keys(acc.allskills[type]).length + 1;
             const skillData = {
                 ...skill.skill.toObject(),
                 level: skill.level,
-                slot: skillCount
+                slot: categorySkillCount
             };
 
-            acc.allskills[type][skillCount] = skillData;
-            acc[category][type][skillCount] = skillData;
+            acc.allskills[type][allSkillsCount] = skillData;
+            acc[category][type][categorySkillCount] = skillData;
 
             return acc;
         }, {
