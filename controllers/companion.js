@@ -1,6 +1,6 @@
 const Characterwallet = require("../models/Characterwallet");
 const Characterdata = require("../models/Characterdata");
-const {Companion, CharacterCompanion} = require("../models/Companion");
+const {Companion, CharacterCompanion, CharacterCompanionUnlocked} = require("../models/Companion");
 const { checkcharacter } = require("../utils/character");
 const PvP = require("../models/Pvp");
 const { default: mongoose } = require("mongoose");
@@ -157,11 +157,16 @@ exports.companionlist = async (req, res) => {
     // check if user has the companion
 
     const charactercompanion = await CharacterCompanion.find({ owner: characterid })
-    const character = await Characterdata.findById(characterid)
-    .lean()
     .then(data => data)
-    const totalWins = await PvP.countDocuments({ status: 1, owner: new mongoose.Types.ObjectId(characterid) })
+    .catch(err => {
+        console.log(`There's a problem encountered while getting companions. Error: ${err}.`)
+        return res.status(400).json({
+            message: "bad-request",
+            data: "There's a problem with the server. Please try again later."
+        });
+    })
     
+    const isUnlocked = await CharacterCompanionUnlocked.find({ owner: characterid })
 
 
     const totalData = await Companion.countDocuments()
@@ -182,15 +187,13 @@ exports.companionlist = async (req, res) => {
                 isOwned = true
             }
         })
-
-        if (name === "Blaze" &&(totalWins < 40 || character.level < 50)){
-            islocked = true
-        }
-        if (name === "Shade" && (totalWins < 20 || character.level < 40)) {
-            islocked = true
-        }
-
-        
+        isUnlocked.forEach(companion => {
+            if(companion.companion.toString() === id.toString()){
+                if(companion.isLocked){
+                    islocked = true
+                }
+            }
+        })
 
         finalData.companions[name] = {
             id: id,

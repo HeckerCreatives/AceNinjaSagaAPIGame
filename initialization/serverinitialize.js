@@ -2732,7 +2732,7 @@ exports.initialize = async () => {
 
 
         const allcharacters = await Characterdata.find()
-
+        // const allCompanions = await Companion.find()
         for (let i = 0; i < allcharacters.length; i++) {
             
             const skilltree = await CharacterSkillTree.findOne({ owner: allcharacters[i]._id })
@@ -2746,6 +2746,23 @@ exports.initialize = async () => {
 
                 console.log('Character Skill Tree created for', allcharacters[i].username)
             }
+
+            // const characterCompanion = await CharacterCompanionUnlocked.findOne({ owner: allcharacters[i]._id })
+            // if(!characterCompanion){
+            //         const companionBulkWrite = allCompanions.map(companion => ({
+            //             insertOne: {
+            //                 document: {
+            //                     owner: allcharacters[i]._id,
+            //                     companion: companion._id,
+            //                     isLocked: companion.name === "Blaze" || companion.name === "Shade" ? true : false,
+            //                 }
+            //             }
+            //         }));
+            
+            //         await CharacterCompanionUnlocked.bulkWrite(companionBulkWrite);
+            
+            //     console.log('Character Companion data created for', allcharacters[i].username)
+            // }
         }
 
 

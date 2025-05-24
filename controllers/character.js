@@ -227,6 +227,20 @@ exports.createcharacter = async (req, res) => {
             expspin: false,
         }], { session })
 
+        const allCompanions = await Companion.find().lean()
+
+        const companionBulkWrite = allCompanions.map(companion => ({
+            insertOne: {
+                document: {
+                    owner: characterId,
+                    companion: companion._id,
+                    isLocked: companion.name === "Blaze" || companion.name === "Shade" ? true : false,
+                }
+            }
+        }));
+
+        await CharacterCompanionUnlocked.bulkWrite(companionBulkWrite, { session });
+
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
 
