@@ -212,6 +212,29 @@ exports.companionlist = async (req, res) => {
     });
 }
 
+exports.unlockcompanion = async (req, res) => {
+    // const {id} = req.user
+    // const {characterid, companionname} = req.body
+
+    // if(!companionname){
+    //     return res.status(400).json({ message: "failed", data: "Please select a valid companion."})
+    // }
+
+    // if (!characterid){
+    //     return res.status(401).json({ message: "failed", data: "Please select a valid character."})
+    // }
+
+    // const checker = await checkcharacter(id, characterid);
+
+    // if (checker === "failed") {
+    //     return res.status(401).json({
+    //         message: "Unauthorized", 
+    //         data: "You are not authorized to view this page. Please login the right account to view the page."
+    //     });
+    // }
+
+
+}
 
 exports.buycompanion = async (req, res) => {
 

@@ -454,6 +454,7 @@ exports.getplayerdata = async (req, res) => {
     if (characterData.length > 0){
         characterData[0].pvpwins = totalWins || 0
         // characterData[0].clanwarwins = totalClanWarWins || 0
+        characterData[0].clanwarwins = 0
     }
 
     return res.status(200).json({ message: "success", data: characterData[0]})

@@ -57,10 +57,34 @@ const CharacterCompanionSchema = new mongoose.Schema(
     }
 )
 
+const CharacterCompanionUnlockedSchema = new mongoose.Schema(
+    {
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Characterdata",
+            index: true
+        },
+        companion: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Companion",
+            index: true
+        },
+        isLocked: {
+            type: Boolean,
+            default: false
+        }
+    },
+    {
+        timestamps: true
+    }
+)
+
 
 const CharacterCompanion = mongoose.model("CharacterCompanion", CharacterCompanionSchema)
 const Companion = mongoose.model("Companion", CompanionSchema);
+const CharacterCompanionUnlocked = mongoose.model("CharacterCompanionUnlockedSchema", CharacterCompanionUnlockedSchema)
 module.exports = {
     Companion,
-    CharacterCompanion
+    CharacterCompanion,
+    CharacterCompanionUnlocked
 };
