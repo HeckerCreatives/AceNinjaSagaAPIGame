@@ -9,7 +9,7 @@ const ClanwarsHistorySchema = new mongoose.Schema(
             index: true
         },
         status: {
-            type: String
+            type: Number
         },
         opponent: {
             type: String

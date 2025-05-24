@@ -4,6 +4,7 @@ const {Companion, CharacterCompanion, CharacterCompanionUnlocked} = require("../
 const { checkcharacter } = require("../utils/character");
 const PvP = require("../models/Pvp");
 const { default: mongoose } = require("mongoose");
+const ClanwarsHistory = require("../models/Clanwarshistory");
 
 exports.getcharactercompanions = async (req, res) => {
 
@@ -215,29 +216,6 @@ exports.companionlist = async (req, res) => {
     });
 }
 
-exports.unlockcompanion = async (req, res) => {
-    // const {id} = req.user
-    // const {characterid, companionname} = req.body
-
-    // if(!companionname){
-    //     return res.status(400).json({ message: "failed", data: "Please select a valid companion."})
-    // }
-
-    // if (!characterid){
-    //     return res.status(401).json({ message: "failed", data: "Please select a valid character."})
-    // }
-
-    // const checker = await checkcharacter(id, characterid);
-
-    // if (checker === "failed") {
-    //     return res.status(401).json({
-    //         message: "Unauthorized", 
-    //         data: "You are not authorized to view this page. Please login the right account to view the page."
-    //     });
-    // }
-
-
-}
 
 exports.buycompanion = async (req, res) => {
 
@@ -436,4 +414,85 @@ exports.equipunequipcompanion = async (req, res) => {
     })
 
     return res.status(200).json({ message: "success"})
+}
+
+exports.unlockcompanion = async (req, res) => {
+    const { id } = req.user
+    const { characterid, companionid } = req.body
+
+    if(!characterid || !companionid){
+        return res.status(400).json({ message: "failed", data: "Please input character id and companion id."})
+    }
+
+    const checker = await checkcharacter(id, characterid);
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized", 
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
+
+    // Start transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const charactercompanion = await CharacterCompanionUnlocked.findOne({ owner: characterid, companion: companionid })
+            .populate("companion")
+            .session(session);
+
+        if(!charactercompanion){
+            throw new Error("Companion not found.");
+        }
+
+        const character = await Characterdata.findById(characterid).session(session);
+        if(!character){
+            throw new Error("Character not found.");
+        }
+
+        const totalpvpwins = await PvP.countDocuments({ owner: characterid, status: 1 });
+        const totalclanwarwins = await ClanwarsHistory.countDocuments({ owner: characterid, status: 1 });
+
+        if(charactercompanion.isLocked){
+            if(charactercompanion.companion.name === "Blaze" && (totalpvpwins < 30 || totalclanwarwins < 30 || character.level < 50)){
+                throw new Error("You need to win 30 PvP matches and 30 Clan War matches to unlock Blaze.");
+            } else if(charactercompanion.companion.name === "Shade" && (totalpvpwins < 20 || totalclanwarwins < 20 || character.level < 40)){
+                throw new Error("You need to win 20 PvP matches and 20 Clan War matches to unlock Shade.");
+            }
+
+            const wallet = await Characterwallet.findOne({ owner: characterid, type: "crystal" }).session(session);
+            if(!wallet){
+                session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({ message: "failed", data: "Wallet not found."});
+            }
+
+
+            let price = charactercompanion.companion.name === "Blaze" ? 2000 : 
+                       charactercompanion.companion.name === "Shade" ? 1000 : 0;
+
+            if(wallet.amount < price){
+                session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({ message: "failed", data: "Insufficient funds."});
+            }
+
+            wallet.amount -= price;
+            charactercompanion.isLocked = false;
+
+            await wallet.save();
+            await charactercompanion.save();
+        }
+
+        await session.commitTransaction();
+        return res.status(200).json({ message: "success"});
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error(`Transaction error: ${error}`);
+        return res.status(400).json({ message: "bad-request", data: error.message || "There's a problem with the server. Please try again later."});
+    } finally {
+        session.endSession();
+    }
 }
