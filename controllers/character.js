@@ -10,12 +10,12 @@ const Season = require("../models/Season")
 const { Battlepass } = require("../models/Battlepass")
 const { checkcharacter } = require("../utils/character")
 
-const Companion = require("../models/Companion")
 const RankTier = require("../models/RankTier")
 const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
 const moment = require("moment")
 const { CharacterChapter, CharacterChapterHistory } = require("../models/Chapter")
 const PvP = require("../models/Pvp")
+const { Companion, CharacterCompanionUnlocked } = require("../models/Companion")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
