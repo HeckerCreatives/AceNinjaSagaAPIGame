@@ -149,10 +149,10 @@ exports.redeemcode = async (req, res) => {
         if (redeemCode.rewards && redeemCode.rewards.crystal) rewardSummary.push(`${redeemCode.rewards.crystal} crystal`);
 
         const rewardDetails = {
-            rewardsList: [
-                { type: 'coins', amount: redeemCode.rewards.coins || 0 },
-                { type: 'crystal', amount: redeemCode.rewards.crystal || 0 }
-            ].filter(reward => reward.amount > 0),
+            rewardsList: {
+            coins: redeemCode.rewards.coins || 0,
+            crystal: redeemCode.rewards.crystal || 0
+            },
             summary: rewardSummary.join(', '),
             timestamp: new Date(),
             characterId: characterid,
@@ -232,20 +232,6 @@ exports.userredeemedcodeshistory = async (req, res) => {
         const totaldocuments = await CodesRedeemed.countDocuments({ owner: characterid });
 
         const totalPages = Math.ceil(totaldocuments / pageOptions.limit);
-
-        // formatdata like this example:
-        // const formattedResponse = {
-        //     data: skills.reduce((acc, skill, index) => {
-        //         acc[index + 1] = skill;
-        //         return acc;
-        //     }, {}),
-        //     pagination: {
-        //         total: total,
-        //         page: pageOptions.page,
-        //         limit: pageOptions.limit,
-        //         pages: Math.ceil(total / pageOptions.limit)
-        //     }
-        // };
 
         const formattedResponse = redeemedCodes.reduce((acc, code, index) => {
             acc[index + 1] = {
