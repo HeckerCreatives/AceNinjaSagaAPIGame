@@ -7,16 +7,10 @@ const RedeemCodeSchema = new mongoose.Schema(
             type: String,
             index: true
         },
-        title: {
-            type: String,
-            // required: true
-        },
-        description: {
-            type: String
-        },
+
         rewards: {
-            type: Map, 
-            of: Number 
+            type: mongoose.Schema.Types.Mixed, // Can be an object or array depending on the reward structure
+            required: true
         },
         status: {
             type: String,

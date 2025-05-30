@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-// Battlepass Season Schema
 const BattlepassSeasonSchema = new mongoose.Schema(
     {
         seasonName: {
@@ -15,6 +14,11 @@ const BattlepassSeasonSchema = new mongoose.Schema(
             type: Date,
             required: true
         },
+        status: {
+            type: String,
+            enum: ["active", "inactive"],
+            default: "inactive"
+        },
         tierCount: {
             type: Number,
             required: true,
@@ -24,6 +28,54 @@ const BattlepassSeasonSchema = new mongoose.Schema(
             type: Number,
             required: true
         },
+        freeMissions: [
+            {
+                missionName: {
+                    type: String,
+                    required: true
+                },
+                description: {
+                    type: String,
+                    required: true
+                },
+                xpReward: {
+                    type: Number,
+                    required: true
+                },
+                requirements: {
+                    type: Object,
+                    required: true
+                },
+                daily: {
+                    type: Boolean,
+                    default: false
+                }
+            }
+        ],
+        premiumMissions: [
+            {
+                missionName: {
+                    type: String,
+                    required: true
+                },
+                description: {
+                    type: String,
+                    required: true
+                },
+                xpReward: {
+                    type: Number,
+                    required: true
+                },
+                requirements: {
+                    type: Object,
+                    required: true
+                },
+                daily: {
+                    type: Boolean,
+                    default: false
+                }
+            }
+        ],
         tiers: [
             {
                 tierNumber: {
@@ -43,7 +95,12 @@ const BattlepassSeasonSchema = new mongoose.Schema(
                     required: true
                 }
             }
-        ]
+        ],
+        grandreward: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Item",
+            required: true,
+        }
     },
     {
         timestamps: true
@@ -92,11 +149,101 @@ const BattlepassProgressSchema = new mongoose.Schema(
     }
 );
 
+
+
+const MissionProgressSchema = new mongoose.Schema(
+    {
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Characterdata",
+            required: true,
+            index: true
+        },
+        season: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "BattlepassSeason",
+            required: true
+        },
+        missionId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true
+        },
+        missionName: {
+            type: String,
+            required: true
+        },
+        progress: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        isCompleted: {
+            type: Boolean,
+            default: false
+        },
+        isLocked: {
+            type: Boolean,
+            default: false
+        },
+        type: {
+            type: String,
+            enum: ["free", "premium"],
+            required: true
+        },
+        daily: {
+            type: Boolean,
+            default: false
+        },
+        lastUpdated: {
+            type: Date,
+            default: Date.now
+        }
+    },
+    {
+        timestamps: true
+    }
+);
+
+// Pre-save middleware to lock premium missions if user doesn't have premium
+MissionProgressSchema.pre('save', async function(next) {
+    if (this.type === 'premium') {
+        const battlepassProgress = await mongoose.model('BattlepassProgress').findOne({
+            owner: this.owner,
+            season: this.season
+        });
+        this.isLocked = !battlepassProgress?.hasPremium;
+    }
+    next();
+});
+// Add middleware to BattlepassProgressSchema to unlock premium missions when premium is bought
+BattlepassProgressSchema.pre('save', async function(next) {
+    if (this.isModified('hasPremium') && this.hasPremium) {
+        await mongoose.model('BattlepassMissionProgress').updateMany(
+            {
+                owner: this.owner,
+                season: this.season,
+                type: 'premium'
+            },
+            {
+                isLocked: false
+            }
+        );
+    }
+    next();
+});
+
+// Indexes
+MissionProgressSchema.index({ owner: 1, season: 1, missionId: 1 }, { unique: true });
+
+
+
+
 // Indexes
 BattlepassProgressSchema.index({ owner: 1, season: 1 }, { unique: true });
 
 // Models
 const BattlepassSeason = mongoose.model("BattlepassSeason", BattlepassSeasonSchema);
 const BattlepassProgress = mongoose.model("BattlepassProgress", BattlepassProgressSchema);
+const BattlepassMissionProgress = mongoose.model("BattlepassMissionProgress", MissionProgressSchema);
 
-module.exports = { BattlepassSeason, BattlepassProgress };
+module.exports = { BattlepassSeason, BattlepassProgress, BattlepassMissionProgress };
