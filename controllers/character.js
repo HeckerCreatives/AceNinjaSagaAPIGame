@@ -223,8 +223,8 @@ exports.createcharacter = async (req, res) => {
 
         await CharacterDailySpin.create([{
             owner: characterId,
-            spin: false,
-            expspin: false,
+            spin: true,
+            expspin: true,
         }], { session })
 
         const allCompanions = await Companion.find().lean()

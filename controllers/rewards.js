@@ -55,23 +55,23 @@ exports.getdailyspin = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "User dailyspin data not found." })
     }
 
-    const formattedResponse = {
-        data: dailyspin.reduce((acc, spin, index) => {
-            acc[spin.slot] = {
-                id: spin._id,
-                slot: spin.slot,
-                type: spin.type,
-                amount: spin.amount,
-                chance: spin.chance
-            };
-            return acc;
-        }, {}),
-        dailyspin: userdailyspin.spin
-    };
+    const dailyspindata = dailyspin.reduce((acc, spin, index) => {
+        acc[spin.slot] = {
+            id: spin._id,
+            slot: spin.slot,
+            type: spin.type,
+            amount: spin.amount,
+            chance: spin.chance
+        };
+        return acc;
+    }, {})
 
     return res.status(200).json({ 
         message: "success", 
-        ...formattedResponse
+        data: {
+            dailyspindata: dailyspindata,
+            dailyspin: userdailyspin.spin
+        }
     });
 }
 
@@ -110,7 +110,7 @@ exports.spindaily = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "User dailyspin data not found." });
         }
 
-        if (userdailyspin.spin === true) {
+        if (userdailyspin.spin === false) {
             await session.abortTransaction();
             return res.status(400).json({ message: "failed", data: "You already spinned today." });
         }
@@ -149,7 +149,7 @@ exports.spindaily = async (req, res) => {
         );
 
         // Update user spin status
-        userdailyspin.spin = true;
+        userdailyspin.spin = false;
         await userdailyspin.save({ session });
 
         await session.commitTransaction();
@@ -218,23 +218,23 @@ exports.getexpdailyspin = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "User dailyspin data not found." })
     }
 
-    const formattedResponse = {
-        data: dailyspin.reduce((acc, spin, index) => {
-            acc[spin.slot] = {
-                id: spin._id,
-                slot: spin.slot,
-                type: spin.type,
-                amount: spin.amount,
-                chance: spin.chance
-            };
-            return acc;
-        }, {}),
-        dailyspin: userdailyspin.spin
-    };
+    const dailyspindata = dailyspin.reduce((acc, spin, index) => {
+        acc[spin.slot] = {
+            id: spin._id,
+            slot: spin.slot,
+            type: spin.type,
+            amount: spin.amount,
+            chance: spin.chance
+        };
+        return acc;
+    }, {})
 
     return res.status(200).json({ 
         message: "success", 
-        ...formattedResponse
+        data: {
+            dailyspindata: dailyspindata,
+            dailyspin: userdailyspin.expspin
+        }
     });
 }
 
@@ -273,7 +273,7 @@ exports.spinexpdaily = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "User dailyspin data not found." });
         }
 
-        if (userdailyspin.expspin === true) {
+        if (userdailyspin.expspin === false) {
             await session.abortTransaction();
             return res.status(400).json({ message: "failed", data: "You already spinned today." });
         }
@@ -366,7 +366,7 @@ exports.spinexpdaily = async (req, res) => {
         await character.save({ session });
 
         // Update user spin status
-        userdailyspin.expspin = true;
+        userdailyspin.expspin = false;
         await userdailyspin.save({ session });
 
         await session.commitTransaction();
@@ -456,25 +456,24 @@ exports.getweeklylogin = async (req, res) => {
     } else {
         claimed = false
     }
-    console.log(daytoday, lastclaimed)
 
-    const formattedResponse = {
-        data: weeklylogin.reduce((acc, login, index) => {
-            acc[login.day] = {
-                id: login._id,
-                day: login.day,
-                type: login.type,
-                amount: login.amount
-            };
-            return acc;
-        }, {}),
-        claimed: claimed,
-        currentDay: userweeklylogin.currentDay
-    };
+    const daydata = weeklylogin.reduce((acc, login, index) => {
+        acc[login.day] = {
+            id: login._id,
+            day: login.day,
+            type: login.type,
+            amount: login.amount
+        };
+        return acc;
+    }, {})
 
     return res.status(200).json({ 
         message: "success", 
-        ...formattedResponse
+        data: {
+            days: daydata,
+            claimed: claimed,
+            currentDay: userweeklylogin.currentDay
+        }
     });
 }
 
