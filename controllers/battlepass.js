@@ -1,5 +1,8 @@
-const { BattlepassSeason, BattlepassProgress, BattlepassMissionProgress } = require("../models/Battlepass");
+const { BattlepassSeason, BattlepassProgress, BattlepassMissionProgress, BattlepassHistory } = require("../models/Battlepass");
+const Characterdata = require("../models/Characterdata");
+const CharacterStats = require("../models/Characterstats");
 const Characterwallet = require("../models/Characterwallet");
+const { CharacterSkillTree } = require("../models/Skills");
 const { checkcharacter } = require("../utils/character")
 
 
@@ -105,6 +108,7 @@ exports.getbattlepass = async (req, res) => {
             startdate: currentSeason.startDate,
             enddate: currentSeason.endDate,
             status: currentSeason.status,
+            premiumCost: currentSeason.premiumCost,
             freeMissions: currentSeason.freeMissions.reduce((acc, mission, index) => {
                 acc[index + 1] = {
                     id: mission._id,
@@ -161,16 +165,14 @@ exports.getbattlepass = async (req, res) => {
     });
 }
 
+
 exports.claimbattlepassreward = async (req, res) => {
     const { id } = req.user;
-    let { characterid, tier } = req.body;
+    const { characterid, tier } = req.body;
 
-    if (!characterid || !tier) {
-        return res.status(400).json({ message: "failed", data: "Character ID and tier(s) are required." });
+    if (!characterid) {
+        return res.status(400).json({ message: "failed", data: "Character ID is required." });
     }
-
-    // Support both single tier and array of tiers
-    const tiersToClaim = Array.isArray(tier) ? tier : [tier];
 
     const checker = await checkcharacter(id, characterid);
     if (checker === "failed") {
@@ -201,23 +203,20 @@ exports.claimbattlepassreward = async (req, res) => {
 
     const claimedRewards = battlepassData.claimedRewards || [];
     const hasPremium = battlepassData.hasPremium;
+    const maxTier = battlepassData.currentTier;
 
-    const results = {};
+    const claimed = {};
 
-    for (const t of tiersToClaim) {
-        if (t < 1 || t > currentSeason.tiers.length) {
-            results[t] = { status: "failed", reason: "Invalid tier number." };
-            continue;
-        }
+    const walletUpdates = [];
+    const claimedRewardsList = [];
+    const historyEntries = [];
+    const characterUpdates = new Map();
 
+    for (let t = 1; t <= maxTier; t++) {
         const alreadyClaimedTypes = claimedRewards.filter(r => r.tier === t).map(r => r.rewardType);
         const tierDetails = currentSeason.tiers[t - 1];
-        if (!tierDetails) {
-            results[t] = { status: "failed", reason: "Tier not found." };
-            continue;
-        }
+        if (!tierDetails) continue;
 
-        // Prepare rewards to claim
         const rewardsToClaim = [];
         if (!alreadyClaimedTypes.includes("free")) {
             rewardsToClaim.push({ rewardType: "free", reward: tierDetails.freeReward });
@@ -226,52 +225,194 @@ exports.claimbattlepassreward = async (req, res) => {
             rewardsToClaim.push({ rewardType: "premium", reward: tierDetails.premiumReward });
         }
 
-        if (rewardsToClaim.length === 0) {
-            results[t] = { status: "failed", reason: "All rewards for this tier already claimed." };
-            continue;
-        }
+        if (rewardsToClaim.length === 0) continue;
 
-        // Process rewards and update wallet
+        historyEntries.push({
+            insertOne: {
+                document: {
+                    owner: characterid,
+                    season: currentSeason._id,
+                    tier: t,
+                    rewards: rewardsToClaim.map(reward => ({
+                        type: reward.reward.type,
+                        amount: reward.reward.amount,
+                        rewardType: reward.rewardType
+                    }))
+                }
+            }
+        });
+
         for (const rewardObj of rewardsToClaim) {
             const reward = rewardObj.reward;
-            if (reward.type === "currency") {
-                await Characterwallet.updateOne(
-                    { owner: characterid, type: reward.itemId },
-                    { $inc: { amount: reward.quantity } },
-                    { upsert: true }
-                );
+            if (reward.type === "coins") {
+                walletUpdates.push({
+                    updateOne: {
+                        filter: { owner: characterid, type: "coin" },
+                        update: { $inc: { amount: reward.amount } },
+                        upsert: true
+                    }
+                });
+            } else if (reward.type === "crystal" || reward.type === "crystals") {
+                walletUpdates.push({
+                    updateOne: {
+                        filter: { owner: characterid, type: "crystal" },
+                        update: { $inc: { amount: reward.amount } },
+                        upsert: true
+                    }
+                });
+            } else if (reward.type === "exp") {
+                const charKey = characterid.toString();
+                let charUpdate = characterUpdates.get(charKey) || { xp: 0 };
+                charUpdate.xp += reward.amount;
+                characterUpdates.set(charKey, charUpdate);
             }
-        }
 
-        // Update claimedRewards
-        for (const rewardObj of rewardsToClaim) {
-            battlepassData.claimedRewards.push({
+            claimedRewardsList.push({
                 tier: t,
                 rewardType: rewardObj.rewardType,
                 reward: rewardObj.reward
             });
-        }
 
-        results[t] = {
-            status: "success",
-            claimed: rewardsToClaim.reduce((acc, r, index) => {
-                acc[index + 1] = {
-                    rewardType: r.rewardType,
-                    reward: r.reward
-                };
-                return acc;
-            }, {})
-        };
+            claimed[t] = claimed[t] || {};
+            claimed[t][rewardObj.rewardType] = {
+                rewardType: rewardObj.rewardType,
+                reward: rewardObj.reward
+            };
+        }
+    }
+
+    // Execute all bulk operations
+    if (historyEntries.length > 0) {
+        await BattlepassHistory.bulkWrite(historyEntries);
+    }
+    if (walletUpdates.length > 0) {
+        await Characterwallet.bulkWrite(walletUpdates);
+    }
+    
+    // Handle character XP updates
+    if (characterUpdates.size > 0) {
+        const character = await Characterdata.findOne({ _id: characterid });
+        if (character) {
+            const update = characterUpdates.get(characterid.toString());
+            character.experience += update.xp;
+
+            let currentLevel = character.level;
+            let currentXP = character.experience;
+            let levelsGained = 0;
+            let xpNeeded = 80 * currentLevel;
+
+            while (currentXP >= xpNeeded && xpNeeded > 0) {
+                currentLevel++;
+                levelsGained++;
+                currentXP -= xpNeeded;
+                xpNeeded = 80 * currentLevel;
+            }
+
+            if (levelsGained > 0) {
+                await Promise.all([
+                    CharacterStats.updateOne(
+                        { owner: characterid },
+                        {
+                            $inc: {
+                                health: 10 * levelsGained,
+                                energy: 5 * levelsGained,
+                                armor: 2 * levelsGained,
+                                magicresist: levelsGained,
+                                speed: levelsGained,
+                                attackdamage: levelsGained,
+                                armorpen: levelsGained,
+                                magicpen: levelsGained,
+                                magicdamage: levelsGained,
+                                critdamage: levelsGained
+                            }
+                        }
+                    ),
+                    CharacterSkillTree.updateOne(
+                        { owner: characterid },
+                        { $inc: { skillPoints: 4 * levelsGained } }
+                    )
+                ]);
+            }
+
+            character.level = currentLevel;
+            character.experience = currentXP;
+            await character.save();
+        }
+    }
+
+    battlepassData.claimedRewards.push(...claimedRewardsList);
+
+    if (Object.keys(claimed).length === 0) {
+        return res.status(400).json({ message: "failed", data: "No rewards to claim for the current tier." });
     }
 
     await battlepassData.save();
 
     return res.status(200).json({
         message: "success",
-        data: results
+        data: claimed
     });
 };
 
+
 exports.buypremiumbattlepass = async (req, res) => {
+    const { id } = req.user;
+    const { characterid } = req.body;
+
+    if (!characterid) {
+        return res.status(400).json({ message: "failed", data: "Character ID is required." });
+    }
+
+    const checker = await checkcharacter(id, characterid);
+
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
+
+    const currentdate = new Date();
+    const currentSeason = await BattlepassSeason.findOne({
+        startDate: { $lte: currentdate },
+        endDate: { $gte: currentdate }
+    });
+
+    if (!currentSeason) {
+        return res.status(404).json({ message: "failed", data: "No active battle pass season found." });
+    }
+
+    let battlepassData = await BattlepassProgress.findOne({
+        owner: characterid,
+        season: currentSeason._id
+    });
+
+    if (!battlepassData) {
+        return res.status(404).json({ message: "failed", data: "Battle pass progress not found for this character." });
+    }
+
+    if (battlepassData.hasPremium) {
+        return res.status(400).json({ message: "failed", data: "This character already has a premium battle pass." });
+    }
+
+    // Check if user has enough currency to buy premium battle pass
+    const wallet = await Characterwallet.findOne({ owner: characterid, type: 'crystal' });
     
+    if (!wallet || wallet.amount < currentSeason.premiumCost) {
+        return res.status(400).json({ message: "failed", data: "Not enough currency to buy premium battle pass." });
+    }
+
+    // Deduct the premium price from the wallet
+    wallet.amount -= currentSeason.premiumCost;
+    await wallet.save();
+
+    // Update battle pass progress
+    battlepassData.hasPremium = true;
+    
+    await battlepassData.save();
+
+    return res.status(200).json({
+        message: "success",
+        data: `Premium battle pass purchased successfully for ${currentSeason.premiumCost} coins.`
+    });
 }
