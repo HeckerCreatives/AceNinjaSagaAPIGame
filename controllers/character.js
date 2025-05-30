@@ -485,7 +485,6 @@ exports.getplayercharacters = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
 
-    console.log(tempdata)
     const data = {}
 
     let i = 1

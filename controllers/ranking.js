@@ -78,7 +78,6 @@ exports.getleaderboards = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." })
     })
 
-    console.log(topleaderboard)
 
     const formattedResponse = {
         data: topleaderboard.reduce((acc, rank, index) => {

@@ -66,11 +66,12 @@ exports.getdailyspin = async (req, res) => {
         return acc;
     }, {})
 
+
     return res.status(200).json({ 
         message: "success", 
         data: {
             dailyspindata: dailyspindata,
-            dailyspin: userdailyspin.spin
+            dailyspin: userdailyspin.spin,
         }
     });
 }
@@ -457,6 +458,21 @@ exports.getweeklylogin = async (req, res) => {
         claimed = false
     }
 
+      // Get current time in UTC+8 (Philippines time)
+    const now = new Date();
+    const phTime = new Date(now.getTime() 
+    // + (8 * 60 * 60 * 1000)
+    ); // Convert to UTC+8
+    
+    // Calculate time until next midnight (00:00) in UTC+8
+    const midnight = new Date(phTime);
+    midnight.setDate(midnight.getDate() + 1); // Move to next day
+    midnight.setHours(0, 0, 0, 0); // Set to midnight
+    
+    const timeUntilMidnight = midnight - phTime;
+    const hoursRemaining = Math.floor(timeUntilMidnight / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
+
     const daydata = weeklylogin.reduce((acc, login, index) => {
         acc[login.day] = {
             id: login._id,
@@ -472,7 +488,11 @@ exports.getweeklylogin = async (req, res) => {
         data: {
             days: daydata,
             claimed: claimed,
-            currentDay: userweeklylogin.currentDay
+            currentDay: userweeklylogin.currentDay,
+            resetin: {
+                hours: hoursRemaining,
+                minutes: minutesRemaining
+            }
         }
     });
 }

@@ -429,7 +429,6 @@ exports.equipitem = async (req, res) => {
 
     const { itemid, characterid } = req.body
 
-    console.log(itemid)
 
     const session = await mongoose.startSession();
     try {
@@ -513,8 +512,6 @@ exports.equipitem = async (req, res) => {
                 new: true
             }
         );
-
-        console.log("waaaat 1")
 
         // Commit transaction
         await session.commitTransaction();
@@ -629,7 +626,6 @@ exports.listequippeditems = async (req, res) => {
             }
         ]);
 
-        console.log(items)
         // Format response by item type
         const formattedResponse = items.reduce((acc, item) => {
             // Initialize category if it doesn't exist

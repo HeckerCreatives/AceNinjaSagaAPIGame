@@ -92,7 +92,6 @@ exports.getSkillsWithCharacter = async (req, res) => {
             .sort({ levelRequirement: 1 });
 
 
-            console.log(skills)
         // Get character's skill tree if characterid is provided
         let characterSkills = [];
         if (characterid) {
@@ -186,7 +185,6 @@ exports.getcharacterSkills = async (req, res) => {
             skill.skill?.type !== 'Stat'
         );
 
-        console.log(nonStatSkills)
 
         const formattedResponse = {
             data: nonStatSkills.reduce((acc, skill, index) => {
@@ -353,7 +351,6 @@ exports.acquirespbasedskills = async (req, res) => {
 exports.acquirebuybasedskills = async (req, res) => {
     const { characterid, skillid } = req.body;
 
-    console.log(characterid, skillid)
 
     try {
         // Validate required parameters
