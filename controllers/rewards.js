@@ -641,21 +641,18 @@ exports.claimweeklylogin = async (req, res) => {
 
 
 exports.getmonthlylogin = async (req, res) => {
-
-    const { id } = req.user
-    const { characterid } = req.query
+    const { id } = req.user;
+    const { characterid } = req.query;
 
     const checker = await checkcharacter(id, characterid);
-
     if (checker === "failed") {
         return res.status(400).json({
-            message: "Unauthorized", 
+            message: "Unauthorized",
             data: "You are not authorized to view this page. Please login the right account to view the page."
-     });
+        });
     }
 
-    const maintenance = await checkmaintenance("monthlylogin")
-
+    const maintenance = await checkmaintenance("monthlylogin");
     if (maintenance === "failed") {
         return res.status(400).json({
             message: "failed",
@@ -663,87 +660,62 @@ exports.getmonthlylogin = async (req, res) => {
         });
     }
 
-
-    const monthlylogin = await MonthlyLogin.find().sort({ day: 1 })
-    .then(data => data)
-    .catch(err => {
-        console.log(`Error finding monthly login data: ${err}`)
-        return
-    })
-
-    if(!monthlylogin){
-        return res.status(400).json({ message: "failed", data: "Monthly login data not found." })
+    // Get all reward days (for calendar display)
+    const monthlylogin = await MonthlyLogin.find().sort({ day: 1 });
+    if (!monthlylogin) {
+        return res.status(400).json({ message: "failed", data: "Monthly login data not found." });
     }
 
-    // sort data by day its like this day1, day2, day3, etc...
-
-    monthlylogin.sort((a, b) => {
-        const dayA = parseInt(a.day.replace("day", ""))
-        const dayB = parseInt(b.day.replace("day", ""))
-
-        return dayA - dayB
-    })
-
-    const cmlogin = await CharacterMonthlyLogin.findOne({ owner: characterid })
-    .then(data => data)
-    .catch(err => {
-        console.log(`Error finding Character monthly login data: ${err}`)
-        return
-    })
-
-    if(!cmlogin){
-        return res.status(400).json({ message: "failed", data: "Character Monthly login data not found." })
+    // Get character's monthly login progress
+    const cmlogin = await CharacterMonthlyLogin.findOne({ owner: characterid });
+    if (!cmlogin) {
+        return res.status(400).json({ message: "failed", data: "Character Monthly login data not found." });
     }
 
-    const daytoday = new Date().getDay()
-    const lastclaimed = cmlogin.lastClaimed.getDay()
-    let claimed 
-    if (daytoday === lastclaimed) {
-        claimed = true
-    } else {
-        claimed = false
-    }
-
-    const formattedResponse = {
-        data: monthlylogin.reduce((acc, login, index) => {
-            acc[login.day] = {
-                id: login._id,
-                day: login.day,
-                type: login.type,
-                amount: login.amount
-            };
-            return acc;
-        }, {}),
-        claimed: claimed,
-        currentDay: cmlogin.currentDay
-    };
-
-    return res.status(200).json({ 
-        message: "success", 
-        ...formattedResponse
+    // Prepare calendar data
+    const calendar = cmlogin.days.map(dayObj => {
+        // Find reward info for this day (if any)
+        const reward = monthlylogin.find(r => r.day === dayObj.day);
+        return {
+            day: dayObj.day,
+            loggedIn: dayObj.loggedIn,
+            missed: dayObj.missed,
+            claimed: dayObj.claimed,
+            reward: reward ? { type: reward.type, amount: reward.amount } : null
+        };
     });
-}
 
-exports.claimmonthlylogin = async (req, res) => {
+    // Find today's day number (1-28)
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    const todayObj = cmlogin.days.find(d => d.day === dayOfMonth);
+
+    return res.status(200).json({
+        message: "success",
+        calendar,
+        today: dayOfMonth,
+        claimed: todayObj ? todayObj.claimed : false
+    });
+};
+
+exports.checkinmonthlylogin = async (req, res) => {
     const session = await mongoose.startSession();
     try {
         await session.startTransaction();
 
-        const { id } = req.user
-        const { characterid } = req.body
+        const { id } = req.user;
+        const { characterid } = req.body;
 
         const checker = await checkcharacter(id, characterid);
-
         if (checker === "failed") {
             await session.abortTransaction();
             return res.status(400).json({
-                message: "Unauthorized", 
+                message: "Unauthorized",
                 data: "You are not authorized to view this page. Please login the right account to view the page."
             });
         }
 
-        const maintenance = await checkmaintenance("monthlylogin")
-
+        const maintenance = await checkmaintenance("monthlylogin");
         if (maintenance === "failed") {
             await session.abortTransaction();
             return res.status(400).json({
@@ -752,109 +724,184 @@ exports.claimmonthlylogin = async (req, res) => {
             });
         }
 
-        const charactermonthlylogin = await CharacterMonthlyLogin.findOne({ owner: characterid }).session(session);
-        if(!charactermonthlylogin){
+        const cmlogin = await CharacterMonthlyLogin.findOne({ owner: characterid }).session(session);
+        if (!cmlogin) {
             await session.abortTransaction();
             return res.status(400).json({ message: "failed", data: "User monthly login data not found." });
         }
 
-        const monthlylogin = await MonthlyLogin.findOne({ day: charactermonthlylogin.currentDay }).session(session);
-        if(!monthlylogin){
+        // Get today's day number (1-28)
+        const today = new Date();
+        const dayOfMonth = today.getDate();
+        const todayObj = cmlogin.days.find(d => d.day === dayOfMonth);
+
+        if (!todayObj) {
             await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "Monthly login data not found." });
+            return res.status(400).json({ message: "failed", data: "Invalid day for monthly login." });
         }
 
-        if (charactermonthlylogin.lastClaimed.getDay() === new Date().getDay()) {
+        // Check if already checked in today
+        if (todayObj.loggedIn) {
             await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "You already claimed your monthly login today." });
+            return res.status(400).json({ message: "failed", data: "You already checked in today." });
         }
 
-        if (charactermonthlylogin.currentDay === "day7") {
-            charactermonthlylogin.currentDay = "day1";
-        } else {
-            const currentDayNumber = parseInt(charactermonthlylogin.currentDay.replace("day", ""));
-            const nextDayNumber = currentDayNumber + 1;
-            charactermonthlylogin.currentDay = `day${nextDayNumber}`;
+        // Mark missed days (if user skipped days)
+        for (let i = 0; i < cmlogin.days.length; i++) {
+            const dayEntry = cmlogin.days[i];
+            if (dayEntry.day < dayOfMonth && !dayEntry.loggedIn && !dayEntry.missed) {
+                dayEntry.missed = true;
+            }
         }
 
-        charactermonthlylogin.lastClaimed = new Date();
-        charactermonthlylogin.daily[charactermonthlylogin.currentDay] = true;
-        await charactermonthlylogin.save({ session });
+        // Mark today as logged in (but not claimed)
+        todayObj.loggedIn = true;
+        cmlogin.lastLogin = today;
+        cmlogin.totalLoggedIn = cmlogin.days.filter(d => d.loggedIn).length;
 
-        if (monthlylogin.type === "exp") {
-            const character = await Characterdata.findOne({ 
-                _id: new mongoose.Types.ObjectId(characterid)
-            }).session(session);
-
-            if(!character) {
-                await session.abortTransaction();
-                return res.status(400).json({ message: "failed", data: "Character not found." });
-            }
-
-            let currentLevel = character.level;
-            let currentXP = character.experience + monthlylogin.amount;
-            let levelsGained = 0;
-            let xpNeeded = 80 * currentLevel;
-
-            while (currentXP >= xpNeeded && xpNeeded > 0){
-                const overflowXP = currentXP - xpNeeded;
-                currentLevel++;
-                levelsGained++;
-                currentXP = overflowXP;
-                xpNeeded = 80 * currentLevel;
-            }
-
-            if (levelsGained > 0) {
-                await CharacterStats.findOneAndUpdate(
-                    { owner: characterid }, 
-                    {
-                        $inc: {
-                            health: 10 * levelsGained,
-                            energy: 5 * levelsGained,
-                            armor: 2 * levelsGained,
-                            magicresist: 1 * levelsGained,
-                            speed: 1 * levelsGained,
-                            attackdamage: 1 * levelsGained,
-                            armorpen: 1 * levelsGained,
-                            magicpen: 1 * levelsGained,
-                            magicdamage: 1 * levelsGained,
-                            critdamage: 1 * levelsGained
-                        }
-                    },
-                    { session }
-                );
-
-                await CharacterSkillTree.findOneAndUpdate(
-                    { owner: characterid }, 
-                    {
-                        $inc: {
-                            skillPoints: 4 * levelsGained
-                        }
-                    },
-                    { session }
-                );
-            }
-
-            character.level = currentLevel;
-            character.experience = currentXP;
-            await character.save({ session });
-        } else {
-            await Characterwallet.updateOne(
-                { owner: characterid, type: monthlylogin.type },
-                { $inc: { amount: monthlylogin.amount } },
-                { new: true, upsert: true, session }
-            );
-        }
-
+        await cmlogin.save({ session });
         await session.commitTransaction();
         return res.status(200).json({
             message: "success",
-            data: {
-                id: monthlylogin._id,
-                day: monthlylogin.day,
-                type: monthlylogin.type,
-                amount: monthlylogin.amount
+            data: { day: dayOfMonth, checkedIn: true }
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        console.error(`Error in checkinmonthlylogin: ${error}`);
+        return res.status(500).json({ message: "failed", data: "Internal server error" });
+    } finally {
+        session.endSession();
+    }
+};
+
+exports.claimmonthlylogin = async (req, res) => {
+    const session = await mongoose.startSession();
+    try {
+        await session.startTransaction();
+
+        const { id } = req.user;
+        const { characterid } = req.body;
+
+        const checker = await checkcharacter(id, characterid);
+        if (checker === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to view this page. Please login the right account to view the page."
+            });
+        }
+
+        const maintenance = await checkmaintenance("monthlylogin");
+        if (maintenance === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "The monthly login is currently under maintenance. Please try again later."
+            });
+        }
+
+        const cmlogin = await CharacterMonthlyLogin.findOne({ owner: characterid }).session(session);
+        if (!cmlogin) {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "User monthly login data not found." });
+        }
+
+        // Get all days that are logged in but not yet claimed
+        const unclaimedDays = cmlogin.days.filter(d => d.loggedIn && !d.claimed);
+
+        if (unclaimedDays.length === 0) {
+            await session.commitTransaction();
+            return res.status(200).json({
+                message: "success",
+                data: "No unclaimed rewards available." 
+            });
+        }
+
+        // Get all rewards for those days
+        const rewardDays = unclaimedDays.map(d => `day${d.day}`);
+        const rewards = await MonthlyLogin.find({ day: { $in: rewardDays } }).session(session);
+
+        // Prepare a map for quick lookup
+        const rewardMap = {};
+
+        for (const reward of rewards) {
+            rewardMap[reward.day] = reward;
+        }
+
+        // Track claimed rewards for response
+        const claimed = {}
+
+        for (const dayObj of unclaimedDays) {
+            const rewardKey = `day${dayObj.day}`;
+            const reward = rewardMap[rewardKey];
+
+            if (!reward) continue;
+
+            // Mark as claimed
+            dayObj.claimed = true;
+
+            // Give reward
+            if (reward.type === "exp") {
+                const character = await Characterdata.findOne({ _id: characterid }).session(session);
+                if (!character) continue;
+                let currentLevel = character.level;
+                let currentXP = character.experience + reward.amount;
+                let levelsGained = 0;
+                let xpNeeded = 80 * currentLevel;
+                while (currentXP >= xpNeeded && xpNeeded > 0) {
+                    const overflowXP = currentXP - xpNeeded;
+                    currentLevel++;
+                    levelsGained++;
+                    currentXP = overflowXP;
+                    xpNeeded = 80 * currentLevel;
+                }
+                if (levelsGained > 0) {
+                    await CharacterStats.findOneAndUpdate(
+                        { owner: characterid },
+                        {
+                            $inc: {
+                                health: 10 * levelsGained,
+                                energy: 5 * levelsGained,
+                                armor: 2 * levelsGained,
+                                magicresist: 1 * levelsGained,
+                                speed: 1 * levelsGained,
+                                attackdamage: 1 * levelsGained,
+                                armorpen: 1 * levelsGained,
+                                magicpen: 1 * levelsGained,
+                                magicdamage: 1 * levelsGained,
+                                critdamage: 1 * levelsGained
+                            }
+                        },
+                        { session }
+                    );
+                    await CharacterSkillTree.findOneAndUpdate(
+                        { owner: characterid },
+                        { $inc: { skillPoints: 4 * levelsGained } },
+                        { session }
+                    );
+                }
+                character.level = currentLevel;
+                character.experience = currentXP;
+                await character.save({ session });
+            } else {
+                await Characterwallet.updateOne(
+                    { owner: characterid, type: reward.type },
+                    { $inc: { amount: reward.amount } },
+                    { new: true, upsert: true, session }
+                );
             }
+            claimed[dayObj.day] = {
+                type: reward.type,
+                amount: reward.amount
+            };
+        }
+
+        await cmlogin.save({ session });
+        await session.commitTransaction();
+        return res.status(200).json({
+            message: "success",
+            data: { claimed }
         });
 
     } catch (error) {
@@ -864,4 +911,4 @@ exports.claimmonthlylogin = async (req, res) => {
     } finally {
         session.endSession();
     }
-}
+};

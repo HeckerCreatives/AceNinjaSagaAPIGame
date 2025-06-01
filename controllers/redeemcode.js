@@ -15,7 +15,6 @@ exports.redeemcode = async (req, res) => {
 
         
         const checker = await checkcharacter(id, characterid);
-        console.log(`Checker result: ${checker}`);
         if (checker === "failed") {
             await session.abortTransaction();
             return res.status(400).json({
@@ -73,15 +72,15 @@ exports.redeemcode = async (req, res) => {
             // Process rewards
         if (redeemCode.rewards && redeemCode.rewards.coins) {
             await Characterwallet.updateOne(
-                { owner: characterid },
-                { $inc: { coins: redeemCode.rewards.coins } }
+                { owner: characterid, type: "coins" },
+                { $inc: { amount: redeemCode.rewards.coins } }
             ).session(session);
         }
 
         if (redeemCode.rewards && redeemCode.rewards.crystal) {
             await Characterwallet.updateOne(
-                { owner: characterid },
-                { $inc: { crystal: redeemCode.rewards.crystal } }
+                { owner: characterid, type: "crystal" },
+                { $inc: { amount: redeemCode.rewards.crystal } }
             ).session(session);
         }
 
@@ -213,7 +212,7 @@ exports.userredeemedcodeshistory = async (req, res) => {
             .sort({ createdAt: -1 })
             .skip((pageOptions.page - 1) * pageOptions.limit)
             .limit(pageOptions.limit)
-            .then(data => data)
+            .then(data => data.filter(item => item.code !== null))
             .catch(err => {
                 console.log(`Error fetching redeemed codes: ${err}`);
                 return res.status(500).json({

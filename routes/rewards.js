@@ -1,4 +1,4 @@
-const { getdailyspinsa, getdailyexpspinsa, getmonthlyloginsa, getweeklyloginsa, editdailyspin, editdailyexpspin, editmonthlylogin, editweeklylogin, getdailyspin, spindaily, getexpdailyspin, spinexpdaily, getweeklylogin, claimweeklylogin, getmonthlylogin, claimmonthlylogin } = require('../controllers/rewards');
+const { getdailyspinsa, getdailyexpspinsa, getmonthlyloginsa, getweeklyloginsa, editdailyspin, editdailyexpspin, editmonthlylogin, editweeklylogin, getdailyspin, spindaily, getexpdailyspin, spinexpdaily, getweeklylogin, claimweeklylogin, getmonthlylogin, claimmonthlylogin, checkinmonthlylogin } = require('../controllers/rewards');
 const { protectplayer, protectsuperadmin } = require('../middleware/middleware');
 
 const router = require('express').Router();
@@ -12,5 +12,7 @@ router
  .post("/claimweeklylogin", protectplayer, claimweeklylogin)
  .get("/getmonthlylogin", protectplayer, getmonthlylogin)
  .post("/claimmonthlylogin", protectplayer, claimmonthlylogin)
+ .post("/checkinmonthlylogin", protectplayer, checkinmonthlylogin)
 
+ 
 module.exports = router;

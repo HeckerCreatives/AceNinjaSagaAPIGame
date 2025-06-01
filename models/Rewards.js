@@ -1,140 +1,28 @@
 const { default: mongoose } = require("mongoose");
 
 
-const CharacterMonthlyLoginSchema = new mongoose.Schema(
-    {
-        owner: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Characterdata",
-            required: true,
-        },
-        daily: {
-            day1: {
-                type: Boolean,
-                default: false,
-            },
-            day2: {
-                type: Boolean,
-                default: false,
-            },
-            day3: {
-                type: Boolean,
-                default: false,
-            },
-            day4: {
-                type: Boolean,
-                default: false,
-            },
-            day5: {
-                type: Boolean,
-                default: false,
-            },
-            day6: {
-                type: Boolean,
-                default: false,
-            },
-            day7: {
-                type: Boolean,
-                default: false,
-            },
-            day8: {
-                type: Boolean,
-                default: false,
-            },
-            day9: {
-                type: Boolean,
-                default: false,
-            },
-            day10: {
-                type: Boolean,
-                default: false,
-            },
-            day11: {
-                type: Boolean,
-                default: false,
-            },
-            day12: {
-                type: Boolean,
-                default: false,
-            },
-            day13: {
-                type: Boolean,
-                default: false,
-            },
-            day14: {
-                type: Boolean,
-                default: false,
-            },
-            day15: {
-                type: Boolean,
-                default: false,
-            },
-            day16: {
-                type: Boolean,
-                default: false,
-            },
-            day17: {
-                type: Boolean,
-                default: false,
-            },
-            day18: {
-                type: Boolean,
-                default: false,
-            },
-            day19: {
-                type: Boolean,
-                default: false,
-            },
-            day20: {
-                type: Boolean,
-                default: false,
-            },
-            day21: {
-                type: Boolean,
-                default: false,
-            },
-            day22: {
-                type: Boolean,
-                default: false,
-            },
-            day23: {
-                type: Boolean,
-                default: false,
-            },
-            day24: {
-                type: Boolean,
-                default: false,
-            },
-            day25: {
-                type: Boolean,
-                default: false,
-            },
-            day26: {
-                type: Boolean,
-                default: false,
-            },
-            day27: {
-                type: Boolean,
-                default: false,
-            },
-            day28: {
-                type: Boolean,
-                default: false,
-            },
-
-        },
-        currentDay: {
-            type: String,
-            default: "day1"
-        },
-        lastClaimed: {
-            type: Date,
-        },
+const CharacterMonthlyLoginSchema = new mongoose.Schema({
+    owner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Characterdata",
+        required: true,
     },
-    {
-        timestamps: true,
+    days: [
+        {
+            day: { type: Number, required: true }, // 1-28
+            loggedIn: { type: Boolean, default: false },
+            missed: { type: Boolean, default: false },
+            claimed: { type: Boolean, default: false } // if reward was claimed (for reward days)
+        }
+    ],
+    totalLoggedIn: {
+        type: Number,
+        default: 0
+    },
+    lastLogin: {
+        type: Date
     }
-)
+}, { timestamps: true });
 
 const CharacterWeeklyLoginSchema = new mongoose.Schema(
     {
@@ -179,6 +67,7 @@ const CharacterWeeklyLoginSchema = new mongoose.Schema(
         },
         lastClaimed: {
             type: Date,
+            default: Date.now,
         },
     },
     {
