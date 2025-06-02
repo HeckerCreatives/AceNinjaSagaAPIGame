@@ -673,17 +673,38 @@ exports.getmonthlylogin = async (req, res) => {
     }
 
     // Prepare calendar data
-    const calendar = cmlogin.days.map(dayObj => {
-        // Find reward info for this day (if any)
-        const reward = monthlylogin.find(r => r.day === dayObj.day);
-        return {
+    const calendar = cmlogin.days.reduce((acc, dayObj) => {
+        const today = new Date();
+        const dayOfMonth = today.getDate();
+        acc[dayObj.day] = {
             day: dayObj.day,
             loggedIn: dayObj.loggedIn,
-            missed: dayObj.missed,
-            claimed: dayObj.claimed,
-            reward: reward ? { type: reward.type, amount: reward.amount } : null
+            missed: dayObj.day < dayOfMonth ? true : dayObj.missed,
         };
-    });
+        return acc;
+    }, {});
+
+
+    let rewarddays = monthlylogin.reduce((acc, login) => {
+        const dayNumber = login.day.split("day")[1];
+        const dayNum = parseInt(dayNumber);
+        
+        // Find the corresponding day in cmlogin.days
+        const claimedDay = cmlogin.days.find(d => d.day === dayNum);
+        
+        acc[dayNum] = {
+            id: login._id,
+            day: dayNum,
+            type: login.type,
+            amount: login.amount,
+            claimed: claimedDay ? claimedDay.claimed : false
+        };
+        return acc;
+    }, {});
+
+
+    const sortedRewardDays = Object.values(rewarddays).sort((a, b) => a.day - b.day);
+    rewarddays = Object.fromEntries(sortedRewardDays.map(r => [r.day, r]));
 
     // Find today's day number (1-28)
     const today = new Date();
@@ -693,6 +714,8 @@ exports.getmonthlylogin = async (req, res) => {
     return res.status(200).json({
         message: "success",
         calendar,
+        rewarddays,
+        totalloggedin: cmlogin.totalLoggedIn,
         today: dayOfMonth,
         claimed: todayObj ? todayObj.claimed : false
     });
@@ -808,7 +831,7 @@ exports.claimmonthlylogin = async (req, res) => {
         }
 
         // Get all days that are logged in but not yet claimed
-        const unclaimedDays = cmlogin.days.filter(d => d.loggedIn && !d.claimed);
+        const unclaimedDays = cmlogin.days.filter(d => cmlogin.totalLoggedIn >= d.day && !d.claimed);
 
         if (unclaimedDays.length === 0) {
             await session.commitTransaction();
