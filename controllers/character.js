@@ -170,42 +170,17 @@ exports.createcharacter = async (req, res) => {
 
         //  BATTLE PASS DOES NOT EXIST
 
-        await CharacterMonthlyLogin.create([{
-            owner: characterId,
-            daily: {
-            day1: false,
-            day2: false, 
-            day3: false,
-            day4: false,
-            day5: false,
-            day6: false,
-            day7: false,
-            day8: false,
-            day9: false,
-            day10: false,
-            day11: false,
-            day12: false,
-            day13: false,
-            day14: false,
-            day15: false,
-            day16: false,
-            day17: false,
-            day18: false,
-            day19: false,
-            day20: false,
-            day21: false,
-            day22: false,
-            day23: false,
-            day24: false,
-            day25: false,
-            day26: false,
-            day27: false,
-            day28: false
-            },
-            currentDay: "day1",
-            lastClaimed: new Date(Date.now() - 24*60*60*1000)
-        }], { session })
+        const daysArray = [];
+                for (let i = 1; i <= 28; i++) {
+                    daysArray.push({ day: i, loggedIn: false, missed: false, claimed: false });
+                }
 
+                await MonthlyLogin.create([{
+                    owner: characterId,
+                    days: daysArray,
+                    totalLoggedIn: 0,
+                    lastLogin: new Date(Date.now() - 24 * 60 * 60 * 1000) 
+                }], { session });
         await CharacterWeeklyLogin.create([{
             owner: characterId,
             daily: {
