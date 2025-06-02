@@ -709,7 +709,17 @@ exports.getmonthlylogin = async (req, res) => {
     // Find today's day number (1-28)
     const today = new Date();
     const dayOfMonth = today.getDate();
-    const todayObj = cmlogin.days.find(d => d.day === dayOfMonth);
+
+    // Check if user has unclaimed rewards at milestone days
+    const canClaim = Object.values(rewarddays).some(reward => {
+        const day = reward.day;
+        // Check if this is a milestone day (1, 5, 10, 15, 20, 25)
+        const isMilestoneDay = [1, 5, 10, 15, 20, 25].includes(day);
+        // Check if user has enough logged in days and hasn't claimed this reward yet
+        const dayEntry = cmlogin.days.find(d => d.day === day);
+
+        return isMilestoneDay && cmlogin.totalLoggedIn >= day && dayEntry && !dayEntry.claimed;
+    });
 
     return res.status(200).json({
         message: "success",
@@ -717,7 +727,7 @@ exports.getmonthlylogin = async (req, res) => {
         rewarddays,
         totalloggedin: cmlogin.totalLoggedIn,
         today: dayOfMonth,
-        claimed: todayObj ? todayObj.claimed : false
+        canClaim
     });
 };
 
