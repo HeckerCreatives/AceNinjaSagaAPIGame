@@ -175,7 +175,7 @@ exports.createcharacter = async (req, res) => {
                     daysArray.push({ day: i, loggedIn: false, missed: false, claimed: false });
                 }
 
-                await MonthlyLogin.create([{
+                await CharacterMonthlyLogin.create([{
                     owner: characterId,
                     days: daysArray,
                     totalLoggedIn: 0,
