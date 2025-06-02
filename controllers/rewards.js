@@ -723,11 +723,13 @@ exports.getmonthlylogin = async (req, res) => {
 
     return res.status(200).json({
         message: "success",
-        calendar,
-        rewarddays,
-        totalloggedin: cmlogin.totalLoggedIn,
-        today: dayOfMonth,
-        canClaim
+        data: {
+            calendar,
+            rewarddays,
+            totalloggedin: cmlogin.totalLoggedIn,
+            today: dayOfMonth,
+            canClaim
+        }
     });
 };
 
