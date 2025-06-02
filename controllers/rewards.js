@@ -934,4 +934,4 @@ exports.claimmonthlylogin = async (req, res) => {
     } finally {
         session.endSession();
     }
-};
+}
