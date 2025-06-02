@@ -167,8 +167,7 @@ exports.redeemcode = async (req, res) => {
         
         res.status(200).json({
             message: "success",
-            data: `Code redeemed successfully. You received: ${rewardDetails.summary}`,
-            rewards: rewardDetails
+            data: rewardDetails
         });
     } catch (error) {
         await session.abortTransaction();
