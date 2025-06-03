@@ -1,3 +1,4 @@
+const { default: mongoose } = require("mongoose");
 const { BattlepassSeason, BattlepassProgress, BattlepassMissionProgress, BattlepassHistory } = require("../models/Battlepass");
 const Characterdata = require("../models/Characterdata");
 const CharacterStats = require("../models/Characterstats");
@@ -61,7 +62,7 @@ exports.getbattlepass = async (req, res) => {
                 season: currentSeason._id,
                 missionName: mission.missionName,
                 type: "free",
-                missionId: new mongoose.Types.ObjectId(),
+                missionId: new mongoose.Types.ObjectId(mission._id),
                 progress: 0,
                 isCompleted: false,
                 isLocked: false,
@@ -77,7 +78,7 @@ exports.getbattlepass = async (req, res) => {
                 season: currentSeason._id,
                 missionName: mission.missionName,
                 type: "premium",
-                missionId: new mongoose.Types.ObjectId(),
+                missionId: new mongoose.Types.ObjectId(mission._id),
                 progress: 0,
                 isCompleted: false,
                 isLocked: true,
@@ -259,9 +260,8 @@ exports.claimbattlepassreward = async (req, res) => {
             if (reward.type === "coins") {
                 walletUpdates.push({
                     updateOne: {
-                        filter: { owner: characterid, type: "coin" },
+                        filter: { owner: characterid, type: "coins" },
                         update: { $inc: { amount: reward.amount } },
-                        upsert: true
                     }
                 });
             } else if (reward.type === "crystal" || reward.type === "crystals") {
@@ -269,7 +269,6 @@ exports.claimbattlepassreward = async (req, res) => {
                     updateOne: {
                         filter: { owner: characterid, type: "crystal" },
                         update: { $inc: { amount: reward.amount } },
-                        upsert: true
                     }
                 });
             } else if (reward.type === "exp") {
