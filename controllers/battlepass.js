@@ -101,13 +101,18 @@ exports.getbattlepass = async (req, res) => {
     //         };
     //         return acc;
     //     }, {});
+
+    const enddate = currentSeason.endDate;
+    const currentDate = new Date();
+
+    const remainingMilliseconds = enddate - currentDate;
+    const remainingSeconds = Math.floor(remainingMilliseconds / 1000);
     
     const formattedResponse = {
         battlepass: {
             id: currentSeason._id,
             name: currentSeason.seasonName,
-            startdate: currentSeason.startDate,
-            enddate: currentSeason.endDate,
+            timeleft: remainingSeconds,
             status: currentSeason.status,
             premiumCost: currentSeason.premiumCost,
             freeMissions: currentSeason.freeMissions.reduce((acc, mission, index) => {
