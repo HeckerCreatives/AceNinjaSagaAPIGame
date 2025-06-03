@@ -67,11 +67,31 @@ exports.getdailyspin = async (req, res) => {
     }, {})
 
 
+    // Get current time in UTC+8 (Philippines time)
+    const now = new Date();
+    const phTime = new Date(now.getTime() 
+    // + (8 * 60 * 60 * 1000)
+    ); // Convert to UTC+8
+    
+    // Calculate time until next midnight (00:00) in UTC+8
+    const midnight = new Date(phTime);
+    midnight.setDate(midnight.getDate() + 1); // Move to next day
+    midnight.setHours(0, 0, 0, 0); // Set to midnight
+    
+    const timeUntilMidnight = midnight - phTime;
+    const hoursRemaining = Math.floor(timeUntilMidnight / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
+
+
     return res.status(200).json({ 
         message: "success", 
         data: {
             dailyspindata: dailyspindata,
             dailyspin: userdailyspin.spin,
+            resetin: {
+                hours: hoursRemaining,
+                minutes: minutesRemaining
+            }
         }
     });
 }
@@ -230,11 +250,30 @@ exports.getexpdailyspin = async (req, res) => {
         return acc;
     }, {})
 
+    // Get current time in UTC+8 (Philippines time)
+    const now = new Date();
+    const phTime = new Date(now.getTime() 
+    // + (8 * 60 * 60 * 1000)
+    ); // Convert to UTC+8
+    
+    // Calculate time until next midnight (00:00) in UTC+8
+    const midnight = new Date(phTime);
+    midnight.setDate(midnight.getDate() + 1); // Move to next day
+    midnight.setHours(0, 0, 0, 0); // Set to midnight
+    
+    const timeUntilMidnight = midnight - phTime;
+    const hoursRemaining = Math.floor(timeUntilMidnight / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
+
     return res.status(200).json({ 
         message: "success", 
         data: {
             dailyspindata: dailyspindata,
-            dailyspin: userdailyspin.expspin
+            dailyspin: userdailyspin.expspin,
+            resetin: {
+                hours: hoursRemaining,
+                minutes: minutesRemaining
+            }
         }
     });
 }
@@ -721,6 +760,21 @@ exports.getmonthlylogin = async (req, res) => {
         return isMilestoneDay && cmlogin.totalLoggedIn >= day && dayEntry && !dayEntry.claimed;
     });
 
+          // Get current time in UTC+8 (Philippines time)
+    const now = new Date();
+    const phTime = new Date(now.getTime() 
+    // + (8 * 60 * 60 * 1000)
+    ); // Convert to UTC+8
+    
+    // Calculate time until next midnight (00:00) in UTC+8
+    const midnight = new Date(phTime);
+    midnight.setDate(midnight.getDate() + 1); // Move to next day
+    midnight.setHours(0, 0, 0, 0); // Set to midnight
+    
+    const timeUntilMidnight = midnight - phTime;
+    const hoursRemaining = Math.floor(timeUntilMidnight / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
+
     return res.status(200).json({
         message: "success",
         data: {
@@ -728,7 +782,11 @@ exports.getmonthlylogin = async (req, res) => {
             rewarddays,
             totalloggedin: cmlogin.totalLoggedIn,
             today: dayOfMonth,
-            canClaim
+            canClaim,
+            resetin: {
+                hours: hoursRemaining,
+                minutes: minutesRemaining
+            }
         }
     });
 };

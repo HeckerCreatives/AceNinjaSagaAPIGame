@@ -4,6 +4,7 @@ const Characterwallet = require("../models/Characterwallet");
 const { Redeemcode, CodesRedeemed } = require("../models/Redeemcode");
 const { CharacterSkillTree } = require("../models/Skills");
 const { checkcharacter } = require("../utils/character");
+const Characterdata = require("../models/Characterdata");
 
 exports.redeemcode = async (req, res) => {
     const session = await mongoose.startSession();
@@ -85,7 +86,7 @@ exports.redeemcode = async (req, res) => {
         }
 
         if (redeemCode.rewards && redeemCode.rewards.exp) {
-            const character = await CharacterData.findOne({ _id: characterid }).session(session);
+            const character = await Characterdata.findOne({ _id: characterid }).session(session);
             if (!character) {
             await session.abortTransaction();
             return res.status(404).json({
@@ -146,11 +147,13 @@ exports.redeemcode = async (req, res) => {
         const rewardSummary = [];
         if (redeemCode.rewards && redeemCode.rewards.coins) rewardSummary.push(`${redeemCode.rewards.coins} coins`);
         if (redeemCode.rewards && redeemCode.rewards.crystal) rewardSummary.push(`${redeemCode.rewards.crystal} crystal`);
+        if (redeemCode.rewards && redeemCode.rewards.exp) rewardSummary.push(`${redeemCode.rewards.exp} experience`);
 
         const rewardDetails = {
             rewardsList: {
             coins: redeemCode.rewards.coins || 0,
-            crystal: redeemCode.rewards.crystal || 0
+            crystal: redeemCode.rewards.crystal || 0,
+            exp: redeemCode.rewards.exp || 0
             },
             summary: rewardSummary.join(', '),
             timestamp: new Date(),

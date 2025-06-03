@@ -128,10 +128,20 @@ exports.getbattlepass = async (req, res) => {
                 return acc;
             }, {}),
             tiers: currentSeason.tiers.reduce((acc, tier, index) => {
-                acc[index + 1] = {
+                const tierNumber = index + 1;
+                const freeClaimed = battlepassData.claimedRewards.some(r => r.tier === tierNumber && r.rewardType === "free");
+                const premiumClaimed = battlepassData.claimedRewards.some(r => r.tier === tierNumber && r.rewardType === "premium");
+                
+                acc[tierNumber] = {
                     tierNumber: tier.tierNumber,
-                    freeReward: tier.freeReward,
-                    premiumReward: tier.premiumReward,
+                    freeReward: {
+                        ...tier.freeReward,
+                        hasclaimed: freeClaimed
+                    },
+                    premiumReward: {
+                        ...tier.premiumReward,
+                        hasclaimed: premiumClaimed
+                    },
                     xpRequired: tier.xpRequired,
                 };
                 return acc;
@@ -227,20 +237,22 @@ exports.claimbattlepassreward = async (req, res) => {
 
         if (rewardsToClaim.length === 0) continue;
 
-        historyEntries.push({
-            insertOne: {
-                document: {
-                    owner: characterid,
-                    season: currentSeason._id,
-                    tier: t,
-                    rewards: rewardsToClaim.map(reward => ({
-                        type: reward.reward.type,
-                        amount: reward.reward.amount,
-                        rewardType: reward.rewardType
-                    }))
+        historyEntries.push(
+            ...rewardsToClaim.map(reward => ({
+                insertOne: {
+                    document: {
+                        owner: characterid,
+                        season: currentSeason._id,
+                        tier: t,
+                        claimedrewards: {
+                            type: reward.rewardType, // 'free' or 'premium'
+                            item: reward.reward.type, // e.g. 'coins', 'crystal', etc.
+                            amount: reward.reward.amount
+                        }
+                    }
                 }
-            }
-        });
+            }))
+        );
 
         for (const rewardObj of rewardsToClaim) {
             const reward = rewardObj.reward;

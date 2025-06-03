@@ -32,7 +32,7 @@ const itemSchema = new mongoose.Schema({
     inventorytype: {
         type: String,
         required: true,
-        enum: ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins", "goldpacks", "crystalpacks", "chests", "freebie"]
+        enum: ["weapon", "outfit", "hair", "face", "eyes", "skincolor", "skins", "goldpacks", "crystalpacks", "chests", "freebie", "skills"]
     },
     gender: {
         type: String,
