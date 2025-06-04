@@ -89,13 +89,30 @@ exports.getbattlepass = async (req, res) => {
     }
 
     const bpmp = await BattlepassMissionProgress.find({ owner: characterid, season: currentSeason._id })
+
+    // const formattedResponse = redeemedCodes.reduce((acc, code, index) => {
+    //         acc[index + 1] = {
+    //             id: code._id,
+    //             code: code.code.code,
+    //             title: code.code.title,
+    //             description: code.code.description,
+    //             rewards: code.code.rewards,
+    //             redeemedAt: code.createdAt
+    //         };
+    //         return acc;
+    //     }, {});
+
+    const enddate = currentSeason.endDate;
+    const currentDate = new Date();
+
+    const remainingMilliseconds = enddate - currentDate;
+    const remainingSeconds = Math.floor(remainingMilliseconds / 1000);
     
     const formattedResponse = {
         battlepass: {
             id: currentSeason._id,
             name: currentSeason.title,
-            startdate: currentSeason.startDate,
-            enddate: currentSeason.endDate,
+            timeleft: remainingSeconds,
             status: currentSeason.status,
             premiumCost: currentSeason.premiumCost,
             freeMissions: currentSeason.freeMissions.reduce((acc, mission, index) => {
