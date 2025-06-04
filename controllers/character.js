@@ -7,7 +7,7 @@ const Rankings = require("../models/Ranking")
 const { CharacterInventory, Item } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
-const { Battlepass } = require("../models/Battlepass")
+const { BattlepassProgress, BattlepassSeason, BattlepassMissionProgress } = require("../models/Battlepass")
 const { checkcharacter } = require("../utils/character")
 
 const RankTier = require("../models/RankTier")
@@ -16,6 +16,7 @@ const moment = require("moment")
 const { CharacterChapter, CharacterChapterHistory } = require("../models/Chapter")
 const PvP = require("../models/Pvp")
 const { Companion, CharacterCompanionUnlocked } = require("../models/Companion")
+const { QuestDetails, QuestProgress } = require("../models/Quest")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -160,15 +161,74 @@ exports.createcharacter = async (req, res) => {
         },
         { session }
     );
-        // await Battlepass.create([{
-        //     owner: characterId,
-        //     season: currentseason._id,
-        //     level: 1,
-        //     xp: 0,
-        //     rewards: []
-        // }], { session })
+        // FIND CURRENT BATTLEPASS
+    const currentdate = new Date();
+    const currentSeason = await BattlepassSeason.findOne({
+        startDate: { $lte: currentdate },
+        endDate: { $gte: currentdate }
+    }, null, { session }).lean();
 
-        //  BATTLE PASS DOES NOT EXIST
+    if(!currentSeason) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+            message: "failed", 
+            data: "No active battlepass season found." 
+        });
+    }
+        await BattlepassProgress.create([{
+            owner: characterId,
+            season: currentSeason._id, 
+            currentTier: 1,
+            currentXP: 0,
+            hasPremium: false,
+            claimedRewards: []
+        }], { session });
+                
+            // Initialize free missions
+            for (const mission of currentSeason.freeMissions) {
+                await BattlepassMissionProgress.create([{
+                    owner: characterId,
+                    season: currentSeason._id,
+                    missionName: mission.missionName,
+                    type: "free",
+                    missionId: new mongoose.Types.ObjectId(mission._id), 
+                    progress: 0,
+                    isCompleted: false,
+                    isLocked: false,
+                    daily: mission.daily,
+                    lastUpdated: new Date()
+                }], { session });
+            }
+
+            // Initialize premium missions
+            for (const mission of currentSeason.premiumMissions) {
+                await BattlepassMissionProgress.create([{
+                    owner: characterId,
+                    season: currentSeason._id,
+                    missionName: mission.missionName,
+                    type: "premium",
+                    missionId: new mongoose.Types.ObjectId(mission._id),
+                    progress: 0, 
+                    isCompleted: false,
+                    isLocked: true, // Premium missions start locked
+                    daily: mission.daily,
+                    lastUpdated: new Date()
+                }], { session });
+            }
+
+    const searchquest = await QuestDetails.find({},null, {session}).lean()
+            for (const mission of searchquest) {
+                await QuestProgress.create([{
+                    owner: characterId,
+                    quest: new mongoose.Types.ObjectId(mission._id),
+                    progress: 0,
+                    isCompleted: false,
+                    daily: mission.daily,
+                    lastUpdated: new Date()
+                }], { session });
+            }
+
+
 
         const daysArray = [];
                 for (let i = 1; i <= 28; i++) {

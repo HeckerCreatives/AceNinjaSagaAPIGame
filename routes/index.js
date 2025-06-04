@@ -12,6 +12,7 @@ const routers = app => {
     app.use("/marketplace", require("./marketplace"))
     app.use("/news", require("./news"))
     app.use("/pvp", require("./pvp"))
+    app.use("/quest", require("./quest"))
     app.use("/ranking", require("./ranking"))
     app.use("/redeemcode", require("./redeemcode"))
     app.use("/rewards", require("./rewards"))

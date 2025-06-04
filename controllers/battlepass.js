@@ -160,9 +160,13 @@ exports.getbattlepass = async (req, res) => {
             claimedRewards: battlepassData.claimedRewards
         },
         missions: bpmp.reduce((acc, mission, index) => {
+            const matchingFreeMission = currentSeason.freeMissions.find(m => m._id.equals(mission.missionId));
+            const matchingPremiumMission = currentSeason.premiumMissions.find(m => m._id.equals(mission.missionId));
+            const originalMission = matchingFreeMission || matchingPremiumMission;
+
             acc[index + 1] = {
                 id: mission._id,
-                missionName: mission.missionName,
+                missionName: originalMission ? originalMission.missionName : mission.missionName,
                 type: mission.type,
                 progress: mission.progress,
                 isCompleted: mission.isCompleted,
@@ -173,6 +177,7 @@ exports.getbattlepass = async (req, res) => {
             return acc;
         }, {})
     };
+    
 
   
     return res.status(200).json({
