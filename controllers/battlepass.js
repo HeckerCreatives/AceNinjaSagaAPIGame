@@ -89,23 +89,11 @@ exports.getbattlepass = async (req, res) => {
     }
 
     const bpmp = await BattlepassMissionProgress.find({ owner: characterid, season: currentSeason._id })
-
-    // const formattedResponse = redeemedCodes.reduce((acc, code, index) => {
-    //         acc[index + 1] = {
-    //             id: code._id,
-    //             code: code.code.code,
-    //             title: code.code.title,
-    //             description: code.code.description,
-    //             rewards: code.code.rewards,
-    //             redeemedAt: code.createdAt
-    //         };
-    //         return acc;
-    //     }, {});
     
     const formattedResponse = {
         battlepass: {
             id: currentSeason._id,
-            name: currentSeason.seasonName,
+            name: currentSeason.title,
             startdate: currentSeason.startDate,
             enddate: currentSeason.endDate,
             status: currentSeason.status,
@@ -179,7 +167,7 @@ exports.getbattlepass = async (req, res) => {
 
 exports.claimbattlepassreward = async (req, res) => {
     const { id } = req.user;
-    const { characterid, tier } = req.body;
+    const { characterid } = req.body;
 
     if (!characterid) {
         return res.status(400).json({ message: "failed", data: "Character ID is required." });

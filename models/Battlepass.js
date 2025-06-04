@@ -2,9 +2,15 @@ const mongoose = require("mongoose");
 
 const BattlepassSeasonSchema = new mongoose.Schema(
     {
-        seasonName: {
+        title: {
             type: String,
             required: true
+        },
+        season: {
+            type: Number,
+            required: true,
+            unique: true,
+            min: 1
         },
         startDate: {
             type: Date,
@@ -99,7 +105,6 @@ const BattlepassSeasonSchema = new mongoose.Schema(
         grandreward: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Item",
-            required: true,
         }
     },
     {
