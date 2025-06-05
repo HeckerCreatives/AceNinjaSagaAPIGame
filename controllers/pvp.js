@@ -272,6 +272,13 @@ exports.pvpmatchresult = async (req, res) => {
 
         const maintenance = await checkmaintenance("pvp")
 
+        if (maintenance === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The PvP is currently under maintenance. Please try again later."
+                });
+        }
         if (opponent === characterid) {
             await session.abortTransaction();
             return res.status(400).json({
@@ -280,13 +287,6 @@ exports.pvpmatchresult = async (req, res) => {
             });
         }
                 
-        if (maintenance === "failed") {
-            await session.abortTransaction();
-            return res.status(400).json({
-                    message: "failed",
-                    data: "The PvP is currently under maintenance. Please try again later."
-                    });
-        }
         if (!opponent || status === undefined) {
             return res.status(400).json({ 
                 message: "failed", 

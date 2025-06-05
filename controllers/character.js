@@ -577,7 +577,6 @@ exports.getinventory = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
 
-    console.log(inventorydata)
 
     const data = []
     inventorydata.forEach(temp => {

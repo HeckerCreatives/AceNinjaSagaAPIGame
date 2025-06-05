@@ -144,7 +144,8 @@ const BattlepassProgressSchema = new mongoose.Schema(
                 tier: Number,
                 rewardType: {
                     type: String,
-                    enum: ['free', 'premium']
+                    enum: ['free', 'premium', 'grandreward'],
+                    required: true
                 }
             }
         ]
@@ -232,7 +233,7 @@ const BattlepassHistorySchema = new mongoose.Schema(
         claimedrewards: {
             type: {
                 type: String,
-                enum: ['free', 'premium'],
+                enum: ['free', 'premium', 'grandreward'],
                 required: true
             },
             item: {

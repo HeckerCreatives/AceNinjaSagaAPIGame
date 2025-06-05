@@ -4,7 +4,9 @@ const Characterdata = require("../models/Characterdata");
 const CharacterStats = require("../models/Characterstats");
 const Characterwallet = require("../models/Characterwallet");
 const { CharacterSkillTree } = require("../models/Skills");
-const { checkcharacter } = require("../utils/character")
+const { checkcharacter } = require("../utils/character");
+const { CharacterInventory, Item } = require("../models/Market");
+const { checkmaintenance } = require("../utils/maintenance");
 
 
 exports.getbattlepass = async (req, res) => {
@@ -13,6 +15,16 @@ exports.getbattlepass = async (req, res) => {
     if (!characterid) {
         return res.status(400).json({ message: "failed", data: "Character ID is required." });
     }
+
+    const maintenance = await checkmaintenance("battlepass")
+
+    if (maintenance === "failed") {
+        await session.abortTransaction();
+        return res.status(400).json({
+            message: "failed",
+            data: "The Battlepass is currently under maintenance. Please try again later."
+        });
+    }   
 
     
     const checker = await checkcharacter(id, characterid);
@@ -30,7 +42,9 @@ exports.getbattlepass = async (req, res) => {
     const currentSeason = await BattlepassSeason.findOne({
         startDate: { $lte: currentdate },
         endDate: { $gte: currentdate }
-    });
+    })        
+    .populate('grandreward', 'type name rarity description')
+;
 
 
 
@@ -107,11 +121,27 @@ exports.getbattlepass = async (req, res) => {
 
     const remainingMilliseconds = enddate - currentDate;
     const remainingSeconds = Math.floor(remainingMilliseconds / 1000);
+
+
+    const now = new Date();
+    const phTime = new Date(now.getTime() 
+    // + (8 * 60 * 60 * 1000)
+    ); // Convert to UTC+8
+    
+            // Calculate time until next midnight (00:00) in UTC+8
+    const midnight = new Date(phTime);
+    midnight.setDate(midnight.getDate() + 1); // Move to next day
+    midnight.setHours(0, 0, 0, 0); // Set to midnight
+    
+    const timeUntilMidnight = midnight - phTime;
+    const hoursRemaining = Math.floor(timeUntilMidnight / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
     
     const formattedResponse = {
         battlepass: {
             id: currentSeason._id,
-            name: currentSeason.title,
+            title: currentSeason.title,
+            season: currentSeason.season,
             timeleft: remainingSeconds,
             status: currentSeason.status,
             premiumCost: currentSeason.premiumCost,
@@ -133,7 +163,14 @@ exports.getbattlepass = async (req, res) => {
                     xpRequired: tier.xpRequired,
                 };
                 return acc;
-            }, {})
+            }, {}),
+            grandreward: {
+                _id: currentSeason.grandreward?._id || "No Grand Reward",
+                name: currentSeason.grandreward?.name || "No Grand Reward",
+                type: currentSeason.grandreward?.type || "none",
+                rarity: currentSeason.grandreward?.rarity || "none",
+                description: currentSeason.grandreward?.description || "No description available"
+            },
         },
         progress: {
             currentTier: battlepassData.currentTier,
@@ -163,7 +200,11 @@ exports.getbattlepass = async (req, res) => {
                 lastUpdated: mission.lastUpdated
             };
             return acc;
-        }, {})
+        }, {}),
+        resetin: {
+            hours: hoursRemaining,
+            minutes: minutesRemaining
+        }
     };
     
 
@@ -190,6 +231,17 @@ exports.claimbattlepassreward = async (req, res) => {
             data: "You are not authorized to view this page. Please login the right account to view the page."
         });
     }
+
+        const maintenance = await checkmaintenance("battlepass")
+
+    if (maintenance === "failed") {
+        await session.abortTransaction();
+        return res.status(400).json({
+            message: "failed",
+            data: "The Battlepass is currently under maintenance. Please try again later."
+        });
+    }   
+
 
     const currentdate = new Date();
     const currentSeason = await BattlepassSeason.findOne({
@@ -365,65 +417,125 @@ exports.claimbattlepassreward = async (req, res) => {
 
 
 exports.buypremiumbattlepass = async (req, res) => {
-    const { id } = req.user;
-    const { characterid } = req.body;
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!characterid) {
-        return res.status(400).json({ message: "failed", data: "Character ID is required." });
-    }
+    const maintenance = await checkmaintenance("battlepass")
 
-    const checker = await checkcharacter(id, characterid);
-
-    if (checker === "failed") {
+    if (maintenance === "failed") {
+        await session.abortTransaction();
         return res.status(400).json({
-            message: "Unauthorized",
-            data: "You are not authorized to view this page. Please login the right account to view the page."
+            message: "failed",
+            data: "The Battlepass is currently under maintenance. Please try again later."
         });
+    }   
+
+    try {
+        const { id } = req.user;
+        const { characterid } = req.body;
+
+        if (!characterid) {
+            throw new Error("Character ID is required.");
+        }
+
+        const checker = await checkcharacter(id, characterid);
+        if (checker === "failed") {
+            throw new Error("You are not authorized to view this page. Please login the right account to view the page.");
+        }
+
+        const currentdate = new Date();
+        const currentSeason = await BattlepassSeason.findOne({
+            startDate: { $lte: currentdate },
+            endDate: { $gte: currentdate }
+        }).session(session);
+
+        if (!currentSeason) {
+            throw new Error("No active battle pass season found.");
+        }
+
+        let battlepassData = await BattlepassProgress.findOne({
+            owner: characterid,
+            season: currentSeason._id
+        }).session(session);
+
+        if (!battlepassData) {
+            throw new Error("Battle pass progress not found for this character.");
+        }
+
+        if (battlepassData.hasPremium) {
+            throw new Error("This character already has a premium battle pass.");
+        }
+
+        const wallet = await Characterwallet.findOne({ 
+            owner: characterid, 
+            type: 'crystal' 
+        }).session(session);
+        
+        if (!wallet || wallet.amount < currentSeason.premiumCost) {
+            throw new Error("Not enough currency to buy premium battle pass.");
+        }
+
+        wallet.amount -= currentSeason.premiumCost;
+        await wallet.save({ session });
+
+        const grandReward = currentSeason.grandreward;
+        if (!grandReward) {
+            throw new Error("Battlepass is currently under maintenance! Please try again later.");
+        }
+        
+        const searchgrandrewarditem = await Item.findById(grandReward).session(session);
+        if (!searchgrandrewarditem) {
+            throw new Error("Grand reward item not found.");
+        }
+
+        if (searchgrandrewarditem.type === "crystalpacks") {
+            await Characterwallet.findOneAndUpdate(
+                { owner: characterid, type: 'crystal' },
+                { $inc: { amount: searchgrandrewarditem.crystals } },
+                { new: true, session }
+            );
+        } else if (searchgrandrewarditem.type === "goldpacks") {
+            await Characterwallet.findOneAndUpdate(
+                { owner: characterid, type: 'coins' },
+                { $inc: { amount: searchgrandrewarditem.coins } },
+                { new: true, session }
+            );
+        } else {
+            await CharacterInventory.findOneAndUpdate(
+                { owner: characterid, type: searchgrandrewarditem.inventorytype },
+                { $push: { items: { item: searchgrandrewarditem._id } } },
+                { upsert: true, new: true, session }
+            );
+        }
+
+        battlepassData.hasPremium = true;
+        await battlepassData.save({ session });
+
+        await session.commitTransaction();
+
+        return res.status(200).json({
+            message: "success",
+            data: {
+            crystalcost: currentSeason.premiumCost,
+            grandreward: {
+                _id: searchgrandrewarditem._id,
+                name: searchgrandrewarditem.name,
+                type: searchgrandrewarditem.type,
+                rarity: searchgrandrewarditem.rarity,
+                description: searchgrandrewarditem.description
+            }
+            }
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+            message: "failed", 
+            data: error.message 
+        });
+    } finally {
+        session.endSession();
     }
-
-    const currentdate = new Date();
-    const currentSeason = await BattlepassSeason.findOne({
-        startDate: { $lte: currentdate },
-        endDate: { $gte: currentdate }
-    });
-
-    if (!currentSeason) {
-        return res.status(404).json({ message: "failed", data: "No active battle pass season found." });
-    }
-
-    let battlepassData = await BattlepassProgress.findOne({
-        owner: characterid,
-        season: currentSeason._id
-    });
-
-    if (!battlepassData) {
-        return res.status(404).json({ message: "failed", data: "Battle pass progress not found for this character." });
-    }
-
-    if (battlepassData.hasPremium) {
-        return res.status(400).json({ message: "failed", data: "This character already has a premium battle pass." });
-    }
-
-    // Check if user has enough currency to buy premium battle pass
-    const wallet = await Characterwallet.findOne({ owner: characterid, type: 'crystal' });
-    
-    if (!wallet || wallet.amount < currentSeason.premiumCost) {
-        return res.status(400).json({ message: "failed", data: "Not enough currency to buy premium battle pass." });
-    }
-
-    // Deduct the premium price from the wallet
-    wallet.amount -= currentSeason.premiumCost;
-    await wallet.save();
-
-    // Update battle pass progress
-    battlepassData.hasPremium = true;
-    
-    await battlepassData.save();
-
-    return res.status(200).json({
-        message: "success",
-        data: `Premium battle pass purchased successfully for ${currentSeason.premiumCost} coins.`
-    });
 }
 
 exports.claimbattlepassquest = async (req, res) => {
@@ -499,7 +611,6 @@ exports.claimbattlepassquest = async (req, res) => {
     const requirementType = Object.keys(mission.requirements)[0];
     const requiredAmount = mission.requirements[requirementType];
 
-    console.log(`Required amount for mission: ${requiredAmount}, Current progress: ${quest.progress}`);
     // Check if the mission progress is sufficient
     if (quest.progress < requiredAmount) {
         return res.status(400).json({
@@ -551,3 +662,4 @@ exports.claimbattlepassquest = async (req, res) => {
         message: "success",
     });
 }
+
