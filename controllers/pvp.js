@@ -376,13 +376,6 @@ exports.pvpmatchresult = async (req, res) => {
             rankingmmr.mmr = Math.max(10, rankingmmr.mmr + Math.max(mmrChange, minMMRGain));
             enemymmr.mmr = Math.max(10, enemymmr.mmr - Math.max(mmrChange, minMMRGain));
         
-            const progress1 = await progressutil('pvpwins', characterid, 1)
-                
-        if(progress1.message !== "success") {
-            await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
-        }
-           
         } else {
             enemy.win += 1;
             ranking.lose += 1;
@@ -434,34 +427,22 @@ exports.pvpmatchresult = async (req, res) => {
             ranking.save()
         ]);
 
-        // pvpparticipated and pvpwins
 
-        const progress = await progressutil('pvpparticipated', characterid, 1)
-                
-        if(progress.message !== "success") {
-            await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
-        }
-
-                const progress1 = await progressutil('totaldamage', characterid, totaldamage)
-                
-                if(progress1.message !== "success") {
-                    await session.abortTransaction();
-                    return res.status(400).json({ message: "failed", data: "Failed to update progress." });
-                }
+                const multipleProgress = await multipleprogressutil(characterid, [
+                    { requirementtype: 'totaldamage', amount: totaldamage },
+                    { requirementtype: 'skillsused', amount: skillsused },
+                    { requirementtype: 'selfheal', amount: selfheal },
+                    { requirementtype: 'enemiesdefeated', amount: enemydefeated },
+                    { requirementtype: 'pvpwins', amount: status === 1 ? 1 : 0 },
+                    { requirementtype: 'pvpparticipated', amount: 1 }
+                ]);
         
-                const progress2 = await progressutil('skillsused', characterid, skillsused)
-                
-                if(progress2.message !== "success") {
+                if (multipleProgress.message !== "success") {
                     await session.abortTransaction();
-                    return res.status(400).json({ message: "failed", data: "Failed to update progress." });
-                }
-        
-                const progress3 = await progressutil('selfheal', characterid, selfheal)
-                
-                if(progress3.message !== "success") {
-                    await session.abortTransaction();
-                    return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+                    return res.status(400).json({ 
+                        message: "failed", 
+                        data: "Failed to update multiple progress."
+                    });
                 }
         
 

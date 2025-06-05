@@ -97,7 +97,7 @@ const MarketSchema = new mongoose.Schema({
     marketType: {
         type: String,
         required: true,
-        enum: ['market', 'shop']
+        enum: ['market', 'shop', 'grandreward']
     },
     lastUpdated: {
         type: Date,
