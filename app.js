@@ -8,7 +8,6 @@ require("dotenv").config();
 
 const app = express();
 
-const {initialize} = require("./initialization/serverinitialize")
 
 const CORS_ALLOWED = process.env.ALLOWED_CORS
 
