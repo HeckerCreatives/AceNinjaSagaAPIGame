@@ -1278,11 +1278,11 @@ exports.challengechapter = async (req, res) => {
 
     
         const multipleProgress = await multipleprogressutil(characterid, [
-            { type: 'totaldamage', value: totaldamage },
-            { type: 'skillsused', value: skillsused },
-            { type: 'selfheal', value: selfheal },
-            { type: 'enemydefeated', value: enemydefeated },
-            { type: 'storychapters', value: 1 }
+            { requirementtype: 'totaldamage', amount: totaldamage },
+            { requirementtype: 'skillsused', amount: skillsused },
+            { requirementtype: 'selfheal', amount: selfheal },
+            { requirementtype: 'enemiesdefeated', amount: enemydefeated },
+            { requirementtype: 'storychapters', amount: 1 }
         ]);
 
         if (multipleProgress.message !== "success") {

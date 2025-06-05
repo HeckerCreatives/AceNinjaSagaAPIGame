@@ -115,24 +115,6 @@ exports.getbattlepass = async (req, res) => {
             timeleft: remainingSeconds,
             status: currentSeason.status,
             premiumCost: currentSeason.premiumCost,
-            freeMissions: currentSeason.freeMissions.reduce((acc, mission, index) => {
-                acc[index + 1] = {
-                    id: mission._id,
-                    missionName: mission.missionName,
-                    type: "free",
-                    daily: mission.daily
-                };
-                return acc;
-            }, {}),
-            premiumMissions: currentSeason.premiumMissions.reduce((acc, mission, index) => {
-                acc[index + 1] = {
-                    id: mission._id,
-                    missionName: mission.missionName,
-                    type: "premium",
-                    daily: mission.daily
-                };
-                return acc;
-            }, {}),
             tiers: currentSeason.tiers.reduce((acc, tier, index) => {
                 const tierNumber = index + 1;
                 const freeClaimed = battlepassData.claimedRewards.some(r => r.tier === tierNumber && r.rewardType === "free");
@@ -170,6 +152,7 @@ exports.getbattlepass = async (req, res) => {
             acc[index + 1] = {
                 id: mission._id,
                 missionName: originalMission ? originalMission.missionName : mission.missionName,
+                description: originalMission ? originalMission.description : "No description available",
                 type: mission.type,
                 progress: mission.progress,
                 requirements: requiredAmount || null,
