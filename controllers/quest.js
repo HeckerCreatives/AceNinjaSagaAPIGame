@@ -67,7 +67,7 @@ exports.getdailyquest = async (req, res) => {
             missionName: quest.missionName,
             description: quest.description,
             xpReward: quest.xpReward,
-            requirements: quest.requirements,
+            requirements: Object.values(quest.requirements)[0],
             daily: quest.daily,
             progress: questProgress ? {
                 current: questProgress.progress,
