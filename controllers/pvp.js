@@ -8,6 +8,7 @@ const { RemainingTime, getSeasonRemainingTimeInMilliseconds } = require("../util
 const RankTier = require("../models/RankTier")
 const { Battlepass } = require("../models/Battlepass")
 const { checkmaintenance } = require("../utils/maintenance")
+const { progressutil } = require("../utils/progress")
 
 exports.getpvphistory = async (req, res) => {
     try {
@@ -267,9 +268,17 @@ exports.pvpmatchresult = async (req, res) => {
         await session.startTransaction();
 
         const { id } = req.user;
-        const { opponent, status, characterid } = req.body;
+        const { opponent, status, characterid, totaldamage, selfheal, skillsused } = req.body;
 
         const maintenance = await checkmaintenance("pvp")
+
+        if (opponent === characterid) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "You cannot play against yourself."
+            });
+        }
                 
         if (maintenance === "failed") {
             await session.abortTransaction();
@@ -366,6 +375,14 @@ exports.pvpmatchresult = async (req, res) => {
             enemy.lose += 1;
             rankingmmr.mmr = Math.max(10, rankingmmr.mmr + Math.max(mmrChange, minMMRGain));
             enemymmr.mmr = Math.max(10, enemymmr.mmr - Math.max(mmrChange, minMMRGain));
+        
+            const progress1 = await progressutil('pvpwins', characterid, 1)
+                
+        if(progress1.message !== "success") {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
+           
         } else {
             enemy.win += 1;
             ranking.lose += 1;
@@ -417,6 +434,39 @@ exports.pvpmatchresult = async (req, res) => {
             ranking.save()
         ]);
 
+        // pvpparticipated and pvpwins
+
+        const progress = await progressutil('pvpparticipated', characterid, 1)
+                
+        if(progress.message !== "success") {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
+
+                const progress1 = await progressutil('totaldamage', characterid, totaldamage)
+                
+                if(progress1.message !== "success") {
+                    await session.abortTransaction();
+                    return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+                }
+        
+                const progress2 = await progressutil('skillsused', characterid, skillsused)
+                
+                if(progress2.message !== "success") {
+                    await session.abortTransaction();
+                    return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+                }
+        
+                const progress3 = await progressutil('selfheal', characterid, selfheal)
+                
+                if(progress3.message !== "success") {
+                    await session.abortTransaction();
+                    return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+                }
+        
+
+
+        
         await session.commitTransaction();
 
         return res.status(200).json({ 
@@ -424,10 +474,6 @@ exports.pvpmatchresult = async (req, res) => {
             data: {
                 winner: status === 1 ? characterid : opponent,
                 mmrChange: mmrChange,
-                newRanks: {
-                    [characterid]: rankingmmr.rank,
-                    [opponent]: enemymmr.rank
-                }
             }
         });
 

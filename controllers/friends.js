@@ -2,6 +2,7 @@ const Friends = require('../models/Friends');
 const Characterdata = require('../models/Characterdata');
 const { default: mongoose } = require('mongoose');
 const { checkcharacter } = require('../utils/character');
+const { progressutil } = require('../utils/progress');
 
 // Add friend request
 exports.addFriend = async (req, res) => {
@@ -96,6 +97,12 @@ exports.addFriend = async (req, res) => {
             character: characterId,
             friend: friendId
         });
+
+        const progress = await progressutil('friendsadded', characterId, 1)
+        
+        if(progress.message !== "success") {
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
 
         res.status(200).json({
             message: "success"

@@ -177,6 +177,10 @@ const MissionProgressSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        requirementtype: {
+            type: String,
+            required: true,
+        },
         progress: {
             type: Number,
             default: 0,

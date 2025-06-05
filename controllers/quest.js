@@ -82,9 +82,21 @@ exports.getdailyquest = async (req, res) => {
         return acc;
     }, {});
 
+
+    // sort it by if its claimable and completed should be last
+
+    const sortedFinalData = Object.values(finaldata).sort((a, b) => {
+        if (a.progress.isCompleted && !b.progress.isCompleted) {
+            return 1; // a is completed, b is not, so b comes first
+        } else if (!a.progress.isCompleted && b.progress.isCompleted) {
+            return -1; // b is completed, a is not, so a comes first
+        } else {
+            return 0; // both are either completed or not, maintain original order
+        }
+    });
     return res.status(200).json({
         message: "success",
-        data: finaldata,
+        data: sortedFinalData,
         resetin: {
             hours: hoursRemaining,
             minutes: minutesRemaining

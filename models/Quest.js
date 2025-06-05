@@ -43,6 +43,10 @@ const QuestProgressSchema = new mongoose.Schema(
             required: true,
             index: true
         },
+        requirementtype: {
+            type: String,
+            required: true,
+        },
         progress: {
             type: Number,
             default: 0,

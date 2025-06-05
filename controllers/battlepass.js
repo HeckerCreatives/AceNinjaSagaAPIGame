@@ -163,12 +163,17 @@ exports.getbattlepass = async (req, res) => {
             const matchingFreeMission = currentSeason.freeMissions.find(m => m._id.equals(mission.missionId));
             const matchingPremiumMission = currentSeason.premiumMissions.find(m => m._id.equals(mission.missionId));
             const originalMission = matchingFreeMission || matchingPremiumMission;
+            const requirementType = Object.keys(originalMission.requirements)[0];
+            const requiredAmount = originalMission.requirements[requirementType];
+
 
             acc[index + 1] = {
                 id: mission._id,
                 missionName: originalMission ? originalMission.missionName : mission.missionName,
                 type: mission.type,
                 progress: mission.progress,
+                requirements: requiredAmount || null,
+                xpReward: originalMission ? originalMission.xpReward : 0,
                 isCompleted: mission.isCompleted,
                 isLocked: mission.isLocked,
                 daily: mission.daily,
@@ -435,5 +440,131 @@ exports.buypremiumbattlepass = async (req, res) => {
     return res.status(200).json({
         message: "success",
         data: `Premium battle pass purchased successfully for ${currentSeason.premiumCost} coins.`
+    });
+}
+
+exports.claimbattlepassquest = async (req, res) => {
+    const { id } = req.user;
+    const { characterid, missionid } = req.body;
+
+    if (!characterid || !missionid) {
+        return res.status(400).json({
+            message: "failed",
+            data: "Please input the character id and mission id."
+        });
+    }
+
+    const checker = await checkcharacter(id, characterid);
+    
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
+
+    const quest = await BattlepassMissionProgress.findById(missionid)
+        .then(data => data)
+        .catch(err => {
+            console.error(`Error fetching quest: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
+
+    if (!quest) {
+        return res.status(404).json({
+            message: "failed",
+            data: "Battlepass Mission not found."
+        });
+    }
+    // get battle pass season
+
+    const battlepassseason = await BattlepassSeason.findById(quest.season)
+        .then(data => data)
+        .catch(err => {
+            console.error(`Error fetching battle pass season: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
+
+    // check free  mission and premium mission
+    const mission = battlepassseason.freeMissions.find(m => m._id.equals(quest.missionId)) ||
+                    battlepassseason.premiumMissions.find(m => m._id.equals(quest.missionId));
+
+
+    if (!mission) {
+        return res.status(404).json({
+            message: "failed",
+            data: "Mission not found in the current battle pass season."
+        });
+    }
+
+    // Check if the mission is already completed
+    if (quest.isCompleted) {
+        return res.status(400).json({
+            message: "failed",
+            data: "This mission has already been completed."
+        });
+    }
+
+    // Check if the mission is locked
+    if (quest.isLocked) {
+        return res.status(400).json({
+            message: "failed",
+            data: "This mission is locked and cannot be claimed yet."
+        });
+    }
+
+    const requirementType = Object.keys(mission.requirements)[0];
+    const requiredAmount = mission.requirements[requirementType];
+
+    console.log(`Required amount for mission: ${requiredAmount}, Current progress: ${quest.progress}`);
+    // Check if the mission progress is sufficient
+    if (quest.progress < requiredAmount) {
+        return res.status(400).json({
+            message: "failed",
+            data: `You need to complete ${requiredAmount - quest.progress} more to claim this mission.`
+        });
+    }
+    // Update the mission progress to completed
+    quest.isCompleted = true;
+    quest.lastUpdated = new Date();
+    // add exp reward to battlepass progress
+    const battlepassProgress = await BattlepassProgress.findOne({ owner: characterid, season: quest.season })
+        .then(data => data)
+        .catch(err => {
+            console.error(`Error fetching battle pass progress: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
+    if (!battlepassProgress) {
+        // create battlepass progress if not exists
+        await BattlepassProgress.create({
+            owner: characterid,
+            season: quest.season,
+            currentTier: 1,
+            currentXP: 0,
+            hasPremium: false,
+            claimedRewards: []
+        });
+    }
+
+    const bptierlevelup = 1000; // example value, adjust as needed
+
+    battlepassProgress.currentXP += mission.xpReward; // Add the mission reward to the battle pass progress
+    // Check if the battle pass progress level up
+    if (battlepassProgress.currentXP >= bptierlevelup) {
+        let remainingXP = battlepassProgress.currentXP - bptierlevelup;
+        battlepassProgress.currentXP = remainingXP; // Set the remaining XP for the next tier
+        battlepassProgress.currentTier += 1; // Level up the battle pass tier
+        
+        if (battlepassProgress.currentXP < 0) {
+            battlepassProgress.currentXP = 0; // Ensure XP doesn't go negative
+        }
+    }
+
+    await battlepassProgress.save();
+    
+    await quest.save()
+
+    return res.status(200).json({
+        message: "success",
     });
 }

@@ -6,6 +6,7 @@ const { checkcharacter } = require("../utils/character")
 const { checkmaintenance } = require("../utils/maintenance")
 const CharacterStats = require("../models/Characterstats")
 const { CharacterSkillTree } = require("../models/Skills")
+const { progressutil } = require("../utils/progress")
 
 // #region  USER
 
@@ -173,6 +174,12 @@ exports.spindaily = async (req, res) => {
         userdailyspin.spin = false;
         await userdailyspin.save({ session });
 
+        const progress = await progressutil('dailyspin', characterid, 1)
+
+        if(progress.message !== "success") {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
         await session.commitTransaction();
 
         return res.status(200).json({

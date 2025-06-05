@@ -17,6 +17,7 @@ const { CharacterChapter, CharacterChapterHistory } = require("../models/Chapter
 const PvP = require("../models/Pvp")
 const { Companion, CharacterCompanionUnlocked } = require("../models/Companion")
 const { QuestDetails, QuestProgress } = require("../models/Quest")
+const { progressutil, multipleprogressutil } = require("../utils/progress")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -186,10 +187,13 @@ exports.createcharacter = async (req, res) => {
                 
             // Initialize free missions
             for (const mission of currentSeason.freeMissions) {
+                const requirementType = Object.keys(mission.requirements)[0];
+
                 await BattlepassMissionProgress.create([{
                     owner: characterId,
                     season: currentSeason._id,
                     missionName: mission.missionName,
+                    requirementtype: requirementType,
                     type: "free",
                     missionId: new mongoose.Types.ObjectId(mission._id), 
                     progress: 0,
@@ -202,12 +206,15 @@ exports.createcharacter = async (req, res) => {
 
             // Initialize premium missions
             for (const mission of currentSeason.premiumMissions) {
+                const requirementType = Object.keys(mission.requirements)[0];
+
                 await BattlepassMissionProgress.create([{
                     owner: characterId,
                     season: currentSeason._id,
                     missionName: mission.missionName,
                     type: "premium",
                     missionId: new mongoose.Types.ObjectId(mission._id),
+                    requirementtype: requirementType,
                     progress: 0, 
                     isCompleted: false,
                     isLocked: true, // Premium missions start locked
@@ -218,9 +225,12 @@ exports.createcharacter = async (req, res) => {
 
     const searchquest = await QuestDetails.find({},null, {session}).lean()
             for (const mission of searchquest) {
+                const requirementType = Object.keys(mission.requirements)[0];
+
                 await QuestProgress.create([{
                     owner: characterId,
                     quest: new mongoose.Types.ObjectId(mission._id),
+                    requirementtype: requirementType,
                     progress: 0,
                     isCompleted: false,
                     daily: mission.daily,
@@ -1143,9 +1153,9 @@ exports.challengechapter = async (req, res) => {
         await session.startTransaction();
 
         const { id } = req.user;
-        const { characterid, chapter, challenge, status } = req.body;
+        const { characterid, chapter, challenge, status, totaldamage, selfheal, skillsused, enemydefeated } = req.body;
 
-        if (!characterid || !chapter || !challenge || !status) {
+        if (!characterid || !chapter || !challenge || !status || totaldamage === undefined || selfheal === undefined || skillsused === undefined || enemydefeated === undefined) {
             await session.abortTransaction();
             return res.status(400).json({ 
                 message: "failed", 
@@ -1265,6 +1275,24 @@ exports.challengechapter = async (req, res) => {
             { $inc: { amount: rewards.crystal } },
             { session, upsert: true }
         );
+
+    
+        const multipleProgress = await multipleprogressutil(characterid, [
+            { type: 'totaldamage', value: totaldamage },
+            { type: 'skillsused', value: skillsused },
+            { type: 'selfheal', value: selfheal },
+            { type: 'enemydefeated', value: enemydefeated },
+            { type: 'storychapters', value: 1 }
+        ]);
+
+        if (multipleProgress.message !== "success") {
+            await session.abortTransaction();
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "Failed to update multiple progress."
+            });
+        }
+
 
         await session.commitTransaction();
         return res.status(200).json({
