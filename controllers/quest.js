@@ -98,10 +98,12 @@ exports.getdailyquest = async (req, res) => {
     const sortedFinalData = Object.fromEntries(sortedEntries);
     return res.status(200).json({
         message: "success",
-        data: sortedFinalData,
-        resetin: {
-            hours: hoursRemaining,
-            minutes: minutesRemaining
+        data: {
+            quest: sortedFinalData,
+            resetin: {
+                hours: hoursRemaining,
+                minutes: minutesRemaining
+            }
         }
     });
 }
