@@ -34,23 +34,23 @@ exports.getMarketItems = async (req, res) => {
                 });
             }
     } else if (markettype === "market") {
-        const maintenance = await checkmaintenance("market")
+        // const maintenance = await checkmaintenance("market")
         
-        if (maintenance === "success") {
-            return res.status(400).json({
-                    message: "failed",
-                    data: "The market is currently under maintenance. Please try again later."
-                });
-            }
+        // if (maintenance === "success") {
+        //     return res.status(400).json({
+        //             message: "failed",
+        //             data: "The market is currently under maintenance. Please try again later."
+        //         });
+        //     }
     } else if (markettype === "shop") {
-        const smaintenance = await checkmaintenance("store")
+        // const smaintenance = await checkmaintenance("store")
         
-        if (smaintenance === "success") {
-            return res.status(400).json({
-                    message: "failed",
-                    data: "The market is currently under maintenance. Please try again later."
-                });
-            }
+        // if (smaintenance === "success") {
+        //     return res.status(400).json({
+        //             message: "failed",
+        //             data: "The market is currently under maintenance. Please try again later."
+        //         });
+        //     }
     }
             
     try {
@@ -155,6 +155,8 @@ exports.getMarketItems = async (req, res) => {
 
         // Execute aggregation
         const items = await Market.aggregate(pipeline);
+
+        console.log(items)
 
         // Get total count for pagination
         const countPipeline = [...pipeline];

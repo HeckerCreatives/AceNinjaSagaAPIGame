@@ -62,7 +62,7 @@ exports.getdailyquest = async (req, res) => {
             progress.quest.toString() === quest._id.toString()
         );
 
-        acc[index + 1] = {
+        acc[quest.missionName] = {
             id: quest._id,
             missionName: quest.missionName,
             description: quest.description,
