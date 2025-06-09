@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose")
-const News = require("../models/News")
+const { News, ItemNews } = require("../models/News")
 
 
 // exports.creatnews = async (req, res) => {
@@ -99,14 +99,19 @@ exports.editnews = async (req, res) => {
 
 exports.getnews = async (req, res) => {
 
-    const {page, limit} = req.query
+    const {page, limit, type} = req.query
 
     const pageOptions = {
         page: parseInt(page) || 0,
         limit: parseInt(limit) || 10
     }
 
-    const NewsData = await News.find()
+    let query = {};
+    if (type) {
+        query.type = type;
+    }
+
+    const NewsData = await News.find(query)
     .skip(pageOptions.page * pageOptions.limit)
     .limit(pageOptions.limit)
     .then(data => data)
@@ -117,31 +122,55 @@ exports.getnews = async (req, res) => {
     })
 
     const totalNews = await News.countDocuments();
+    // Find the latest ItemNews
+    const ItemNewsData = await ItemNews.findOne().sort({ createdAt: -1 });
 
-    const formattedResponse = {
-        data: NewsData.reduce((acc, data, index) => {
-            const { _id, title, content, type, url } = data;
-            acc[index + 1] = {
-                id: _id,
-                title,
-                content,
-                type,
-                url,
-                createdAt: data.createdAt
-            };
-            return acc;
-        }, {}),
-        pagination: {
-            total: totalNews,
-            page: pageOptions.page,
-            limit: pageOptions.limit,
-            pages: Math.ceil(totalNews / pageOptions.limit)
-        }
+    let formattedResponse = {
+        data: {}
     };
 
+    // First, shift all existing news items up by one index
+    formattedResponse = {
+        data: {
+            news: NewsData.reduce((acc, data, index) => {
+                const { _id, title, content, type, url } = data;
+                acc[index + 1] = {
+                    id: _id,
+                    title,
+                    content,
+                    type,
+                    url,
+                    createdAt: data.createdAt
+                };
+                return acc;
+            }, {}),
+            pagination: {
+                total: totalNews,
+                page: pageOptions.page,
+                limit: pageOptions.limit,
+                pages: Math.ceil(totalNews / pageOptions.limit)
+            }
+        }
+    }
+
+    // Add ItemNews as the first item if it exists and type is not video
+    if (ItemNewsData && type !== 'video') {
+        const { _id, title, item, itemtype } = ItemNewsData;
+        // Create a separate itemnews object
+        formattedResponse.data = {
+            itemnews: {
+                id: _id,
+                title,
+                item: item ? item.toString() : null,
+                itemtype,
+            },
+            news: formattedResponse.data.news
+        };
+    }
+        
     return res.status(200).json({
         message: "success",
-        data:  formattedResponse.data,
+        data: formattedResponse.data,
         pagination: formattedResponse.pagination
     });
 

@@ -21,5 +21,30 @@ const NewsSchema = new mongoose.Schema(
     }
 )
 
+const ItemNewsSchema = new mongoose.Schema(
+    {
+        title: {
+            type: String,
+            index: true
+        },
+        item: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Item"
+        },
+        itemtype: {
+            type: String,
+            index: true
+        }
+    },
+    {
+        timestamps: true
+    }
+)
+
 const News = mongoose.model("News", NewsSchema)
-module.exports = News
+const ItemNews = mongoose.model("ItemNews", ItemNewsSchema)
+
+module.exports = {
+    News,
+    ItemNews,
+};
