@@ -155,23 +155,30 @@ exports.getnews = async (req, res) => {
         data: {}
     };
 
+    const newsdata = {}
+
+    let index = 0
+
+    NewsData.forEach(temp => {
+        const { _id, title, content, type, url, createdAt } = temp;
+        const isRead = readNews.some(read => read.news && read.news.toString() === _id.toString());
+        console.log(title)
+        newsdata[index] = {
+            id: _id,
+            title,
+            content,
+            type,
+            url,
+            createdAt: createdAt,
+            isRead: isRead
+        };
+        index++;
+    })
+
     // First, shift all existing news items up by one index
     formattedResponse = {
         data: {
-            news: NewsData.reduce((acc, data, index) => {
-                const { _id, title, content, type, url } = data;
-                const isRead = readNews.some(read => read.news && read.news.toString() === _id.toString());
-                acc[index + 1] = {
-                    id: _id,
-                    title,
-                    content,
-                    type,
-                    url,
-                    createdAt: data.createdAt,
-                    isRead: isRead
-                };
-                return acc;
-            }, {}),
+            news: newsdata,
             pagination: {
                 total: totalNews,
                 page: pageOptions.page,
