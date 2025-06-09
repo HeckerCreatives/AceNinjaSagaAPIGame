@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose")
-const { News, ItemNews } = require("../models/News")
+const { News, ItemNews, NewsRead } = require("../models/News");
+const { checkcharacter } = require("../utils/character");
 
 
 // exports.creatnews = async (req, res) => {
@@ -99,7 +100,7 @@ exports.editnews = async (req, res) => {
 
 exports.getnews = async (req, res) => {
 
-    const {page, limit, type} = req.query
+    const {page, limit, type, gender, characterid} = req.query
 
     const pageOptions = {
         page: parseInt(page) || 0,
@@ -121,9 +122,34 @@ exports.getnews = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
 
+    // fetch if its read
+    const readNews = await NewsRead.find({ owner: characterid })
+    .then(data => data)
+    .catch(err => {
+        console.log(`There's a problem encountered while fetching read news data. Error: ${err}`)
+
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
+    })
+
     const totalNews = await News.countDocuments();
     // Find the latest ItemNews
-    const ItemNewsData = await ItemNews.findOne().sort({ createdAt: -1 });
+    let ItemNewsData = await ItemNews.findOne()
+    .sort({ createdAt: -1 })
+    .populate('item', 'name gender')
+
+    if (ItemNewsData && ItemNewsData.item && ItemNewsData.item.gender !== 'unisex') {
+        // First get all ItemNews sorted by date
+        let allItemNews = await ItemNews.find()
+            .sort({ createdAt: -1 })
+            .populate('item', 'name gender');
+
+        // Find the first item that matches the gender criteria
+        if (gender) {
+            ItemNewsData = allItemNews.find(news => news.item && news.item.gender === gender);
+        } else {
+            ItemNewsData = allItemNews[0]; // Take the most recent if no gender specified
+        }
+    }
 
     let formattedResponse = {
         data: {}
@@ -134,13 +160,15 @@ exports.getnews = async (req, res) => {
         data: {
             news: NewsData.reduce((acc, data, index) => {
                 const { _id, title, content, type, url } = data;
+                const isRead = readNews.some(read => read.news && read.news.toString() === _id.toString());
                 acc[index + 1] = {
                     id: _id,
                     title,
                     content,
                     type,
                     url,
-                    createdAt: data.createdAt
+                    createdAt: data.createdAt,
+                    isRead: isRead
                 };
                 return acc;
             }, {}),
@@ -156,15 +184,34 @@ exports.getnews = async (req, res) => {
     // Add ItemNews as the first item if it exists and type is not video
     if (ItemNewsData && type !== 'video') {
         const { _id, title, item, itemtype } = ItemNewsData;
+
+        if (!gender){
+            return res.status(400).json({ message: "failed", data: "Please input character gender."})
+        }
+
+        // Check if the item news is read
+        const isItemNewsRead = readNews.some(read => read.itemNews && read.itemNews.toString() === _id.toString());
+
         // Create a separate itemnews object
         formattedResponse.data = {
             itemnews: {
                 id: _id,
                 title,
-                item: item ? item.toString() : null,
+                item: item ? item._id : null,
                 itemtype,
+                itemname: item ? item.name : null,
+                itemgender: item ? item.gender: null,
+                isRead: isItemNewsRead
             },
-            news: formattedResponse.data.news
+            news: formattedResponse.data.news,
+            pagination: formattedResponse.data.pagination
+        };
+    } else {
+        // If no ItemNewsData or type is video, just return the news data
+        formattedResponse.data = {
+            itemnews: {},
+            news: formattedResponse.data.news,
+            pagination: formattedResponse.data.pagination
         };
     }
         
@@ -267,4 +314,93 @@ exports.deletenews = async (req, res) => {
     })
 
     return res.status(200).json({ message: "success"})
+}
+
+exports.readnews = async (req, res) => {
+    const { id } = req.user;
+    const { characterid, newsid, itemnewsid } = req.body;
+
+    if (!characterid) {
+        return res.status(400).json({
+            message: "failed",
+            data: "Please input the character id and news id."
+        });
+    }
+
+    if ((!newsid || !mongoose.Types.ObjectId.isValid(newsid)) && (!itemnewsid || !mongoose.Types.ObjectId.isValid(itemnewsid))) {
+        return res.status(400).json({
+            message: "failed",
+            data: "Please input the news id or item news id."
+        });
+    }
+
+        const checker = await checkcharacter(id, characterid);
+
+        if (checker === "failed") {
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to view this page. Please login the right account to view the page."
+            });
+        }
+
+    const updateData = {
+        owner: characterid,
+        news: newsid ? new mongoose.Types.ObjectId(newsid) : null,
+        itemNews: itemnewsid ? new mongoose.Types.ObjectId(itemnewsid) : null
+    }
+    if (newsid) {
+        const news = await News.findById(new mongoose.Types.ObjectId(newsid))
+        .then(data => data)
+        .catch(err => {
+            console.error(`Error fetching news: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
+        
+        if (!news) {
+            return res.status(404).json({
+                message: "failed",
+                data: "News not found."
+            });
+        }
+    } else if (itemnewsid) {
+        const itemNews = await ItemNews.findById(new mongoose.Types.ObjectId(itemnewsid))
+        .then(data => data)
+        .catch(err => {
+            console.error(`Error fetching item news: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
+
+        if (!itemNews) {
+            return res.status(404).json({
+                message: "failed",
+                data: "Item news not found."
+            });
+        }
+    } else {
+        return res.status(400).json({
+            message: "failed",
+            data: "Please provide either news id or item news id."
+        });
+    }
+
+
+    const newsRead = await NewsRead.findOneAndUpdate(
+        updateData,
+        { readAt: new Date() },
+        { upsert: true, new: true }
+    ).then(data => data)
+      .catch(err => {
+          console.error(`Error updating news read status: ${err}`);
+          return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+      });
+    if (!newsRead) {
+        return res.status(400).json({
+            message: "failed",
+            data: "Failed to mark news as read."
+        });
+    }
+
+    return res.status(200).json({
+        message: "success",
+    });
 }

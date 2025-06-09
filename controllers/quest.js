@@ -26,7 +26,18 @@ exports.getdailyquest = async (req, res) => {
             });
         }
     
-
+        const sortOrder = [
+            "storychapters",
+            "dailyspin",
+            "dailyloginclaimed",
+            "friendsadded",
+            "enemiesdefeated",
+            "totaldamage",
+            "selfheal",
+            "pvpwins",
+            "pvpparticipated",
+            "raidparticipated"
+        ]
 
     const Dailyquestdata = await QuestDetails.find()
         .sort({ createdAt: -1 })
@@ -68,6 +79,7 @@ exports.getdailyquest = async (req, res) => {
             description: quest.description,
             xpReward: quest.xpReward,
             requirements: Object.values(quest.requirements)[0],
+            requirementType: Object.keys(quest.requirements)[0],
             daily: quest.daily,
             progress: questProgress ? {
                 current: questProgress.progress,
@@ -82,17 +94,21 @@ exports.getdailyquest = async (req, res) => {
         return acc;
     }, {});
 
-
-    // sort it by if its claimable and completed should be last
-
     const sortedEntries = Object.entries(finaldata).sort(([, a], [, b]) => {
-        if (a.progress.isCompleted && !b.progress.isCompleted) {
-            return 1;
-        } else if (!a.progress.isCompleted && b.progress.isCompleted) {
-            return -1;
-        } else {
-            return 0;
+        // 1. Sort by requirement type (sortOrder)
+        const reqTypeA = a.requirementType;
+        const reqTypeB = b.requirementType;
+        const indexA = reqTypeA ? sortOrder.indexOf(reqTypeA) : -1;
+        const indexB = reqTypeB ? sortOrder.indexOf(reqTypeB) : -1;
+
+
+        if (indexA >= 0 && indexB >= 0 && indexA !== indexB) {
+            return indexA - indexB;
         }
+        if (indexA < 0 && indexB >= 0) return 1;
+        if (indexA >= 0 && indexB < 0) return -1;
+
+        return 0;
     });
 
     const sortedFinalData = Object.fromEntries(sortedEntries);

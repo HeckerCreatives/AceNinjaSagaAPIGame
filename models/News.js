@@ -41,10 +41,32 @@ const ItemNewsSchema = new mongoose.Schema(
     }
 )
 
+const NewsReadSchema = new mongoose.Schema({
+    owner: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Characterdata', 
+        required: true 
+    },
+    news: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'News', 
+    },
+    itemNews: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'ItemNews' 
+    },
+    readAt: { 
+        type: Date, 
+        default: Date.now 
+    }
+});
+
+const NewsRead = mongoose.model("NewsRead", NewsReadSchema);
 const News = mongoose.model("News", NewsSchema)
 const ItemNews = mongoose.model("ItemNews", ItemNewsSchema)
 
 module.exports = {
     News,
     ItemNews,
+    NewsRead
 };
