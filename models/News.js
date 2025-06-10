@@ -55,6 +55,10 @@ const NewsReadSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'ItemNews' 
     },
+    announcement: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Announcement'
+    },
     readAt: { 
         type: Date, 
         default: Date.now 

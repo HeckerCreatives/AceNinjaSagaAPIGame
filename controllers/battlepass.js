@@ -104,6 +104,44 @@ exports.getbattlepass = async (req, res) => {
 
     const bpmp = await BattlepassMissionProgress.find({ owner: characterid, season: currentSeason._id })
 
+
+    const sortOrder = [
+        "storychapters",
+        "dailyquests",
+        "dailyspin",
+        "dailyloginclaimed",
+        "friendsadded",
+        "enemiesdefeated",
+        "skillsused",
+        "totaldamage",
+        "selfheal",
+        "pvpwins",
+        "pvpparticipated",
+        "raidparticipated"
+    ];
+
+    // Prepare missions with requirementType for sorting
+    const missionsWithType = bpmp.map(mission => {
+        const matchingFreeMission = currentSeason.freeMissions.find(m => m._id.equals(mission.missionId));
+        const matchingPremiumMission = currentSeason.premiumMissions.find(m => m._id.equals(mission.missionId));
+        const originalMission = matchingFreeMission || matchingPremiumMission;
+        const requirementType = originalMission ? Object.keys(originalMission.requirements)[0] : null;
+        return { mission, originalMission, requirementType };
+    });
+
+    // Sort missions by requirementType using sortOrder
+    const sortedMissions = missionsWithType.sort((a, b) => {
+        const indexA = a.requirementType ? sortOrder.indexOf(a.requirementType) : -1;
+        const indexB = b.requirementType ? sortOrder.indexOf(b.requirementType) : -1;
+
+        if (indexA >= 0 && indexB >= 0 && indexA !== indexB) {
+            return indexA - indexB;
+        }
+        if (indexA < 0 && indexB >= 0) return 1;
+        if (indexA >= 0 && indexB < 0) return -1;
+        return 0;
+    });
+
     // const formattedResponse = redeemedCodes.reduce((acc, code, index) => {
     //         acc[index + 1] = {
     //             id: code._id,
@@ -178,14 +216,8 @@ exports.getbattlepass = async (req, res) => {
             hasPremium: battlepassData.hasPremium,
             claimedRewards: battlepassData.claimedRewards
         },
-        missions: bpmp.reduce((acc, mission, index) => {
-            const matchingFreeMission = currentSeason.freeMissions.find(m => m._id.equals(mission.missionId));
-            const matchingPremiumMission = currentSeason.premiumMissions.find(m => m._id.equals(mission.missionId));
-            const originalMission = matchingFreeMission || matchingPremiumMission;
-            const requirementType = Object.keys(originalMission.requirements)[0];
-            const requiredAmount = originalMission.requirements[requirementType];
-
-
+        missions: sortedMissions.reduce((acc, { mission, originalMission, requirementType }, index) => {
+            const requiredAmount = originalMission ? originalMission.requirements[requirementType] : null;
             acc[index + 1] = {
                 id: mission._id,
                 missionName: originalMission ? originalMission.missionName : mission.missionName,
@@ -197,7 +229,8 @@ exports.getbattlepass = async (req, res) => {
                 isCompleted: mission.isCompleted,
                 isLocked: mission.isLocked,
                 daily: mission.daily,
-                lastUpdated: mission.lastUpdated
+                lastUpdated: mission.lastUpdated,
+                requirementType // Optional: include for reference
             };
             return acc;
         }, {}),

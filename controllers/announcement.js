@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose")
-const Announcement = require("../models/Announcement")
+const Announcement = require("../models/Announcement");
+const { NewsRead } = require("../models/News");
 
 exports.createannouncement = async (req, res) => {
     const { title, content, contentType, url, announcementtype } = req.body;
@@ -79,30 +80,40 @@ exports.editannouncement = async (req, res) => {
 
 exports.getannouncement = async (req, res) => {
 
-    const {page, limit, filter} = req.query
+    const { page, limit, filter, characterid } = req.query;
 
     const pageOptions = {
         page: parseInt(page) || 0,
         limit: parseInt(limit) || 10
-    }
+    };
 
-    console.log(filter)
-
-    const AnnouncementData = await Announcement.find({announcementtype: filter})
-    .skip(pageOptions.page * pageOptions.limit)
-    .limit(pageOptions.limit)
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem encountered while fetching News data. Error: ${err}`)
-
-        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
-    })
+    const AnnouncementData = await Announcement.find({ announcementtype: filter })
+        .sort({ createdAt: -1 })
+        .skip(pageOptions.page * pageOptions.limit)
+        .limit(pageOptions.limit)
+        .then(data => data)
+        .catch(err => {
+            console.log(`There's a problem encountered while fetching News data. Error: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
 
     const totalList = await Announcement.countDocuments({ announcementtype: filter });
+
+    // Fetch read announcements for this character/user
+    let readAnnouncements = [];
+    if (characterid) {
+        readAnnouncements = await NewsRead.find({ owner: characterid, announcement: { $exists: true } })
+            .then(data => data.map(r => r.announcement && r.announcement.toString()))
+            .catch(err => {
+                console.log(`Error fetching read announcements: ${err}`);
+                return [];
+            });
+    }
 
     const formattedResponse = {
         data: AnnouncementData.reduce((acc, data, index) => {
             const { id, title, content, type, url, announcementtype } = data;
+            const isRead = readAnnouncements.includes(data._id.toString());
             acc[index + 1] = {
                 id,
                 title,
@@ -111,14 +122,13 @@ exports.getannouncement = async (req, res) => {
                 url,
                 announcementtype,
                 createdAt: data.createdAt,
+                isRead
             };
             return acc;
         }, {}),
-        pagination: {
-            
-        }
+        pagination: {}
     };
-    
+
     return res.status(200).json({
         message: "success",
         data: {
@@ -130,7 +140,6 @@ exports.getannouncement = async (req, res) => {
         }
     });
 }
-
 exports.deleteannouncement = async (req, res) => {
     const { id } = req.body
 

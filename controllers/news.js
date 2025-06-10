@@ -113,6 +113,7 @@ exports.getnews = async (req, res) => {
     }
 
     const NewsData = await News.find(query)
+    .sort({ createdAt: -1 })
     .skip(pageOptions.page * pageOptions.limit)
     .limit(pageOptions.limit)
     .then(data => data)
@@ -325,7 +326,7 @@ exports.deletenews = async (req, res) => {
 
 exports.readnews = async (req, res) => {
     const { id } = req.user;
-    const { characterid, newsid, itemnewsid } = req.body;
+    const { characterid, newsid, itemnewsid, announcementid } = req.body;
 
     if (!characterid) {
         return res.status(400).json({
@@ -334,27 +335,31 @@ exports.readnews = async (req, res) => {
         });
     }
 
-    if ((!newsid || !mongoose.Types.ObjectId.isValid(newsid)) && (!itemnewsid || !mongoose.Types.ObjectId.isValid(itemnewsid))) {
+    if ((!newsid || !mongoose.Types.ObjectId.isValid(newsid)) && 
+        (!itemnewsid || !mongoose.Types.ObjectId.isValid(itemnewsid)) &&
+        (!announcementid || !mongoose.Types.ObjectId.isValid(announcementid))) {
         return res.status(400).json({
             message: "failed",
-            data: "Please input the news id or item news id."
+            data: "Please input the news id, item news id, or announcement id."
         });
     }
 
-        const checker = await checkcharacter(id, characterid);
+    const checker = await checkcharacter(id, characterid);
 
-        if (checker === "failed") {
-            return res.status(400).json({
-                message: "Unauthorized",
-                data: "You are not authorized to view this page. Please login the right account to view the page."
-            });
-        }
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
 
     const updateData = {
         owner: characterid,
         news: newsid ? new mongoose.Types.ObjectId(newsid) : null,
-        itemNews: itemnewsid ? new mongoose.Types.ObjectId(itemnewsid) : null
+        itemNews: itemnewsid ? new mongoose.Types.ObjectId(itemnewsid) : null,
+        announcement: announcementid ? new mongoose.Types.ObjectId(announcementid) : null
     }
+
     if (newsid) {
         const news = await News.findById(new mongoose.Types.ObjectId(newsid))
         .then(data => data)
@@ -383,13 +388,26 @@ exports.readnews = async (req, res) => {
                 data: "Item news not found."
             });
         }
+    } else if (announcementid) {
+        const announcement = await Announcement.findById(new mongoose.Types.ObjectId(announcementid))
+        .then(data => data)
+        .catch(err => {
+            console.error(`Error fetching announcement: ${err}`);
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        });
+
+        if (!announcement) {
+            return res.status(404).json({
+                message: "failed", 
+                data: "Announcement not found."
+            });
+        }
     } else {
         return res.status(400).json({
             message: "failed",
-            data: "Please provide either news id or item news id."
+            data: "Please provide either news id, item news id, or announcement id."
         });
     }
-
 
     const newsRead = await NewsRead.findOneAndUpdate(
         updateData,
@@ -400,6 +418,7 @@ exports.readnews = async (req, res) => {
           console.error(`Error updating news read status: ${err}`);
           return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
       });
+
     if (!newsRead) {
         return res.status(400).json({
             message: "failed",
