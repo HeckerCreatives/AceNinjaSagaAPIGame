@@ -795,6 +795,12 @@ exports.updateplayerprofile = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "Please input username and character ID."})
     }
 
+    const existingcharacter = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
+
+    if (existingcharacter){
+        return res.status(400).json({ message: "failed", data: "There's an existing character name! Please enter a different username."})
+    }
+
     const character = await Characterdata.findOne({ _id: new mongoose.Types.ObjectId(characterid)})
 
     if(!character){
@@ -803,7 +809,7 @@ exports.updateplayerprofile = async (req, res) => {
 
     const wallet = await Characterwallet.findOne({owner: new mongoose.Types.ObjectId(characterid), type: "crystal"})
 
-    if (wallet.amount <= 500){
+    if (wallet.amount < 500){
         return res.status(400).json({message: "faield", data: "Crystals not enough! Please buy more to change your name"})
     }
 
@@ -1501,7 +1507,7 @@ exports.getnotification = async (req, res) => {
         const monthlyHasLoggedToday = monthlyLogin.days[dayOfMonth - 1]?.loggedIn === true;
 
         // Calculate total unread notifications for news and item news
-        let totalUnreadNews = ((newsCount || 0) + (itemNews ? 1 : 0)) - ((readNewsCount || 0));
+        let totalUnreadNews = (newsCount || 0) - (readNewsCount || 0);
 
         // Add item news if it matches character's gender
         // if (itemNews && itemNews.item) {
