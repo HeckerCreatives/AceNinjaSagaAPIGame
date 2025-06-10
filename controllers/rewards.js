@@ -861,6 +861,12 @@ exports.checkinmonthlylogin = async (req, res) => {
 
         await cmlogin.save({ session });
         await session.commitTransaction();
+
+        const progress = await progressutil('dailyloginclaimed', characterid, 1);
+        if (progress.message !== "success") {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
         return res.status(200).json({
             message: "success",
             data: { day: dayOfMonth, checkedIn: true }

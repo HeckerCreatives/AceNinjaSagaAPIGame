@@ -4,6 +4,7 @@ const { checkcharacter } = require('../utils/character');
 const Characterdata = require('../models/Characterdata');
 const { CharacterSkillTree } = require('../models/Skills');
 const CharacterStats = require('../models/Characterstats');
+const { progressutil } = require('../utils/progress');
 
 exports.getdailyquest = async (req, res) => {
 
@@ -257,6 +258,12 @@ exports.claimdailyquest = async (req, res) => {
             message: "failed",
             data: `You need to complete ${requiredAmount - questProgress.progress} more ${requirementType} to claim this quest.`
         });
+    }
+
+    const progress = await progressutil('dailyquests', characterid, 1)
+    
+    if(progress.message !== "success") {
+        return res.status(400).json({ message: "failed", data: "Failed to update progress." });
     }
 
     return res.status(200).json({
