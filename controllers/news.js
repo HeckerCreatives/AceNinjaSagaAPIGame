@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose")
 const { News, ItemNews, NewsRead } = require("../models/News");
+const Announcement = require("../models/Announcement")
 const { checkcharacter } = require("../utils/character");
 
 
