@@ -19,6 +19,7 @@ const { Companion, CharacterCompanionUnlocked } = require("../models/Companion")
 const { QuestDetails, QuestProgress } = require("../models/Quest")
 const { progressutil, multipleprogressutil } = require("../utils/progress")
 const { News, NewsRead, ItemNews } = require("../models/News")
+const Announcement = require("../models/Announcement")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -1436,107 +1437,90 @@ exports.getnotification = async (req, res) => {
     if (checker === "failed") {
         return res.status(400).json({
             message: "Unauthorized",
-            data: "You are not authorized to view this page. Please login the right account to view the page."
+            data: "You are not authorized to view this page."
         });
     }
 
-    // get characterdata 
-
-    const characterData = await Characterdata.find({ _id: new mongoose.Types.ObjectId(characterid) })
-        .lean()
-        .then(data => data)
-        .catch(err => {
-            console.log(`There's a problem encountered while fetching character data. Error: ${err}`);
-            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details." });
-        });
-
-
-    let ItemNewsData = await ItemNews.findOne()
-    .sort({ createdAt: -1 })
-    .populate('item', 'name gender')
-
-    if (ItemNewsData && ItemNewsData.item && ItemNewsData.item.gender !== 'unisex') {
-        // First get all ItemNews sorted by date
-        let allItemNews = await ItemNews.find()
-            .sort({ createdAt: -1 })
-            .populate('item', 'name gender');
-
-        // Find the first item that matches the gender criteria
-        if (characterData[0]) {
-            const gender = characterData[0].gender === 0 ? 'male' : 'female';
-            ItemNewsData = allItemNews.find(news => news.item && news.item.gender === gender);
-        } else {
-            ItemNewsData = allItemNews[0]; // Take the most recent if no gender specified
+    try {
+        // Get character gender for item news filtering
+        const character = await Characterdata.findById(characterid).select('gender').lean();
+        if (!character) {
+            return res.status(404).json({ message: "failed", data: "Character not found" });
         }
-    }
 
-    const newsnotification = await News.find({})
-        .then(data => data)
-        .catch(err => {
-            console.log(`There's a problem encountered while fetching news notification. Error: ${err}`);
-            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details." });
-        });
+        // Count total news, announcements, and item news using countDocuments
+        const [newsCount, announcementCount, itemNews] = await Promise.all([
+            News.countDocuments(),
+            Announcement.countDocuments(),
+            ItemNews.findOne()
+                .sort({ createdAt: -1 })
+                .populate('item', 'name gender')
+                .lean()
+        ]);
 
+        // Count read news for the character
+        const [readNewsCount, readAnnouncementCount, readItemNewsCount] = await Promise.all([
+            NewsRead.countDocuments({ owner: characterid, news: { $exists: true } }),
+            NewsRead.countDocuments({ owner: characterid, announcement: { $exists: true } }),
+            NewsRead.countDocuments({ owner: characterid, itemNews: { $exists: true } })
+        ]);
 
-    const characterreadnews = await NewsRead.find({ owner: new mongoose.Types.ObjectId(characterid) })
-        .then(data => data)
-        .catch(err => {
-            console.log(`There's a problem encountered while fetching character read news. Error: ${err}`);
-            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details." });
-        });
+        // Get daily/weekly/monthly login status
+        const [dailySpin, weeklyLogin, monthlyLogin] = await Promise.all([
+            CharacterDailySpin.findOne({ owner: characterid }).select('spin expspin').lean(),
+            CharacterWeeklyLogin.findOne({ owner: characterid }).select('daily currentDay').lean(),
+            CharacterMonthlyLogin.findOne({ owner: characterid }).select('days').lean()
+        ]);
 
-        // Get array of read news IDs for this character
-        const readNewsIds = characterreadnews && characterreadnews.length > 0 
-            ? characterreadnews
-                .filter(news => news && news.news) // Filter out null news
-                .map(news => news.news?.toString()) // Safely access news property
-                .filter(Boolean) // Remove any undefined values
-            : [];
-         
-        const itemReadNewsids = characterreadnews && characterreadnews.length > 0 
-            ? characterreadnews
-                .filter(news => news && news.itemNews) // Filter out null itemNews
-                .map(news => news.itemNews?.toString()) // Safely access itemNews property
-                .filter(Boolean) // Remove any undefined values
-            : [];
-           
-        // Calculate total unread by subtracting read count from total count    
-        const totalunreadnotifs = ((newsnotification?.length || 0) + (ItemNewsData ? 1 : 0)) - ((readNewsIds?.length || 0) + (itemReadNewsids?.length || 0));
-    // check rewards if is ready to be claimed
+        if (!dailySpin || !weeklyLogin || !monthlyLogin) {
+            return res.status(404).json({ message: "failed", data: "Login rewards data not found." });
+        }
 
-    const characterdailyspin = await CharacterDailySpin.findOne({ owner: new mongoose.Types.ObjectId(characterid) })
-    if (!characterdailyspin) {
-        return res.status(404).json({ message: "failed", data: "Character daily spin not found." });
-    }
-    const characterweeklylogin = await CharacterWeeklyLogin.findOne({ owner: new mongoose.Types.ObjectId(characterid) })
-    if (!characterweeklylogin) {
-        return res.status(404).json({ message: "failed", data: "Character weekly login not found." });
-    }
+        const dayOfMonth = new Date().getDate();
+        const weeklyHasLoggedToday = weeklyLogin.daily[weeklyLogin.currentDay] === true;
+        const monthlyHasLoggedToday = monthlyLogin.days[dayOfMonth - 1]?.loggedIn === true;
 
-    const charactermonthlylogin = await CharacterMonthlyLogin.findOne({ owner: new mongoose.Types.ObjectId(characterid) })
-    if (!charactermonthlylogin) {
-        return res.status(404).json({ message: "failed", data: "Character monthly login not found." });
-    }
+        // Calculate total unread notifications for news and item news
+        let totalUnreadNews = ((newsCount || 0) + (itemNews ? 1 : 0)) - ((readNewsCount || 0) + (readItemNewsCount || 0));
 
-    const dayoftodayofthemonth = new Date().getDate();
-    const weeklyhasloggedtoday = characterweeklylogin.daily[characterweeklylogin.currentDay] === true;
-    const monthlyhasloggedtoday = charactermonthlylogin.days[dayoftodayofthemonth - 1] === true;
-    const formattedResponse = {
-        data: {
-            news: {
-                unreadcount: totalunreadnotifs,
-            },
-            rewards: {
-                dailyspin: characterdailyspin.spin,
-                dailyexpspin: characterdailyspin.expspin,
-                weeklylogin: weeklyhasloggedtoday,
-                monthlylogin: monthlyhasloggedtoday,
+        // Add item news if it matches character's gender
+        if (itemNews && itemNews.item) {
+            const gender = character.gender === 0 ? 'male' : 'female';
+            if (itemNews.item.gender === 'unisex' || itemNews.item.gender === gender) {
+                totalUnreadNews += (1 - readItemNewsCount);
             }
         }
-    }
 
-    return res.status(200).json({
-        message: "success",
-        data: formattedResponse.data
-    });
-}
+        // Calculate unread announcements
+        const unreadAnnouncements = Math.max(0, announcementCount - readAnnouncementCount);
+
+        const response = {
+            data: {
+                news: {
+                    unreadcount: Math.max(0, totalUnreadNews),
+                },
+                announcement: {
+                    unreadcount: unreadAnnouncements
+                },
+                rewards: {
+                    dailyspin: dailySpin.spin,
+                    dailyexpspin: dailySpin.expspin,
+                    weeklylogin: !weeklyHasLoggedToday,
+                    monthlylogin: !monthlyHasLoggedToday,
+                }
+            }
+        };
+
+        return res.status(200).json({
+            message: "success",
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error in getnotification:', error);
+        return res.status(500).json({
+            message: "failed",
+            data: "Server error while fetching notifications"
+        });
+    }
+};
