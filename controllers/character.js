@@ -21,6 +21,7 @@ const { progressutil, multipleprogressutil } = require("../utils/progress")
 const { News, NewsRead, ItemNews } = require("../models/News")
 const Announcement = require("../models/Announcement")
 const Friends = require("../models/Friends")
+const { chapterlistdata } = require("../data/datainitialization")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -179,6 +180,17 @@ exports.createcharacter = async (req, res) => {
             data: "No active battlepass season found." 
         });
     }
+
+        const chapterlist = chapterlistdata.map(chapter => ({
+            owner: characterId,
+            name: chapter.name, 
+            completed: chapter.completed,
+            chapter: chapter.chapter
+        }));
+
+        await CharacterChapter.insertMany(chapterlist, { session })
+        
+        
         await BattlepassProgress.create([{
             owner: characterId,
             season: currentSeason._id, 
