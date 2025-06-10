@@ -1060,8 +1060,12 @@ exports.equipunequiptitle = async (req, res) => {
     if(!id){
         return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
     }
-    if(!characterid || !titleindex){
-        return res.status(400).json({ message: "failed", data: "Please input character ID and title index."})
+    if(!characterid){
+        return res.status(400).json({ message: "failed", data: "Please input character ID."})
+    }
+
+    if(isNaN(titleindex)){
+        return res.status(400).json({ message: "failed", data: "Title index must be a number."})
     }
 
     const checker = await checkcharacter(id, characterid);
@@ -1092,10 +1096,12 @@ exports.equipunequipbadge = async (req, res) => {
     if(!id){
         return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
     }
-    if(!characterid || !isNaN(badgeindex)){
-        return res.status(400).json({ message: "failed", data: "Please input character ID and badge index."})
+    if(!characterid){
+        return res.status(400).json({ message: "failed", data: "Please input character ID."})
     }
-
+    if(isNaN(badgeindex)){
+        return res.status(400).json({ message: "failed", data: "Badge index must be a number."})
+    }
     const checker = await checkcharacter(id, characterid);
 
     if (checker === "failed") {
