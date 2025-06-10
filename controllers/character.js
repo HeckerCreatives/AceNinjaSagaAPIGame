@@ -20,6 +20,7 @@ const { QuestDetails, QuestProgress } = require("../models/Quest")
 const { progressutil, multipleprogressutil } = require("../utils/progress")
 const { News, NewsRead, ItemNews } = require("../models/News")
 const Announcement = require("../models/Announcement")
+const Friends = require("../models/Friends")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -1459,10 +1460,11 @@ exports.getnotification = async (req, res) => {
         ]);
 
         // Count read news for the character
-        const [readNewsCount, readAnnouncementCount, readItemNewsCount] = await Promise.all([
+        const [readNewsCount, readAnnouncementCount, readItemNewsCount, friendRequestCount] = await Promise.all([
             NewsRead.countDocuments({ owner: characterid, news: { $exists: true } }),
             NewsRead.countDocuments({ owner: characterid, announcement: { $exists: true } }),
-            NewsRead.countDocuments({ owner: characterid, itemNews: { $exists: true } })
+            NewsRead.countDocuments({ owner: characterid, itemNews: { $exists: true } }),
+            Friends.countDocuments({ friend: characterid, status: 'pending' })
         ]);
 
         // Get daily/weekly/monthly login status
@@ -1501,6 +1503,9 @@ exports.getnotification = async (req, res) => {
                 },
                 announcement: {
                     unreadcount: unreadAnnouncements
+                },
+                friendrequests: {
+                    count: friendRequestCount
                 },
                 rewards: {
                     dailyspin: dailySpin.spin,
