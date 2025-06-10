@@ -1079,7 +1079,7 @@ exports.equipunequipbadge = async (req, res) => {
     if(!id){
         return res.status(401).json({ message: "failed", data: "You are not authorized to view this page. Please login the right account to view the page."})
     }
-    if(!characterid || !badgeindex){
+    if(!characterid || !isNaN(badgeindex)){
         return res.status(400).json({ message: "failed", data: "Please input character ID and badge index."})
     }
 
