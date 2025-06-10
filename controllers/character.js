@@ -1501,7 +1501,7 @@ exports.getnotification = async (req, res) => {
         const monthlyHasLoggedToday = monthlyLogin.days[dayOfMonth - 1]?.loggedIn === true;
 
         // Calculate total unread notifications for news and item news
-        let totalUnreadNews = ((newsCount || 0) + (itemNews ? 1 : 0)) - ((readNewsCount || 0) + (readItemNewsCount || 0));
+        let totalUnreadNews = ((newsCount || 0) + (itemNews ? 1 : 0)) - ((readNewsCount || 0));
 
         // Add item news if it matches character's gender
         // if (itemNews && itemNews.item) {
