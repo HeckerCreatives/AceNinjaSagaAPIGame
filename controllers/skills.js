@@ -2,7 +2,9 @@ const { default: mongoose } = require("mongoose");
 const Characterdata = require("../models/Characterdata");
 const Characterwallet = require("../models/Characterwallet");
 const { Skill, CharacterSkillTree } = require("../models/Skills");
-const CharacterStats = require("../models/Characterstats")
+const CharacterStats = require("../models/Characterstats");
+const Analytics = require("../models/Analytics");
+const { addanalytics } = require("../utils/analyticstools");
 
 exports.getSkills = async (req, res) => {
     const { type, search, category, path, page, limit } = req.query;
@@ -475,6 +477,41 @@ exports.acquirebuybasedskills = async (req, res) => {
             skillTree.save(),
             wallet.save()
         ]);
+
+
+        const skilltree = await CharacterSkillTree.findOne({ owner: characterid })
+            .populate('skills.skill');
+        
+        const skillEntry = skilltree.skills.find(s => 
+            s.skill._id.toString() === skillid && s.level === 1
+        );
+
+        if (!skillEntry) {
+            return res.status(500).json({
+                message: "failed",
+                data: "Skill not found in skill tree after acquisition"
+            });
+        }
+
+        const skillTreeEntryId = skillEntry._id; // This is the id you can use for future deletion
+
+
+       const analyticresponse = await addanalytics(
+            character.owner.toString(),
+            skillTreeEntryId.toString(),
+            "buy",
+            "skill",
+            skill.category,
+            `Acquired skill ${skill.name} for ${skill.price} ${skill.currency}`,
+            parseInt(skill.price)
+        );
+
+        if (analyticresponse === "failed") {
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for skill acquisition"
+            });
+        }
 
         return res.status(200).json({
             message: "success",

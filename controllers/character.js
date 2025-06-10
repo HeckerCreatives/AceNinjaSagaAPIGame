@@ -1,4 +1,4 @@
-const { default: mongoose, get } = require("mongoose")
+const { default: mongoose } = require("mongoose")
 const Characterdata = require("../models/Characterdata")
 const CharacterStats = require("../models/Characterstats")
 const Charactertitle = require("../models/Charactertitles")

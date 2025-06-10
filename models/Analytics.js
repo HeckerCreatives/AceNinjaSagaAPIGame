@@ -8,11 +8,18 @@ const AnalyticsSchema = new mongoose.Schema(
             index: true // Automatically creates an index on 'amount'
         },
         transactionid: {
+            type: mongoose.Schema.Types.Mixed,
+            index: true // Automatically creates an index on 'amount'
+        },
+        action: {
             type: String,
-            default: "",
             index: true // Automatically creates an index on 'amount'
         },
         type: {
+            type: String,
+            index: true // Automatically creates an index on 'amount'
+        },
+        target: {
             type: String,
             index: true // Automatically creates an index on 'amount'
         },
