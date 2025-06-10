@@ -1504,12 +1504,12 @@ exports.getnotification = async (req, res) => {
         let totalUnreadNews = ((newsCount || 0) + (itemNews ? 1 : 0)) - ((readNewsCount || 0) + (readItemNewsCount || 0));
 
         // Add item news if it matches character's gender
-        if (itemNews && itemNews.item) {
-            const gender = character.gender === 0 ? 'male' : 'female';
-            if (itemNews.item.gender === 'unisex' || itemNews.item.gender === gender) {
-                totalUnreadNews += (1 - readItemNewsCount);
-            }
-        }
+        // if (itemNews && itemNews.item) {
+        //     const gender = character.gender === 0 ? 'male' : 'female';
+        //     if (itemNews.item.gender === 'unisex' || itemNews.item.gender === gender) {
+        //         totalUnreadNews += (1 - readItemNewsCount);
+        //     }
+        // }
 
         // Calculate unread announcements
         const unreadAnnouncements = Math.max(0, announcementCount - readAnnouncementCount);
