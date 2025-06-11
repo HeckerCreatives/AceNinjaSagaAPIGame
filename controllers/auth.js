@@ -11,6 +11,7 @@ const path = require("path");
 
 const privateKey = fs.readFileSync(path.resolve(__dirname, "../keys/private-key.pem"), 'utf-8');
 const { default: mongoose } = require("mongoose");
+const Version = require("../models/Version");
 
 const encrypt = async password => {
     const salt = await bcrypt.genSalt(10);
@@ -18,13 +19,23 @@ const encrypt = async password => {
 }
 
 exports.register = async (req, res) => {
-    const { username, password, email } = req.body
+    const { username, password, email, appversion } = req.body
 
     if(username.length < 5 || username.length > 20){
         return res.status(400).json({ message: "failed", data: "Username input must be atleast 5 characters and maximum of 20 characters."})
     }
     if(password.length < 5 || password.length > 20){
         return res.status(400).json({ message: "failed", data: "Password input must be atleast 5 characters and maximum of 20 characters."})
+    }
+
+            // check game version
+    const gameversion = await Version.findOne({ isActive: true })
+    if (!gameversion) {
+        return res.status(500).json({ message: 'Internal Server Error', data: "There's a problem with the server. Please try again later." });
+    }
+    
+    if (appversion != gameversion.version){
+        return res.status(402).json({ message: 'failed', data: `Your game version is outdated. Please update to the latest version ${gameversion.version} to continue.` });
     }
   
     const usernameRegex = /^[a-zA-Z0-9]+$/;
@@ -59,7 +70,16 @@ exports.register = async (req, res) => {
 }
 
 exports.authlogin = async(req, res) => {
-    const { username, password } = req.query;
+    const { username, password, appversion } = req.query;
+
+    const gameversion = await Version.findOne({ isActive: true })
+    if (!gameversion) {
+        return res.status(500).json({ message: 'Internal Server Error', data: "There's a problem with the server. Please try again later." });
+    }
+    
+    if (appversion != gameversion.version){
+        return res.status(402).json({ message: 'failed', data: `Your game version is outdated. Please update to the latest version ${gameversion.version} to continue.` });
+    }
 
 
     const maintenance = await checkmaintenance("battlepass")

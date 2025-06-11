@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require("path");
 const publicKey = fs.readFileSync(path.resolve(__dirname, "../keys/public-key.pem"), 'utf-8');
 const jsonwebtokenPromisified = require('jsonwebtoken-promisified');
+const Version = require("../models/Version");
 
 const verifyJWT = async (token) => {
     try {
@@ -17,15 +18,30 @@ const verifyJWT = async (token) => {
 
 exports.protectplayer = async (req, res, next) => {
     const token = req.headers.authorization
+    const { appversion } = req.query;
     
+        if (!appversion){
+            return res.status(400).json({ message: 'Bad Request', data: "App version is required." });
+        }
+        const gameversion = await Version.findOne({ isActive: true })
+        if (!gameversion) {
+            return res.status(500).json({ message: 'Internal Server Error', data: "There's a problem with the server. Please try again later." });
+        }
+    
+        if (appversion != gameversion.version){
+            return res.status(300).json({ message: 'Outdated Version', data: `Your game version is outdated. Please update to the latest version ${gameversion.version} to continue.` });
+        }
     if (!token){
         return res.status(401).json({ message: 'Unauthorized', data: "You are not authorized to view this page. Please login the right account to view the page." });
     }
-
     try{
+
+
         if (!token.startsWith("Bearer")){
             return res.status(300).json({ message: 'Unauthorized', data: "You are not authorized to view this page. Please login the right account to view the page." });
         }
+
+
         
         const headerpart = token.split(' ')[1]
 

@@ -68,6 +68,16 @@ const itemSchema = new mongoose.Schema({
         default: 0,
         min: 0
     },
+    topupcredit: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    exp: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     stats: {
         level: {
             type: Number,

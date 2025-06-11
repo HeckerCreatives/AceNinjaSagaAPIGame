@@ -1,14 +1,15 @@
 const { default: mongoose } = require("mongoose")
 const Characterwallet = require("../models/Characterwallet")
-const { Market, CharacterInventory } = require("../models/Market")
+const { Market, CharacterInventory, Item } = require("../models/Market")
 const Characterdata = require("../models/Characterdata")
 const { CharacterSkillTree, Skill } = require("../models/Skills")
 const { checkmaintenance } = require("../utils/maintenance")
 const { addanalytics } = require("../utils/analyticstools")
+const Analytics = require("../models/Analytics")
 
 
 exports.getMarketItems = async (req, res) => {
-    const { page, limit, type, rarity, search, markettype, gender } = req.query
+    const { page, limit, type, rarity, search, markettype, gender, characterid } = req.query
 
     const pageOptions = {
         page: parseInt(page, 10) || 0,
@@ -165,16 +166,54 @@ exports.getMarketItems = async (req, res) => {
         const totalItems = await Market.aggregate(countPipeline);
 
         // Format response
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of the day
+    const existingClaim = await Analytics.find({
+            owner: characterid,
+            createdAt: { $gte: today }
+        })
+
         const formattedResponse = {
             data: items.reduce((acc, item, index) => {
+            // If item type is freebie and there's an existing claim with matching transactionid, add timer
+            if (
+                item.type === "freebie" &&
+                Array.isArray(existingClaim) &&
+                existingClaim.length > 0 &&
+                existingClaim.some(claim => claim.transactionid?.toString() === item.itemId?.toString())
+            ) {
+                // Calculate time left until next claim (next claim is at 12am midnight UTC+8)
+                const claim = existingClaim.find(claim => claim.transactionid?.toString() === item.itemId?.toString());
+                const now = new Date();
+                const phTime = new Date(now.getTime() 
+                    // + (8 * 60 * 60 * 1000)
+                ); // Convert to UTC+8
+
+                // Calculate time until next midnight (00:00) in UTC+8
+                const midnight = new Date(phTime);
+                midnight.setDate(midnight.getDate() + 1); // Move to next day
+                midnight.setHours(0, 0, 0, 0); // Set to midnight
+
+                const timer = midnight - phTime;
+                const hours = Math.floor(timer / (1000 * 60 * 60));
+                const minutes = Math.floor((timer % (1000 * 60 * 60)) / (1000 * 60));
+
+                acc[index + 1] = { 
+                    ...item, 
+                    timer, 
+                    hoursLeft: hours, 
+                    minutesLeft: minutes 
+                };
+            } else {
                 acc[index + 1] = item;
-                return acc;
+            }
+            return acc;
             }, {}),
             pagination: {
-                total: totalItems[0]?.total || 0,
-                page: pageOptions.page,
-                limit: pageOptions.limit,
-                pages: Math.ceil((totalItems[0]?.total || 0) / pageOptions.limit)
+            total: totalItems[0]?.total || 0,
+            page: pageOptions.page,
+            limit: pageOptions.limit,
+            pages: Math.ceil((totalItems[0]?.total || 0) / pageOptions.limit)
             }
         };
 
@@ -211,6 +250,13 @@ exports.buyitem = async (req, res) => {
             if (!item?.items[0]) {
                 await session.abortTransaction();
                 return res.status(404).json({ message: "failed", data: "Item not found" });
+            }
+
+            if(item.type === "freebie") {
+                return res.status(400).json({
+                    message: "failed", 
+                    data: "This item is a freebie and cannot be purchased."
+                });
             }
 
             const itemData = item.items[0];
@@ -361,7 +407,161 @@ exports.buyitem = async (req, res) => {
     }
 }
 
+// ...existing code...
+exports.claimfreebie = async (req, res) => {
+    const { itemid, characterid } = req.body
 
+    if (!itemid || !characterid) {
+        return res.status(400).json({ message: "failed", data: "Item ID and Character ID are required" });
+    }
+
+    const session = await mongoose.startSession();
+    try {
+        await session.startTransaction();
+
+        const item = await Item.findOne({ _id: itemid }).session(session);
+        console.log(itemid)
+        console.log(item)
+        if (!item) {
+            await session.abortTransaction();
+            return res.status(404).json({ message: "failed", data: "Freebie item not found" });
+        }
+
+        // Check if the character has claimed this freebie today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const existingClaim = await Analytics.findOne({
+            owner: characterid,
+            transactionid: itemid,
+            createdAt: { $gte: today }
+        }).session(session);
+
+        console.log(today)
+        console.log(existingClaim)
+        if (existingClaim) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "You have already claimed this freebie today"
+            });
+        }
+
+        // Determine reward type and amount
+        let rewardType = null;
+        let rewardAmount = 0;
+        let rewardDesc = "";
+
+        if (item.exp) {
+            rewardType = "exp";
+            rewardAmount = item.exp;
+            rewardDesc = `Claimed ${rewardAmount} EXP from freebie`;
+        } else if (item.crystals) {
+            rewardType = "crystal";
+            rewardAmount = item.crystals;
+            rewardDesc = `Claimed ${rewardAmount} crystals from freebie`;
+        } else if (item.coins) {
+            rewardType = "coins";
+            rewardAmount = item.coins;
+            rewardDesc = `Claimed ${rewardAmount} coins from freebie`;
+        } else {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Freebie item has no reward" });
+        }
+
+        // Give reward
+        if (rewardType === "exp") {
+            const character = await Characterdata.findOne({ _id: characterid }).session(session);
+            if (!character) {
+                await session.abortTransaction();
+                return res.status(404).json({ message: "failed", data: "Character not found" });
+            }
+            let currentLevel = character.level;
+            let currentXP = character.experience + rewardAmount;
+            let levelsGained = 0;
+            let xpNeeded = 80 * currentLevel;
+            while (currentXP >= xpNeeded && xpNeeded > 0) {
+                const overflowXP = currentXP - xpNeeded;
+                currentLevel++;
+                levelsGained++;
+                currentXP = overflowXP;
+                xpNeeded = 80 * currentLevel;
+            }
+            if (levelsGained > 0) {
+                await CharacterStats.findOneAndUpdate(
+                    { owner: characterid },
+                    {
+                        $inc: {
+                            health: 10 * levelsGained,
+                            energy: 5 * levelsGained,
+                            armor: 2 * levelsGained,
+                            magicresist: 1 * levelsGained,
+                            speed: 1 * levelsGained,
+                            attackdamage: 1 * levelsGained,
+                            armorpen: 1 * levelsGained,
+                            magicpen: 1 * levelsGained,
+                            magicdamage: 1 * levelsGained,
+                            critdamage: 1 * levelsGained
+                        }
+                    },
+                    { session }
+                );
+                await CharacterSkillTree.findOneAndUpdate(
+                    { owner: characterid },
+                    { $inc: { skillPoints: 4 * levelsGained } },
+                    { session }
+                );
+            }
+            character.level = currentLevel;
+            character.experience = currentXP;
+            await character.save({ session });
+        } else {
+            await Characterwallet.updateOne(
+                { owner: characterid, type: rewardType },
+                { $inc: { amount: rewardAmount } },
+                { new: true, upsert: true, session }
+            );
+        }
+
+        // Create analytics for claiming freebie
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            itemid.toString(),
+            "claim",
+            "freebie",
+            rewardType,
+            rewardDesc,
+            rewardAmount
+        );
+
+        if (analyticresponse === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for claiming freebie"
+            });
+        }
+
+        await session.commitTransaction();
+        return res.status(200).json({
+            message: "success",
+            data: {
+                rewardType,
+                rewardAmount,
+                item: item.name
+            }
+        });
+
+    } catch (err) {
+        await session.abortTransaction();
+        console.log(`Error in claim freebie: ${err}`);
+        return res.status(500).json({
+            message: "failed",
+            data: "Failed to claim freebie"
+        });
+    } finally {
+        session.endSession();
+    }
+}
 exports.sellitem = async (req, res) => {
 
     const { itemid, characterid, quantity } = req.body

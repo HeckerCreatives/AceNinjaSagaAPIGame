@@ -243,10 +243,10 @@ exports.redeemcode = async (req, res) => {
                         message: `Skill ${skill.name} already exists in character's skill tree`
                     });
                 } else {
-                    await CharacterSkillTree.updateOne(
+                    await CharacterSkillTree.findOneAndUpdate(
                         { owner: characterid },
-                        { $addToSet: { skills: skill._id } },
-                        { session }
+                        { $push: { skills: skill._id } },
+                        { upsert: true, new: true, session }
                     );
                     skillResults = {
                         status: 'success',

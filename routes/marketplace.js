@@ -1,4 +1,4 @@
-const { getMarketItems, buyitem, sellitem, equipitem, unequipitem, listequippeditems } = require('../controllers/marketplace');
+const { getMarketItems, buyitem, sellitem, equipitem, unequipitem, listequippeditems, claimfreebie } = require('../controllers/marketplace');
 const { protectplayer } = require('../middleware/middleware');
 
 const router = require('express').Router();
@@ -10,6 +10,7 @@ router
  .post("/sellitem", protectplayer, sellitem)
  .post("/equipitem", protectplayer, equipitem)
  .post("/unequipitem", protectplayer, unequipitem)
+ .post("/claimfreebie", protectplayer, claimfreebie)
  .get("/listequippeditems", protectplayer, listequippeditems)
 
 module.exports = router;
