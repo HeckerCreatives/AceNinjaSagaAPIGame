@@ -1,6 +1,8 @@
 
 const Users = require("../models/Users")
 
+const { checkmaintenance } = require("../utils/maintenance");
+
 const fs = require('fs')
 
 const bcrypt = require('bcrypt');
@@ -58,6 +60,17 @@ exports.register = async (req, res) => {
 
 exports.authlogin = async(req, res) => {
     const { username, password } = req.query;
+
+
+    const maintenance = await checkmaintenance("battlepass")
+
+    if (maintenance === "failed") {
+        await session.abortTransaction();
+        return res.status(400).json({
+            message: "failed",
+            data: "Ace is currently under maintenance! Please check the updates on the website and try again later."
+        });
+    }   
 
     await Users.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i') } })
     .then(async user => {
