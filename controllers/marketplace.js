@@ -6,6 +6,7 @@ const { CharacterSkillTree, Skill } = require("../models/Skills")
 const { checkmaintenance } = require("../utils/maintenance")
 const { addanalytics } = require("../utils/analyticstools")
 const Analytics = require("../models/Analytics")
+const CharacterStats = require("../models/Characterstats")
 
 
 exports.getMarketItems = async (req, res) => {
@@ -541,13 +542,29 @@ exports.claimfreebie = async (req, res) => {
             });
         }
 
+        // Calculate time left until next claim (next claim is at 12am midnight UTC+8)
+        const now = new Date();
+        const phTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // Convert to UTC+8
+
+        // Calculate time until next midnight (00:00) in UTC+8
+        const midnight = new Date(phTime);
+        midnight.setDate(midnight.getDate() + 1); // Move to next day
+        midnight.setHours(0, 0, 0, 0); // Set to midnight
+
+        const timer = midnight - phTime;
+        const hours = Math.floor(timer / (1000 * 60 * 60));
+        const minutes = Math.floor((timer % (1000 * 60 * 60)) / (1000 * 60));
+
         await session.commitTransaction();
         return res.status(200).json({
             message: "success",
             data: {
-                rewardType,
-                rewardAmount,
-                item: item.name
+            rewardType,
+            rewardAmount,
+            item: item.name,
+            timer,
+            hoursLeft: hours,
+            minutesLeft: minutes
             }
         });
 
