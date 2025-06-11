@@ -18,6 +18,6 @@ exports.checkcharacter = async (id, characterid) => {
         return "failed"
     }
 
-    return "success"
+    return character
 
 }

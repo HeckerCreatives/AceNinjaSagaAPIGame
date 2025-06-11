@@ -157,7 +157,6 @@ exports.getMarketItems = async (req, res) => {
         // Execute aggregation
         const items = await Market.aggregate(pipeline);
 
-        console.log(items)
 
         // Get total count for pagination
         const countPipeline = [...pipeline];
@@ -235,9 +234,7 @@ exports.buyitem = async (req, res) => {
                 await session.abortTransaction();
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
-            
-            console.log(wallet.amount, itemData.price)
-            console.log(wallet.amount, itemData.currency)
+
             if (wallet.amount < itemData.price) {
                 await session.abortTransaction();
                 return res.status(400).json({ message: "failed", data: "Insufficient balance" });

@@ -164,7 +164,6 @@ exports.getnews = async (req, res) => {
     NewsData.forEach(temp => {
         const { _id, title, content, type, url, createdAt } = temp;
         const isRead = readNews.some(read => read.news && read.news.toString() === _id.toString());
-        console.log(title)
         newsdata[index] = {
             id: _id,
             title,

@@ -173,46 +173,57 @@ exports.redeemcode = async (req, res) => {
 
                 // Award item rewards if present
         if (redeemCode.itemrewards && redeemCode.itemrewards.length > 0) {
-            const itemResults = [];
-            for (const item of redeemCode.itemrewards) {
-                // Check if item already exists in inventory
-                const inventory = await CharacterInventory.findOne(
-                    { owner: characterid, 'items.item': item._id },
-                    { 'items.$': 1 }
-                ).session(session);
-
-                if (inventory?.items[0]) {
-                    itemResults.push({
-                        itemid: item._id,
-                        status: 'failed',
-                        message: 'Item already exists in inventory'
-                    });
-                } else {
-                    // Add new item to inventory
-                    await CharacterInventory.findOneAndUpdate(
-                        { owner: characterid, type: item.inventorytype },
-                        {
-                            $push: {
-                                items: {
-                                    item: item._id,
-                                    quantity: 1
-                                }
-                            }
-                        },
-                        {
-                            upsert: true,
-                            new: true,
-                            session
-                        }
-                    );
-                    itemResults.push({
-                        itemid: item._id,
-                        status: 'success',
-                        name: item.name
-                    });
-                }
+            const itemResults = {};
+            const character = await Characterdata.findById(characterid).session(session);
+            if (!character) {
+            throw new Error("Character not found");
             }
-            // Add itemResults to your rewardDetails for response
+            
+            for (const item of redeemCode.itemrewards) {
+            // Check gender compatibility
+            if (item.gender !== undefined && item.gender !== 2 && item.gender !== character.gender) {
+            itemResults[item._id] = {
+                status: 'failed',
+                message: `Item is not compatible with character's gender`
+            };
+            continue;
+            }
+
+            // Check if item already exists in inventory
+            const inventory = await CharacterInventory.findOne(
+            { owner: characterid, 'items.item': item._id },
+            { 'items.$': 1 }
+            ).session(session);
+
+            if (inventory?.items[0]) {
+            itemResults = {
+                status: 'failed',
+                message: 'Item already exists in inventory'
+            };
+            } else {
+            // Add new item to inventory
+            await CharacterInventory.findOneAndUpdate(
+            { owner: characterid, type: item.inventorytype },
+            {
+                $push: {
+                items: {
+                item: item._id,
+                quantity: 1
+                }
+                }
+            },
+            {
+                upsert: true,
+                new: true,
+                session
+            }
+            );
+            itemResults[item._id] = {
+                status: 'success',
+                name: item.name
+            };
+            }
+            }
             rewardDetails.itemRewards = itemResults;
         }
 
