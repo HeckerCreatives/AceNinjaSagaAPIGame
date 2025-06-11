@@ -181,8 +181,8 @@ exports.redeemcode = async (req, res) => {
             
             for (const item of redeemCode.itemrewards) {
             // Check gender compatibility
-            if (item.gender !== undefined && item.gender !== 2 && item.gender !== character.gender) {
-            itemResults[item._id] = {
+            if ((item.gender === 'male' && character.gender !== 0) || (item.gender === 'female' && character.gender !== 1)) {
+            itemResults = {
                 status: 'failed',
                 message: `Item is not compatible with character's gender`
             };
@@ -218,7 +218,7 @@ exports.redeemcode = async (req, res) => {
                 session
             }
             );
-            itemResults[item._id] = {
+            itemResults = {
                 status: 'success',
                 name: item.name
             };
