@@ -65,7 +65,6 @@ exports.authlogin = async(req, res) => {
     const maintenance = await checkmaintenance("battlepass")
 
     if (maintenance === "failed") {
-        await session.abortTransaction();
         return res.status(400).json({
             message: "failed",
             data: "Ace is currently under maintenance! Please check the updates on the website and try again later."
