@@ -15,6 +15,10 @@ const RedeemCodeSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Item',
         }],
+        skillrewards: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Skill',
+        }],
         status: {
             type: String,
             enum: ["active", "inactive"],

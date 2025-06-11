@@ -229,7 +229,34 @@ exports.redeemcode = async (req, res) => {
             rewardDetails.itemRewards = itemResults;
         }
 
+        if(redeemCode.skillrewards && redeemCode.skillrewards.length > 0) {
+            let skillResults = {};
+            for (const skill of redeemCode.skillrewards) {
+                const existingSkill = await CharacterSkillTree.findOne({
+                    owner: characterid,
+                    skills: skill._id
+                }).session(session);
 
+                if (existingSkill) {
+                    skillResults.push({
+                        status: 'failed',
+                        message: `Skill ${skill.name} already exists in character's skill tree`
+                    });
+                } else {
+                    await CharacterSkillTree.updateOne(
+                        { owner: characterid },
+                        { $addToSet: { skills: skill._id } },
+                        { session }
+                    );
+                    skillResults = {
+                        status: 'success',
+                        name: skill.name,
+                        description: skill.description
+                    };
+                }
+            }
+            rewardDetails.skillRewards = skillResults;
+        }
         await session.commitTransaction();
         
         res.status(200).json({
