@@ -19,7 +19,7 @@ exports.getMarketItems = async (req, res) => {
 
         const maintenance = await checkmaintenance("market")
         
-        if (maintenance === "success") {
+        if (maintenance === "failed") {
             return res.status(400).json({
                     message: "failed",
                     data: "The market is currently under maintenance. Please try again later."
@@ -28,30 +28,30 @@ exports.getMarketItems = async (req, res) => {
         
         const smaintenance = await checkmaintenance("store")
         
-        if (smaintenance === "success") {
+        if (smaintenance === "failed") {
             return res.status(400).json({
                     message: "failed",
                     data: "The store is currently under maintenance. Please try again later."
                 });
             }
     } else if (markettype === "market") {
-        // const maintenance = await checkmaintenance("market")
+        const maintenance = await checkmaintenance("market")
         
-        // if (maintenance === "success") {
-        //     return res.status(400).json({
-        //             message: "failed",
-        //             data: "The market is currently under maintenance. Please try again later."
-        //         });
-        //     }
+        if (maintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The market is currently under maintenance. Please try again later."
+                });
+            }
     } else if (markettype === "shop") {
-        // const smaintenance = await checkmaintenance("store")
+        const smaintenance = await checkmaintenance("store")
         
-        // if (smaintenance === "success") {
-        //     return res.status(400).json({
-        //             message: "failed",
-        //             data: "The market is currently under maintenance. Please try again later."
-        //         });
-        //     }
+        if (smaintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The market is currently under maintenance. Please try again later."
+                });
+            }
     }
             
     try {
