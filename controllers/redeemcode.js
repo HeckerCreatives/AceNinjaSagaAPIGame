@@ -5,6 +5,7 @@ const { Redeemcode, CodesRedeemed } = require("../models/Redeemcode");
 const { CharacterSkillTree } = require("../models/Skills");
 const { checkcharacter } = require("../utils/character");
 const Characterdata = require("../models/Characterdata");
+const { CharacterInventory } = require("../models/Market");
 
 exports.redeemcode = async (req, res) => {
     const session = await mongoose.startSession();
@@ -32,7 +33,7 @@ exports.redeemcode = async (req, res) => {
             });
         }
 
-        const redeemCode = await Redeemcode.findOne({ code: code }).session(session);
+        const redeemCode = await Redeemcode.findOne({ code: code }).populate("itemrewards").session(session);
         if (!redeemCode) {
             await session.abortTransaction();
             return res.status(400).json({
@@ -144,7 +145,11 @@ exports.redeemcode = async (req, res) => {
             await character.save({ session });
         }
 
+
         const rewardSummary = [];
+        if (redeemCode.rewards && redeemCode.rewards.itemrewards) {
+            rewardSummary.push(`${redeemCode.rewards.itemrewards.length} item(s) rewarded`);
+        }
         if (redeemCode.rewards && redeemCode.rewards.coins) rewardSummary.push(`${redeemCode.rewards.coins} coins`);
         if (redeemCode.rewards && redeemCode.rewards.crystal) rewardSummary.push(`${redeemCode.rewards.crystal} crystal`);
         if (redeemCode.rewards && redeemCode.rewards.exp) rewardSummary.push(`${redeemCode.rewards.exp} experience`);
@@ -165,6 +170,52 @@ exports.redeemcode = async (req, res) => {
             owner: characterid,
             code: redeemCode._id,
         }).save({ session });
+
+                // Award item rewards if present
+        if (redeemCode.itemrewards && redeemCode.itemrewards.length > 0) {
+            const itemResults = [];
+            for (const item of redeemCode.itemrewards) {
+                // Check if item already exists in inventory
+                const inventory = await CharacterInventory.findOne(
+                    { owner: characterid, 'items.item': item._id },
+                    { 'items.$': 1 }
+                ).session(session);
+
+                if (inventory?.items[0]) {
+                    itemResults.push({
+                        itemid: item._id,
+                        status: 'failed',
+                        message: 'Item already exists in inventory'
+                    });
+                } else {
+                    // Add new item to inventory
+                    await CharacterInventory.findOneAndUpdate(
+                        { owner: characterid, type: item.inventorytype },
+                        {
+                            $push: {
+                                items: {
+                                    item: item._id,
+                                    quantity: 1
+                                }
+                            }
+                        },
+                        {
+                            upsert: true,
+                            new: true,
+                            session
+                        }
+                    );
+                    itemResults.push({
+                        itemid: item._id,
+                        status: 'success',
+                        name: item.name
+                    });
+                }
+            }
+            // Add itemResults to your rewardDetails for response
+            rewardDetails.itemRewards = itemResults;
+        }
+
 
         await session.commitTransaction();
         

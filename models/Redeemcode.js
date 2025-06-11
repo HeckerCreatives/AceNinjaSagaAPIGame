@@ -7,11 +7,14 @@ const RedeemCodeSchema = new mongoose.Schema(
             type: String,
             index: true
         },
-
         rewards: {
-            type: mongoose.Schema.Types.Mixed, // Can be an object or array depending on the reward structure
-            required: true
+            type: Map, 
+            of: Number 
         },
+        itemrewards: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Item',
+        }],
         status: {
             type: String,
             enum: ["active", "inactive"],
