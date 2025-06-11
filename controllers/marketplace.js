@@ -544,7 +544,9 @@ exports.claimfreebie = async (req, res) => {
 
         // Calculate time left until next claim (next claim is at 12am midnight UTC+8)
         const now = new Date();
-        const phTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // Convert to UTC+8
+        const phTime = new Date(
+            // now.getTime() + (8 * 60 * 60 * 1000)
+    ); // Convert to UTC+8
 
         // Calculate time until next midnight (00:00) in UTC+8
         const midnight = new Date(phTime);
