@@ -220,7 +220,9 @@ exports.redeemcode = async (req, res) => {
             );
             itemResults = {
                 status: 'success',
-                name: item.name
+                name: item.name,
+                gender: item.gender,
+                inventorytype: item.inventorytype,
             };
             }
             }
