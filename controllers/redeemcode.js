@@ -245,7 +245,7 @@ exports.redeemcode = async (req, res) => {
                 } else {
                     await CharacterSkillTree.findOneAndUpdate(
                         { owner: characterid },
-                        { $push: { skills: skill._id } },
+                        { $push: { skills: { skill: skill._id, level: 1 } } },
                         { upsert: true, new: true, session }
                     );
                     skillResults = {
