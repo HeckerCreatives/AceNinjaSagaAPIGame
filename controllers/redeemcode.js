@@ -173,7 +173,7 @@ exports.redeemcode = async (req, res) => {
 
                 // Award item rewards if present
         if (redeemCode.itemrewards && redeemCode.itemrewards.length > 0) {
-            const itemResults = {};
+            let itemResults = {};
             const character = await Characterdata.findById(characterid).session(session);
             if (!character) {
             throw new Error("Character not found");

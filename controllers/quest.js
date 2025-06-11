@@ -5,6 +5,8 @@ const Characterdata = require('../models/Characterdata');
 const { CharacterSkillTree } = require('../models/Skills');
 const CharacterStats = require('../models/Characterstats');
 const { progressutil } = require('../utils/progress');
+const { getSeasonRemainingTimeInMilliseconds } = require('../utils/datetimetools');
+const Season = require('../models/Season');
 
 exports.getdailyquest = async (req, res) => {
 
@@ -69,6 +71,14 @@ exports.getdailyquest = async (req, res) => {
     const hoursRemaining = Math.floor(timeUntilMidnight / (1000 * 60 * 60));
     const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
 
+    const currentSeason = await Season.findOne({ isActive: 'active' });
+
+    if (!currentSeason) {
+        return res.status(404).json({ message: "not-found", data: "No current season found." });
+    }
+
+    const timeleft = getSeasonRemainingTimeInMilliseconds(currentSeason.startedAt, currentSeason.duration);
+
     const finaldata = Dailyquestdata.reduce((acc, quest, index) => {
         const questProgress = dailyquestprogressdata.find(progress => 
             progress.quest.toString() === quest._id.toString()
@@ -120,6 +130,12 @@ exports.getdailyquest = async (req, res) => {
             resetin: {
                 hours: hoursRemaining,
                 minutes: minutesRemaining
+            },
+            season: {
+                name: currentSeason.name,
+                startedAt: currentSeason.startedAt,
+                duration: currentSeason.duration,
+                timeleft: timeleft
             }
         }
     });

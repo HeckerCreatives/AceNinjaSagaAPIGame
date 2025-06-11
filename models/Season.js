@@ -16,6 +16,9 @@ const SeasonSchema = new mongoose.Schema(
             default: "upcoming",
             index: true,
         },
+        startedAt: {
+            type: Date,
+        }
     },
     {
         timestamps: true,
