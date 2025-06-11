@@ -19,7 +19,8 @@ const encrypt = async password => {
 }
 
 exports.register = async (req, res) => {
-    const { username, password, email, appversion } = req.body
+    const { username, password, email } = req.body
+    const {appversion} = req.query
 
     if(username.length < 5 || username.length > 20){
         return res.status(400).json({ message: "failed", data: "Username input must be atleast 5 characters and maximum of 20 characters."})
@@ -33,7 +34,7 @@ exports.register = async (req, res) => {
     if (!gameversion) {
         return res.status(500).json({ message: 'Internal Server Error', data: "There's a problem with the server. Please try again later." });
     }
-    
+
     if (appversion != gameversion.version){
         return res.status(402).json({ message: 'failed', data: `Your game version is outdated. Please update to the latest version ${gameversion.version} to continue.` });
     }
