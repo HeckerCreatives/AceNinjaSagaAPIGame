@@ -7,6 +7,7 @@ const { checkmaintenance } = require("../utils/maintenance")
 const { addanalytics } = require("../utils/analyticstools")
 const Analytics = require("../models/Analytics")
 const CharacterStats = require("../models/Characterstats")
+const { checkcharacter } = require("../utils/character")
 
 
 exports.getMarketItems = async (req, res) => {
@@ -234,8 +235,17 @@ exports.getMarketItems = async (req, res) => {
 }
 
 exports.buyitem = async (req, res) => {
+    const { id } = req.user
     const { itemid, characterid } = req.body
 
+        const checker = await checkcharacter(id, characterid);
+
+        if (checker === "failed") {
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to view this page. Please login the right account to view the page."
+            });
+        }
     try {
         // Start transaction
         const session = await mongoose.startSession();
@@ -261,6 +271,13 @@ exports.buyitem = async (req, res) => {
             }
 
             const itemData = item.items[0];
+            // check character gender 0 for male 1 for female
+            if ((itemData.gender === 'male' && checker.gender !== 0) || (itemData.gender === 'female' && checker.gender !== 1)) {
+                return res.status(400).json({
+                    message: "failed", 
+                    data: "This item is not available for your character. Please choose a different item."
+                });
+            }
             // Check if item already exists in inventory
             const inventory = await CharacterInventory.findOne(
                 { owner: characterid, 'items.item': itemid },
