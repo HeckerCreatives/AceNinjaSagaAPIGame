@@ -264,20 +264,28 @@ exports.redeemcode = async (req, res) => {
         if (expReward) rewardSummary.push(`${expReward} experience`);
 
         // Build response
+        // Convert itemResults and skillResults arrays to objects with index keys
+        const itemResultsObj = itemResults.reduce((acc, item, idx) => {
+            acc[idx + 1] = item;
+            return acc;
+        }, {});
+        const skillResultsObj = skillResults.reduce((acc, skill, idx) => {
+            acc[idx + 1] = skill;
+            return acc;
+        }, {});
+
         const rewardDetails = {
             rewards: {
             coins: coinsReward,
             crystal: crystalReward,
             exp: expReward,
-            itemrewards: redeemCode.itemrewards ? redeemCode.itemrewards.length : 0,
-            skillrewards: redeemCode.skillrewards ? redeemCode.skillrewards.length : 0
+            itemrewards: itemResultsObj, // now an object
+            skillrewards: skillResultsObj // now an object
             },
             summary: rewardSummary.join(', '),
             timestamp: new Date(),
             characterId: characterid,
-            codeUsed: code,
-            itemRewards: itemResults,
-            skillRewards: skillResults
+            codeUsed: code
         };
 
         await session.commitTransaction();
