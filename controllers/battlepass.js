@@ -7,6 +7,7 @@ const { CharacterSkillTree } = require("../models/Skills");
 const { checkcharacter } = require("../utils/character");
 const { CharacterInventory, Item } = require("../models/Market");
 const { checkmaintenance } = require("../utils/maintenance");
+const { addanalytics } = require("../utils/analyticstools");
 
 
 exports.getbattlepass = async (req, res) => {
@@ -543,6 +544,25 @@ exports.buypremiumbattlepass = async (req, res) => {
 
         battlepassData.hasPremium = true;
         await battlepassData.save({ session });
+
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            battlepassData._id.toString(),
+            "buy",
+            "battlepass",
+            "premium",
+            `Bought premium battlepass for ${currentSeason.premiumCost} crystals`,
+            currentSeason.premiumCost
+        )
+
+        if (analyticresponse === "failed") {
+            console.log("Failed to log analytics for premium battlepass purchase");
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for premium battlepass purchase"
+            });
+        }
 
         await session.commitTransaction();
 

@@ -7,6 +7,7 @@ const { checkmaintenance } = require("../utils/maintenance")
 const CharacterStats = require("../models/Characterstats")
 const { CharacterSkillTree } = require("../models/Skills")
 const { progressutil } = require("../utils/progress")
+const { addanalytics } = require("../utils/analyticstools")
 
 // #region  USER
 
@@ -180,6 +181,26 @@ exports.spindaily = async (req, res) => {
             await session.abortTransaction();
             return res.status(400).json({ message: "failed", data: "Failed to update progress." });
         }
+
+        
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            userdailyspin._id.toString(),
+            "spin", 
+            "rewards",
+            'Daily Spin',
+            `Claimed reward: ${selectedSpin.amount} ${selectedSpin.type}`,
+            selectedSpin.amount
+        );
+    
+        if (analyticresponse === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for daily spin"
+            });
+        }
+        
         await session.commitTransaction();
 
         return res.status(200).json({
@@ -417,6 +438,23 @@ exports.spinexpdaily = async (req, res) => {
         await userdailyspin.save({ session });
 
         await session.commitTransaction();
+
+                const analyticresponse = await addanalytics(
+                characterid.toString(),
+                userdailyspin._id.toString(),
+                "spin", 
+                "rewards",
+                'Daily Experience Spin',
+                `Claimed reward: ${selectedSpin.amount} ${selectedSpin.type}`,
+                selectedSpin.amount
+            );
+        
+                if (analyticresponse === "failed") {
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to log analytics for daily exp spin"
+                    });
+                }
 
         return res.status(200).json({
             message: "success",
@@ -664,6 +702,23 @@ exports.claimweeklylogin = async (req, res) => {
                 { new: true, upsert: true, session }
             );
         }
+
+            const analyticresponse = await addanalytics(
+                characterid.toString(),
+                userweeklylogin._id.toString(),
+                "claim", 
+                "rewards",
+                'Weekly Login Rewards Claimed',
+                `Claimed reward: ${weeklylogin.amount} ${weeklylogin.type} for day ${userweeklylogin.currentDay}`,
+                weeklylogin.amount
+            );
+        
+                if (analyticresponse === "failed") {
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to log analytics for weekly login claim"
+                    });
+                }
 
         await session.commitTransaction();
         return res.status(200).json({
@@ -1002,6 +1057,26 @@ exports.claimmonthlylogin = async (req, res) => {
                 amount: reward.amount
             };
         }
+        
+            const analyticresponse = await addanalytics(
+                characterid.toString(),
+                cmlogin._id.toString(),
+                "claim", 
+                "rewards",
+                'Monthly Login Rewards Claimed',
+                `Claimed rewards: ${Object.entries(claimed).map(([day, reward]) => 
+                    `Day ${day}: ${reward.amount} ${reward.type}`
+                ).join(', ')}`,
+                0
+            );
+        
+                if (analyticresponse === "failed") {
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to log analytics for monthly login claim"
+                    });
+                }
+        
 
         await cmlogin.save({ session });
         await session.commitTransaction();

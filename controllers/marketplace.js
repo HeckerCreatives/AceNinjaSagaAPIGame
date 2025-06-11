@@ -4,6 +4,7 @@ const { Market, CharacterInventory } = require("../models/Market")
 const Characterdata = require("../models/Characterdata")
 const { CharacterSkillTree, Skill } = require("../models/Skills")
 const { checkmaintenance } = require("../utils/maintenance")
+const { addanalytics } = require("../utils/analyticstools")
 
 
 exports.getMarketItems = async (req, res) => {
@@ -410,6 +411,43 @@ exports.sellitem = async (req, res) => {
                 { $pull: { items: { item: itemid } } }
             );
             
+        // const analyticresponse = await addanalytics(
+        //     characterid.toString(),
+        //     battlepassData._id.toString(),
+        //     "buy",
+        //     "battlepass",
+        //     "premium",
+        //     `Bought premium battlepass for ${currentSeason.premiumCost} crystals`,
+        //     currentSeason.premiumCost
+        // )
+
+        // if (analyticresponse === "failed") {
+        //     console.log("Failed to log analytics for premium battlepass purchase");
+        //     await session.abortTransaction();
+        //     return res.status(500).json({
+        //         message: "failed",
+        //         data: "Failed to log analytics for premium battlepass purchase"
+        //     });
+        // }
+            
+            // create analytics history for selling item
+            const analyticresponse = await addanalytics(
+                characterid.toString(),
+                itemData.item._id.toString(),
+                "sell",
+                "market",
+                itemData.item.type,
+                `Sold item ${itemData.item.name} for ${coinsamount} coins`,
+                coinsamount
+            )
+
+            if (analyticresponse === "failed") {
+                console.log("Failed to log analytics for item sale");
+                return res.status(500).json({
+                    message: "failed",
+                    data: "Failed to log analytics for item sale"
+                });
+            }
             return res.json({ 
                 message: "success",
             });

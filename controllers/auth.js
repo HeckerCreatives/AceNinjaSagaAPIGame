@@ -59,7 +59,6 @@ exports.register = async (req, res) => {
 exports.authlogin = async(req, res) => {
     const { username, password } = req.query;
 
-           console.log(username)
     await Users.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i') } })
     .then(async user => {
         if (user){

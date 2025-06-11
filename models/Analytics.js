@@ -4,7 +4,7 @@ const AnalyticsSchema = new mongoose.Schema(
     {
         owner: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Users",
+            ref: "Characterdata",
             index: true // Automatically creates an index on 'amount'
         },
         transactionid: {

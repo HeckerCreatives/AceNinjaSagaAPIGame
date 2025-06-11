@@ -5,6 +5,7 @@ const { checkcharacter } = require("../utils/character");
 const PvP = require("../models/Pvp");
 const { default: mongoose } = require("mongoose");
 const ClanwarsHistory = require("../models/Clanwarshistory");
+const { addanalytics } = require("../utils/analyticstools");
 
 exports.getcharactercompanions = async (req, res) => {
 
@@ -239,7 +240,7 @@ exports.buycompanion = async (req, res) => {
         });
     }
 
-    const companion = await Companion.find({name: companionname})
+    const companion = await Companion.find({name: { $regex: new RegExp('^' + companionname + '$', 'i') }})
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -251,6 +252,7 @@ exports.buycompanion = async (req, res) => {
     if(!companion){
         return res.status(400).json({ message: "failed", data: "Companion not found."})
     }
+
 
     const character = await Characterdata.findById(characterid)
     .then(data => data)
@@ -316,7 +318,7 @@ exports.buycompanion = async (req, res) => {
 
     // add companion to character
 
-    await CharacterCompanion.create({ owner: characterid, companion: companion[0]._id, isEquipped: false })
+   const data = await CharacterCompanion.create({ owner: characterid, companion: companion[0]._id, isEquipped: false })
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -326,6 +328,43 @@ exports.buycompanion = async (req, res) => {
         });
     })
 
+            // const analyticresponse = await addanalytics(
+            //     characterid.toString(),
+            //     userdailyspin._id.toString(),
+            //     "spin", 
+            //     "dailyspin",
+            //     'Daily Spin',
+            //     `Claimed reward: ${selectedSpin.amount} ${selectedSpin.type}`,
+            //     selectedSpin.amount
+            // );
+        
+            // if (analyticresponse === "failed") {
+            //     await session.abortTransaction();
+            //     return res.status(500).json({
+            //         message: "failed",
+            //         data: "Failed to log analytics for daily spin"
+            //     });
+            // }
+
+    // create analytics for companion purchase
+
+    const analyticresponse = await addanalytics(
+        characterid.toString(),
+        data._id.toString(),
+        "buy", 
+        "companion",
+        companion[0].name,
+        `Bought companion: ${companion[0].name} for ${price} ${currency}`,
+        price
+    );
+
+    if (analyticresponse === "failed") {
+        console.log("Failed to log analytics for companion purchase");
+        return res.status(500).json({
+            message: "failed",
+            data: "Failed to log analytics for companion purchase"
+        });
+    }
     return res.status(200).json({ message: "success"})
 
 }
