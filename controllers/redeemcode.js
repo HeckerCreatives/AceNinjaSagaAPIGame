@@ -265,10 +265,7 @@ exports.redeemcode = async (req, res) => {
 
         // Build response
         // Convert itemResults and skillResults arrays to objects with index keys
-        const itemResultsObj = itemResults.reduce((acc, item, idx) => {
-            acc[idx + 1] = item;
-            return acc;
-        }, {});
+        const itemResultsObj = itemResults.length > 0 ? itemResults[0] : {}
         const skillResultsObj = skillResults.reduce((acc, skill, idx) => {
             acc[idx + 1] = skill;
             return acc;
