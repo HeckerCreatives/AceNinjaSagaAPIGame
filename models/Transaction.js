@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema(
   {
-    transactionId: { // paypal transactionid
+    transactionid: { // paypal transactionid
       type: String,
       required: true,
       unique: true, 
