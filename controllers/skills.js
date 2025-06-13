@@ -5,6 +5,7 @@ const { Skill, CharacterSkillTree } = require("../models/Skills");
 const CharacterStats = require("../models/Characterstats");
 const Analytics = require("../models/Analytics");
 const { addanalytics } = require("../utils/analyticstools");
+const { checkmaintenance } = require("../utils/maintenance");
 
 exports.getSkills = async (req, res) => {
     const { type, search, category, path, page, limit } = req.query;
@@ -384,8 +385,18 @@ exports.acquirespbasedskills = async (req, res) => {
 };
 
 exports.acquirebuybasedskills = async (req, res) => {
-    const { characterid, skillid } = req.body;
+    const { characterid, skillid, buytype } = req.body;
 
+    if (buytype == "store"){
+        const maintenance = await checkmaintenance("store")
+
+            if (maintenance === "failed") {
+                return res.status(400).json({
+                    message: "failed",
+                    data: "The store is currently under maintenance. Please try again later."
+                });
+            }   
+    }
 
     try {
         // Validate required parameters
