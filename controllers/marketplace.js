@@ -238,6 +238,23 @@ exports.buyitem = async (req, res) => {
     const { id } = req.user
     const { itemid, characterid } = req.body
 
+        const maintenance = await checkmaintenance("market")
+        
+        if (maintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The market is currently under maintenance. Please try again later."
+                });
+            }
+        
+        const smaintenance = await checkmaintenance("store")
+        
+        if (smaintenance === "failed") {
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The store is currently under maintenance. Please try again later."
+                });
+            }
         const checker = await checkcharacter(id, characterid);
 
         if (checker === "failed") {
@@ -432,6 +449,24 @@ exports.claimfreebie = async (req, res) => {
     if (!itemid || !characterid) {
         return res.status(400).json({ message: "failed", data: "Item ID and Character ID are required" });
     }
+
+    const maintenance = await checkmaintenance("market")
+        
+    if (maintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The market is currently under maintenance. Please try again later."
+        });
+    }
+        
+    const smaintenance = await checkmaintenance("store")
+        
+    if (smaintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The store is currently under maintenance. Please try again later."
+        });
+    }    
 
     const session = await mongoose.startSession();
     try {

@@ -601,6 +601,16 @@ exports.claimbattlepassquest = async (req, res) => {
         });
     }
 
+    const maintenance = await checkmaintenance("battlepass")
+
+    if (maintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The Battlepass is currently under maintenance. Please try again later."
+        });
+    }   
+
+
     const checker = await checkcharacter(id, characterid);
     
     if (checker === "failed") {

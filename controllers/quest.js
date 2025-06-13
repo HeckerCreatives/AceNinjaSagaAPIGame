@@ -7,6 +7,7 @@ const CharacterStats = require('../models/Characterstats');
 const { progressutil } = require('../utils/progress');
 const { getSeasonRemainingTimeInMilliseconds } = require('../utils/datetimetools');
 const Season = require('../models/Season');
+const { checkmaintenance } = require('../utils/maintenance');
 
 exports.getdailyquest = async (req, res) => {
 
@@ -19,6 +20,16 @@ exports.getdailyquest = async (req, res) => {
             data: "Please input the character id."
         });
     }
+
+    const maintenance = await checkmaintenance("quest")
+    
+    if (maintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The Quest is currently under maintenance. Please try again later."
+        });
+    }   
+    
 
     const checker = await checkcharacter(id, characterid);
     
@@ -151,7 +162,15 @@ exports.claimdailyquest = async (req, res) => {
             data: "Please input the character id and quest id."
         });
     }
-
+    
+    const maintenance = await checkmaintenance("quest")
+    
+    if (maintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The Quest is currently under maintenance. Please try again later."
+        });
+    }   
     const checker = await checkcharacter(id, characterid);
     
     if (checker === "failed") {

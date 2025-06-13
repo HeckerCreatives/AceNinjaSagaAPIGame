@@ -20,6 +20,16 @@ exports.getpvphistory = async (req, res) => {
             limit: parseInt(limit) || 10,
         };
 
+        const maintenance = await checkmaintenance("pvp")
+
+        if (maintenance === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The PvP is currently under maintenance. Please try again later."
+                });
+        }
+
         let query = { owner: characterid };
 
         if (datefilter) {
@@ -152,6 +162,16 @@ exports.getpvphistorybyseason = async (req, res) => {
             page: parseInt(page) || 0,
             limit: parseInt(limit) || 10,
         };
+
+        const maintenance = await checkmaintenance("pvp")
+
+        if (maintenance === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                    message: "failed",
+                    data: "The PvP is currently under maintenance. Please try again later."
+                });
+        }
 
         let query = {};
 
