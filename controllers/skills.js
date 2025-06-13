@@ -392,7 +392,6 @@ exports.acquirebuybasedskills = async (req, res) => {
         const maintenance = await checkmaintenance("store")
 
             if (maintenance === "failed") {
-                await session.abortTransaction();
                 return res.status(400).json({
                     message: "failed",
                     data: "The store is currently under maintenance. Please try again later."
