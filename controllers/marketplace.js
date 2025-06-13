@@ -326,7 +326,7 @@ exports.buyitem = async (req, res) => {
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
 
-            let totalprice = itemData.price + (itemData1.price || 0);
+            let totalprice = itemData.price;
 
             if (wallet.amount < totalprice) {
                 await session.abortTransaction();
