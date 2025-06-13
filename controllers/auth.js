@@ -83,7 +83,7 @@ exports.authlogin = async(req, res) => {
     }
 
 
-    const maintenance = await checkmaintenance("battlepass")
+    const maintenance = await checkmaintenance("fullgame")
 
     if (maintenance === "failed") {
         return res.status(400).json({
