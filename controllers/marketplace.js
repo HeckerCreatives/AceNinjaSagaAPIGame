@@ -8,6 +8,7 @@ const { addanalytics } = require("../utils/analyticstools")
 const Analytics = require("../models/Analytics")
 const CharacterStats = require("../models/Characterstats")
 const { checkcharacter } = require("../utils/character")
+const { gethairbundle } = require("../utils/bundle")
 
 
 exports.getMarketItems = async (req, res) => {
@@ -263,6 +264,9 @@ exports.buyitem = async (req, res) => {
                 data: "You are not authorized to view this page. Please login the right account to view the page."
             });
         }
+
+        const hairbundle = await gethairbundle(itemid)
+        console.log(hairbundle)
     try {
         // Start transaction
         const session = await mongoose.startSession();
@@ -286,6 +290,12 @@ exports.buyitem = async (req, res) => {
                     data: "This item is a freebie and cannot be purchased."
                 });
             }
+            let itemData1
+            if (mongoose.Types.ObjectId.isValid(hairbundle)) {
+                itemData1 = await Item.findOne({ _id: hairbundle }
+                ).session(session);
+            }
+
 
             const itemData = item.items[0];
             // check character gender 0 for male 1 for female
@@ -316,7 +326,9 @@ exports.buyitem = async (req, res) => {
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
 
-            if (wallet.amount < itemData.price) {
+            let totalprice = itemData.price + (itemData1.price || 0);
+
+            if (wallet.amount < totalprice) {
                 await session.abortTransaction();
                 return res.status(400).json({ message: "failed", data: "Insufficient balance" });
             }
@@ -324,7 +336,7 @@ exports.buyitem = async (req, res) => {
             // Update wallet
             await Characterwallet.findOneAndUpdate(
                 { owner: characterid, type: itemData.currency },
-                { $inc: { amount: -itemData.price } },
+                { $inc: { amount: -totalprice } },
                 { new: true, session }
             );
 
@@ -412,7 +424,15 @@ exports.buyitem = async (req, res) => {
                     { owner: characterid, type: itemData.inventorytype },
                     { $push: { items: { item: itemData._id } } },
                 { upsert: true, new: true, session }
+
             );
+            if (itemData1) {
+                await CharacterInventory.findOneAndUpdate(
+                    { owner: characterid, type: itemData1.inventorytype },
+                    { $push: { items: { item: itemData1._id } } },
+                    { upsert: true, new: true, session }
+                );
+            }
             }
             
             // Commit transaction
@@ -422,7 +442,10 @@ exports.buyitem = async (req, res) => {
                 data: {
                     item: itemData.name,
                     price: itemData.price,
-                    type: itemData.type
+                    type: itemData.type,
+                    item1: itemData1 ? itemData1.name : null,
+                    item1price: itemData1 ? itemData1.price : null,
+                    item1type: itemData1 ? itemData1.type : null
                 }
             });
 
