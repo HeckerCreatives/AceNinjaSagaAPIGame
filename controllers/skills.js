@@ -146,8 +146,6 @@ exports.getSkillsWithCharacter = async (req, res) => {
             }
         };
 
-        console.log(formattedSkills)
-
         return res.status(200).json({
             message: "success",
             data: formattedResponse.data,
@@ -264,6 +262,7 @@ exports.acquirespbasedskills = async (req, res) => {
             s.skill?._id.toString() === skillid
         );
 
+
         if (existingSkill) {
             // Check if skill can be upgraded
             if (existingSkill.level >= skill.maxLevel) {
@@ -341,7 +340,7 @@ exports.acquirespbasedskills = async (req, res) => {
             .populate('skills.skill');
         
         const skillEntry = skilltree.skills.find(s => 
-            s.skill._id.toString() === skillid && s.level === 1
+            s.skill._id.toString() === skillid
         );
 
         if (!skillEntry) {
@@ -845,7 +844,7 @@ exports.resetbasicskills = async (req, res) => {
 
     // Remove skills with category "Basic"
     skillTree.skills = skillTree.skills.filter(
-        skillEntry => skillEntry.skill.category !== 'Basic'
+        skillEntry => skillEntry?.skill?.category !== 'Basic'
     );
 
     // Also remove from unlockedSkills
@@ -856,7 +855,7 @@ exports.resetbasicskills = async (req, res) => {
         id => !basicSkillIds.includes(id.toString())
     );
 
-    const totalSp = 4 * tempchardata.level
+    const totalSp = 4 * (tempchardata.level - 1)
 
     skillTree.skillPoints = totalSp;
 

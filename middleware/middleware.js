@@ -41,7 +41,7 @@ exports.protectplayer = async (req, res, next) => {
     if (maintenance === "failed") {
         return res.status(403).json({
             message: "failed",
-            data: "The Battlepass is currently under maintenance. Please try again later."
+            data: "Ace Ninja Saga is currently under maintenance. Please try again later."
         });
     }   
 

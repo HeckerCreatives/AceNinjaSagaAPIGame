@@ -21,6 +21,7 @@ const routers = app => {
     app.use("/transaction", require("./transaction"))
     app.use("/user", require("./user"))
     app.use("/uploads", require("./uploads"))
+    app.use("/version", require("./version"))
 }
 
 module.exports = routers
