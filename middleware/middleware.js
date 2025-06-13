@@ -39,7 +39,7 @@ exports.protectplayer = async (req, res, next) => {
     const maintenance = await checkmaintenance("fullgame")
     
     if (maintenance === "failed") {
-        return res.status(400).json({
+        return res.status(403).json({
             message: "failed",
             data: "The Battlepass is currently under maintenance. Please try again later."
         });
