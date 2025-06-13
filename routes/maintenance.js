@@ -1,10 +1,9 @@
-const { getmaintenance, changemaintenance } = require("../controllers/maintenance")
-const { protectsuperadmin } = require("../middleware/middleware")
+const { getmaintenance } = require("../controllers/maintenance")
+const { protectplayer } = require("../middleware/middleware")
 
 const router = require("express").Router()
 
 router
- .get("/getmaintenance", protectsuperadmin, getmaintenance)
- .post("/changemaintenance", protectsuperadmin, changemaintenance)
+ .get("/getmaintenance", protectplayer, getmaintenance)
 
 module.exports = router
