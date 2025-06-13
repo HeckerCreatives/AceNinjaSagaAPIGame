@@ -5,6 +5,7 @@ const path = require("path");
 const publicKey = fs.readFileSync(path.resolve(__dirname, "../keys/public-key.pem"), 'utf-8');
 const jsonwebtokenPromisified = require('jsonwebtoken-promisified');
 const Version = require("../models/Version");
+const { checkmaintenance } = require('../utils/maintenance');
 
 const verifyJWT = async (token) => {
     try {
