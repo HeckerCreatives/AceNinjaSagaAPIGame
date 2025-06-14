@@ -285,7 +285,7 @@ exports.claimdailyquest = async (req, res) => {
         });
     }
 
-    const progress = await progressutil('dailyquests', characterid, 1)
+    const progress = await progressutil('dailyloginclaimed', characterid, 1)
     
     if(progress.message !== "success") {
         return res.status(400).json({ message: "failed", data: "Failed to update progress." });

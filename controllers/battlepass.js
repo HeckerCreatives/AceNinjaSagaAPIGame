@@ -33,7 +33,7 @@ exports.getbattlepass = async (req, res) => {
         startDate: { $lte: currentdate },
         endDate: { $gte: currentdate }
     })        
-    .populate('grandreward', 'type name rarity description')
+    .populate('grandreward', 'type name rarity description gender')
 ;
 
 
