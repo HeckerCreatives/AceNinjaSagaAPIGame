@@ -22,6 +22,7 @@ const { News, NewsRead, ItemNews } = require("../models/News")
 const Announcement = require("../models/Announcement")
 const Friends = require("../models/Friends")
 const { chapterlistdata } = require("../data/datainitialization")
+const PvpStats = require("../models/PvpStats")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -301,6 +302,14 @@ exports.createcharacter = async (req, res) => {
 
         await CharacterCompanionUnlocked.bulkWrite(companionBulkWrite, { session });
 
+        await PvpStats.create([{
+                owner: characterId,
+                win: 0,
+                lose: 0,
+                totalMatches: 0,
+                winRate: 0,
+                rank: new mongoose.Types.ObjectId("684ce1f4c61e8f1dd3ba04fa") // Default rank ID, adjust as necessary
+            }], { session });
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
 

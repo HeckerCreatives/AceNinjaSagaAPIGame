@@ -266,7 +266,6 @@ exports.buyitem = async (req, res) => {
         }
 
         const hairbundle = await gethairbundle(itemid)
-        console.log(hairbundle)
     try {
         // Start transaction
         const session = await mongoose.startSession();
