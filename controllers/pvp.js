@@ -8,7 +8,7 @@ const { RemainingTime, getSeasonRemainingTimeInMilliseconds } = require("../util
 const RankTier = require("../models/RankTier")
 const { Battlepass } = require("../models/Battlepass")
 const { checkmaintenance } = require("../utils/maintenance")
-const { progressutil } = require("../utils/progress")
+const { progressutil, multipleprogressutil } = require("../utils/progress")
 
 exports.getpvphistory = async (req, res) => {
     try {
