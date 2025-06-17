@@ -195,11 +195,14 @@ exports.getnews = async (req, res) => {
 
         const isItemNewsRead = readNews.some(read => read.itemNews && read.itemNews.toString() === _id.toString());
 
+        const filteredItems = items.filter(item =>
+            item.itemid?.gender === gender || item.itemid?.gender === 'unisex'
+        );
 
         const formattedItems = {
-            itemid: items[0]?.itemid ? items[0].itemid._id : null,
-            name: items[0]?.itemid ? items[0].itemid.name : null,
-            itemtype: items[0]?.itemtype || null
+            itemid: filteredItems[0]?.itemid ? filteredItems[0].itemid._id : null,
+            name: filteredItems[0]?.itemid ? filteredItems[0].itemid.name : null,
+            itemtype: filteredItems[0]?.itemtype || null
         };
         
         formattedResponse.data = {
