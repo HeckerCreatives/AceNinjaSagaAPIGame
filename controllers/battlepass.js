@@ -33,10 +33,7 @@ exports.getbattlepass = async (req, res) => {
         startDate: { $lte: currentdate },
         endDate: { $gte: currentdate }
     })        
-    .populate('grandreward', 'type name rarity description gender')
-;
-
-
+    .populate('grandreward', 'type name rarity description gender');
 
     if (!currentSeason) {
         return res.status(404).json({ message: "failed", data: "No active battle pass season found." });
@@ -192,15 +189,19 @@ exports.getbattlepass = async (req, res) => {
                 };
                 return acc;
             }, {}),
-            grandreward: currentSeason.grandreward.reduce((acc, item) => {
+            grandreward: {
+                gender: currentSeason.grandreward.length > 0 ? currentSeason.grandreward[0].gender == "unixsex" ? "unisex" : "player" : "none",
+                items: currentSeason.grandreward.reduce((acc, item) => {
                 acc[item._id] = {
                     name: item.name,
                     type: item.type,
                     rarity: item.rarity,
                     description: item.description,
+                    gender: item.gender
                 }
                 return acc;
             }, {})
+            }
         },
         progress: {
             currentTier: battlepassData.currentTier,
