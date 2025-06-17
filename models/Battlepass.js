@@ -102,10 +102,10 @@ const BattlepassSeasonSchema = new mongoose.Schema(
                 }
             }
         ],
-        grandreward: {
+        grandreward: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "Item",
-        }
+        }]
     },
     {
         timestamps: true

@@ -192,18 +192,19 @@ exports.getnews = async (req, res) => {
 
         const isItemNewsRead = readNews.some(read => read.itemNews && read.itemNews.toString() === _id.toString());
 
-        const formattedItems = items.map(item => ({
-            itemid: item.itemid._id,
-            itemtype: item.itemtype,
-            itemname: item.itemid.name,
-            itemgender: item.itemid.gender
-        }));
-
+        // remove items that do not match the gender
+        const filteredItems = items.filter(item => item.itemid && item.itemid.gender === gender);
+        const formattedItems = {
+            itemid: filteredItems[0]?.itemid ? filteredItems[0].itemid._id : null,
+            name: filteredItems[0]?.itemid ? filteredItems[0].itemid.name : null,
+            itemtype: filteredItems[0]?.itemtype || null
+        };
+        
         formattedResponse.data = {
             itemnews: {
                 id: _id,
                 title,
-                items: formattedItems,
+                item: formattedItems,
                 isRead: isItemNewsRead
             },
             news: formattedResponse.data.news,

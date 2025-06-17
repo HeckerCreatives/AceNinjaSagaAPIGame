@@ -6,6 +6,7 @@ const { CharacterSkillTree } = require("../models/Skills");
 const { checkcharacter } = require("../utils/character");
 const Characterdata = require("../models/Characterdata");
 const { CharacterInventory } = require("../models/Market");
+const { gethairbundle } = require("../utils/bundle");
 
 exports.redeemcode = async (req, res) => {
     const session = await mongoose.startSession();
@@ -160,6 +161,25 @@ exports.redeemcode = async (req, res) => {
 
         // Award item rewards if present
         let itemResults = [];
+
+        // if item inventory type is outfit then check its corresponding hair item and push it into redeemCode.itemrewards
+        for (const item of redeemCode.itemrewards || []) {
+            if (item.inventorytype === 'outfit') {
+                let hairItem = await gethairbundle(item._id.toString());
+                if (hairItem) {
+                    redeemCode.itemrewards.push({
+                        _id: hairItem,
+                    })
+                } else {
+                    return res.status(400).json({
+                        message: "failed",
+                        data: "Hair item not found for the outfit."
+                    });
+                }
+
+                console.log(`Hair item added for outfit: ${hairItem}`);
+            }
+        }
         if (redeemCode.itemrewards && redeemCode.itemrewards.length > 0) {
             const character = await Characterdata.findById(characterid).session(session);
             if (!character) throw new Error("Character not found");

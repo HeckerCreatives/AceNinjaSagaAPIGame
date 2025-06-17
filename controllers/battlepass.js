@@ -501,34 +501,40 @@ exports.buypremiumbattlepass = async (req, res) => {
         wallet.amount -= currentSeason.premiumCost;
         await wallet.save({ session });
 
-        const grandReward = currentSeason.grandreward;
-        if (!grandReward) {
+        const grandRewards = currentSeason.grandreward;
+        if (!grandRewards || grandRewards.length === 0) {
             throw new Error("Battlepass is currently under maintenance! Please try again later.");
         }
         
-        const searchgrandrewarditem = await Item.findById(grandReward).session(session);
-        if (!searchgrandrewarditem) {
-            throw new Error("Grand reward item not found.");
+        const searchgrandrewarditems = await Item.find({
+            '_id': { $in: grandRewards }
+        }).session(session);
+
+        if (!searchgrandrewarditems || searchgrandrewarditems.length === 0) {
+            throw new Error("Grand reward items not found.");
         }
 
-        if (searchgrandrewarditem.type === "crystalpacks") {
+        // Process each grand reward item
+        for (const searchgrandrewarditem of searchgrandrewarditems) {
+            if (searchgrandrewarditem.type === "crystalpacks") {
             await Characterwallet.findOneAndUpdate(
                 { owner: characterid, type: 'crystal' },
                 { $inc: { amount: searchgrandrewarditem.crystals } },
                 { new: true, session }
             );
-        } else if (searchgrandrewarditem.type === "goldpacks") {
+            } else if (searchgrandrewarditem.type === "goldpacks") {
             await Characterwallet.findOneAndUpdate(
                 { owner: characterid, type: 'coins' },
                 { $inc: { amount: searchgrandrewarditem.coins } },
                 { new: true, session }
             );
-        } else {
+            } else {
             await CharacterInventory.findOneAndUpdate(
                 { owner: characterid, type: searchgrandrewarditem.inventorytype },
                 { $push: { items: { item: searchgrandrewarditem._id } } },
                 { upsert: true, new: true, session }
             );
+            }
         }
 
         battlepassData.hasPremium = true;
@@ -559,13 +565,16 @@ exports.buypremiumbattlepass = async (req, res) => {
             message: "success",
             data: {
             crystalcost: currentSeason.premiumCost,
-            grandreward: {
-                _id: searchgrandrewarditem._id,
-                name: searchgrandrewarditem.name,
-                type: searchgrandrewarditem.type,
-                rarity: searchgrandrewarditem.rarity,
-                description: searchgrandrewarditem.description
-            }
+            grandreward: searchgrandrewarditems.reduce((acc, item) => {
+                acc[item._id] = {
+                    name: item.name,
+                    type: item.type,
+                    rarity: item.rarity,
+                    description: item.description,
+                    amount: item.amount || 1 // Default to 1 if amount is not specified
+                };
+                return acc;
+            }, {})
             }
         });
 

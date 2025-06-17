@@ -1510,7 +1510,7 @@ exports.getnotification = async (req, res) => {
             Announcement.countDocuments(),
             ItemNews.findOne()
                 .sort({ createdAt: -1 })
-                .populate('item', 'name gender')
+                .populate('items.itemid', 'name gender')
                 .lean()
         ]);
 
