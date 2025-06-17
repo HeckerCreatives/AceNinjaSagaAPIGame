@@ -328,6 +328,8 @@ exports.buycompanion = async (req, res) => {
         });
     })
 
+
+    
             // const analyticresponse = await addanalytics(
             //     characterid.toString(),
             //     userdailyspin._id.toString(),
