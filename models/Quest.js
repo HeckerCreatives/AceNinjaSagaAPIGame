@@ -23,7 +23,11 @@ const QuestDetailsSchema = new mongoose.Schema(
         daily: {
             type: Boolean,
             default: false
-        }
+        },
+        rewardtype: {
+            type: String,
+            index: true,
+        },
     },
     {
         timestamps: true

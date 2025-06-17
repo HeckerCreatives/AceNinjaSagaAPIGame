@@ -133,17 +133,69 @@ exports.getMarketItems = async (req, res) => {
                     imageUrl: '$items.imageUrl',
                     gender: '$items.gender',
                     isOpenable: '$items.isOpenable',
+                    rewardtype: {
+                        $cond: [
+                            { $gt: ['$items.crystals', 0] }, 'crystals',
+                            {
+                                $cond: [
+                                    { $gt: ['$items.coins', 0] }, 'coins',
+                                    {
+                                        $cond: [
+                                            { $gt: ['$items.exp', 0] }, 'exp',
+                                            null
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    rewardsamount: {
+                        crystals: {
+                            $cond: [
+                                { $gt: ['$items.crystals', 0] },
+                                '$items.crystals',
+                                '$$REMOVE'
+                            ]
+                        },
+                        coins: {
+                            $cond: [
+                                { $gt: ['$items.coins', 0] },
+                                '$items.coins',
+                                '$$REMOVE'
+                            ]
+                        },
+                        exp: {
+                            $cond: [
+                                { $gt: ['$items.exp', 0] },
+                                '$items.exp',
+                                '$$REMOVE'
+                            ]
+                        }
+                    },                    
                     crystals: {
                         $cond: {
-                            if: { $eq: ['$items.type', 'crystalpacks'] },
-                            then: '$items.crystals',
-                            else: '$$REMOVE'
+                        if: { $or: [
+                                    { $eq: ['$items.type', 'crystalpacks'] },
+                                    { $eq: ['$items.type', 'freebie'] }
+                                    ]},                            
+                        then: '$items.crystals',
+                        else: '$$REMOVE'
                         }
                     },
                     coins: {
                         $cond: {
-                            if: { $eq: ['$items.type', 'goldpacks'] },
-                            then: '$items.coins',
+                        if: { $or: [
+                                    { $eq: ['$items.type', 'crystalpacks'] },
+                                    { $eq: ['$items.type', 'freebie'] }
+                                    ]},                              
+                        then: '$items.coins',
+                        else: '$$REMOVE'
+                        }
+                    },
+                    exp: {
+                        $cond: {
+                            if: { $eq: ['$items.type', 'freebie'] },
+                            then: '$items.exp',
                             else: '$$REMOVE'
                         }
                     },
@@ -179,37 +231,23 @@ exports.getMarketItems = async (req, res) => {
         const formattedResponse = {
             data: items.reduce((acc, item, index) => {
             // If item type is freebie and there's an existing claim with matching transactionid, add timer
-            if (
-                item.type === "freebie" &&
-                Array.isArray(existingClaim) &&
-                existingClaim.length > 0 &&
-                existingClaim.some(claim => claim.transactionid?.toString() === item.itemId?.toString())
-            ) {
-                // Calculate time left until next claim (next claim is at 12am midnight UTC+8)
-                const claim = existingClaim.find(claim => claim.transactionid?.toString() === item.itemId?.toString());
-                const now = new Date();
-                const phTime = new Date(now.getTime() 
-                    // + (8 * 60 * 60 * 1000)
-                ); // Convert to UTC+8
+            if (item.type === 'freebie') {
 
-                // Calculate time until next midnight (00:00) in UTC+8
-                const midnight = new Date(phTime);
-                midnight.setDate(midnight.getDate() + 1); // Move to next day
-                midnight.setHours(0, 0, 0, 0); // Set to midnight
-
-                const timer = midnight - phTime;
-                const hours = Math.floor(timer / (1000 * 60 * 60));
-                const minutes = Math.floor((timer % (1000 * 60 * 60)) / (1000 * 60));
-
-                acc[index + 1] = { 
-                    ...item, 
-                    timer, 
-                    hoursLeft: hours, 
-                    minutesLeft: minutes 
-                };
-            } else {
-                acc[index + 1] = item;
+                    const now = new Date();
+                    const phTime = new Date(now.getTime()); 
+                    const midnight = new Date(phTime);
+                    midnight.setDate(midnight.getDate() + 1);
+                    midnight.setHours(0, 0, 0, 0);
+                    
+                    const timer = midnight - phTime;
+                    const hours = Math.floor(timer / (1000 * 60 * 60));
+                    const minutes = Math.floor((timer % (1000 * 60 * 60)) / (1000 * 60));
+                    
+                    item.timer = timer;
+                    item.hoursLeft = hours;
+                    item.minutesLeft = minutes;
             }
+            acc[index + 1] = item;
             return acc;
             }, {}),
             pagination: {

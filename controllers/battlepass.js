@@ -215,7 +215,7 @@ exports.getbattlepass = async (req, res) => {
                 missionName: originalMission ? originalMission.missionName : mission.missionName,
                 description: originalMission ? originalMission.description : "No description available",
                 type: mission.type,
-                rewardType: originalMission ? originalMission.rewardType : "none",
+                rewardtype: originalMission ? originalMission.rewardtype : "none",
                 progress: mission.progress,
                 requirements: requiredAmount || null,
                 xpReward: originalMission ? originalMission.xpReward : 0,
@@ -717,6 +717,79 @@ exports.claimbattlepassquest = async (req, res) => {
             battlepassProgress.currentXP = 0; // Ensure XP doesn't go negative
         }
     }
+
+
+      if (mission.rewardtype === "coins") {
+                await Characterwallet.updateOne(
+                    { owner: characterid, type: "coins" },
+                    { $inc: { amount: mission.xpReward } },
+                );
+            }
+    
+      if (mission.rewardtype === "crystal" || mission.rewardtype === "crystals") {
+                await Characterwallet.updateOne(
+                    { owner: characterid, type: "crystal" },
+                    { $inc: { amount: mission.xpReward } },
+                );
+            }
+    
+      if (mission.rewardtype === "exp") {
+                const character = await Characterdata.findOne({ _id: characterid }).session(session);
+                if (!character) {
+                    await session.abortTransaction();
+                    return res.status(404).json({
+                        message: "failed",
+                        data: "Character not found"
+                    });
+                }
+    
+                character.experience += mission.xpReward;
+    
+                let currentLevel = character.level;
+                let currentXP = character.experience;
+                let levelsGained = 0;
+                let xpNeeded = 80 * currentLevel;
+    
+                while (currentXP >= xpNeeded && xpNeeded > 0) {
+                    const overflowXP = currentXP - xpNeeded;
+                    currentLevel++;
+                    levelsGained++;
+                    currentXP = overflowXP;
+                    xpNeeded = 80 * currentLevel;
+                }
+    
+                if (levelsGained > 0) {
+                    await CharacterStats.updateOne(
+                        { owner: characterid },
+                        {
+                            $inc: {
+                                health: 10 * levelsGained,
+                                energy: 5 * levelsGained,
+                                armor: 2 * levelsGained,
+                                magicresist: 1 * levelsGained,
+                                speed: 1 * levelsGained,
+                                attackdamage: 1 * levelsGained,
+                                armorpen: 1 * levelsGained,
+                                magicpen: 1 * levelsGained,
+                                magicdamage: 1 * levelsGained,
+                                critdamage: 1 * levelsGained
+                            }
+                        },
+                        { session }
+                    );
+    
+                    await CharacterSkillTree.updateOne(
+                        { owner: characterid },
+                        { $inc: { skillPoints: 4 * levelsGained } },
+                    );
+                }
+    
+                character.level = currentLevel;
+                character.experience = currentXP;
+                await character.save();
+            }
+
+
 
     await battlepassProgress.save();
     
