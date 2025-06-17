@@ -364,6 +364,8 @@ exports.acquirespbasedskills = async (req, res) => {
         skill.spCost
     );
 
+    
+
         if (analyticresponse === "failed") {
             return res.status(500).json({
                 message: "failed",
