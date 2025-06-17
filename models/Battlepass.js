@@ -52,6 +52,10 @@ const BattlepassSeasonSchema = new mongoose.Schema(
                     type: Object,
                     required: true
                 },
+                rewardtype: {
+                    type: String,
+                    index: true,
+                },
                 daily: {
                     type: Boolean,
                     default: false
@@ -75,6 +79,10 @@ const BattlepassSeasonSchema = new mongoose.Schema(
                 requirements: {
                     type: Object,
                     required: true
+                },
+                rewardtype: {
+                    type: String,
+                    index: true,
                 },
                 daily: {
                     type: Boolean,

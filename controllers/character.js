@@ -1505,13 +1505,13 @@ exports.getnotification = async (req, res) => {
         }
 
         // Count total news, announcements, and item news using countDocuments
-        const [newsCount, announcementCount, itemNews] = await Promise.all([
+        const [newsCount, announcementCount] = await Promise.all([
             News.countDocuments(),
             Announcement.countDocuments(),
-            ItemNews.findOne()
-                .sort({ createdAt: -1 })
-                .populate('items.itemid', 'name gender')
-                .lean()
+            // ItemNews.findOne()
+            //     .sort({ createdAt: -1 })
+            //     .populate('items.itemid', 'name gender')
+            //     .lean()
         ]);
 
         // Count read news for the character

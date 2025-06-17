@@ -213,6 +213,7 @@ exports.getbattlepass = async (req, res) => {
                 missionName: originalMission ? originalMission.missionName : mission.missionName,
                 description: originalMission ? originalMission.description : "No description available",
                 type: mission.type,
+                rewardType: originalMission ? originalMission.rewardType : "none",
                 progress: mission.progress,
                 requirements: requiredAmount || null,
                 xpReward: originalMission ? originalMission.xpReward : 0,
