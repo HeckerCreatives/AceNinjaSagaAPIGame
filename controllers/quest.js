@@ -8,6 +8,7 @@ const { progressutil } = require('../utils/progress');
 const { getSeasonRemainingTimeInMilliseconds } = require('../utils/datetimetools');
 const Season = require('../models/Season');
 const { checkmaintenance } = require('../utils/maintenance');
+const Characterwallet = require('../models/Characterwallet');
 
 exports.getdailyquest = async (req, res) => {
 
@@ -84,7 +85,6 @@ exports.getdailyquest = async (req, res) => {
         const questProgress = dailyquestprogressdata.find(progress => 
             progress.quest.toString() === quest._id.toString()
         );
-
         acc[quest.missionName] = {
             id: quest._id,
             missionName: quest.missionName,
@@ -92,6 +92,7 @@ exports.getdailyquest = async (req, res) => {
             xpReward: quest.xpReward,
             requirements: Object.values(quest.requirements)[0],
             requirementType: Object.keys(quest.requirements)[0],
+            rewardtype: quest.rewardtype || "exp",
             daily: quest.daily,
             progress: questProgress ? {
                 current: questProgress.progress,
@@ -202,6 +203,7 @@ exports.claimdailyquest = async (req, res) => {
     const requirementType = Object.keys(quest.requirements)[0];
     const requiredAmount = quest.requirements[requirementType];
 
+    
 
     if (questProgress.progress >= requiredAmount) {
         const character = await Characterdata.findOne({ _id: characterid })
@@ -284,6 +286,20 @@ exports.claimdailyquest = async (req, res) => {
             data: `You need to complete ${requiredAmount - questProgress.progress} more ${requirementType} to claim this quest.`
         });
     }
+
+          if (quest.rewardtype === "coins") {
+                    await Characterwallet.updateOne(
+                        { owner: characterid, type: "coins" },
+                        { $inc: { amount: quest.xpReward } },
+                    );
+                }
+        
+          if (quest.rewardtype === "crystal" || quest.rewardtype === "crystals") {
+                    await Characterwallet.updateOne(
+                        { owner: characterid, type: "crystal" },
+                        { $inc: { amount: quest.xpReward } },
+                    );
+                }
 
     const progress = await progressutil('dailyquests', characterid, 1)
     
