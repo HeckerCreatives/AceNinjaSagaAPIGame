@@ -192,13 +192,15 @@ exports.getbattlepass = async (req, res) => {
                 };
                 return acc;
             }, {}),
-            grandreward: {
-                _id: currentSeason.grandreward?._id || "No Grand Reward",
-                name: currentSeason.grandreward?.name || "No Grand Reward",
-                type: currentSeason.grandreward?.type || "none",
-                rarity: currentSeason.grandreward?.rarity || "none",
-                description: currentSeason.grandreward?.description || "No description available"
-            },
+            grandreward: currentSeason.grandreward.reduce((acc, item) => {
+                acc[item._id] = {
+                    name: item.name,
+                    type: item.type,
+                    rarity: item.rarity,
+                    description: item.description,
+                }
+                return acc;
+            }, {})
         },
         progress: {
             currentTier: battlepassData.currentTier,

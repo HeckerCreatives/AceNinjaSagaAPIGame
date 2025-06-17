@@ -140,12 +140,15 @@ exports.getnews = async (req, res) => {
             .sort({ createdAt: -1 })
             .populate('items.itemid', 'name gender');
 
-        if (gender) {
-            ItemNewsData = allItemNews.find(news => 
-                news.items.some(item => item.itemid && item.itemid.gender === gender)
-            );
-        } else {
+        if (allItemNews[0].items[0].itemid.gender === 'unisex'){
             ItemNewsData = allItemNews[0];
+        } else {
+            ItemNewsData = allItemNews.find(news => 
+            news.items.some(item => 
+                item.itemid && item.itemid.gender === gender
+            )
+            ) || null;
+
         }
     }
 
@@ -192,12 +195,11 @@ exports.getnews = async (req, res) => {
 
         const isItemNewsRead = readNews.some(read => read.itemNews && read.itemNews.toString() === _id.toString());
 
-        // remove items that do not match the gender
-        const filteredItems = items.filter(item => item.itemid && item.itemid.gender === gender);
+
         const formattedItems = {
-            itemid: filteredItems[0]?.itemid ? filteredItems[0].itemid._id : null,
-            name: filteredItems[0]?.itemid ? filteredItems[0].itemid.name : null,
-            itemtype: filteredItems[0]?.itemtype || null
+            itemid: items[0]?.itemid ? items[0].itemid._id : null,
+            name: items[0]?.itemid ? items[0].itemid.name : null,
+            itemtype: items[0]?.itemtype || null
         };
         
         formattedResponse.data = {
