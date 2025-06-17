@@ -1,6 +1,5 @@
 const Version = require("../models/Version");
 
-
 exports.getActiveVersion = async (req, res) => {
     const data = await Version.findOne({ isActive: true })
         .sort({ releaseDate: -1 })
