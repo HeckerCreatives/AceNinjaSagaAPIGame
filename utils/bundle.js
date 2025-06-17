@@ -233,3 +233,32 @@ const itembundledata = [
         hairid: "6828695886cc0f2042749564"
     }
 ]
+const hairData = [
+    { name: "Male Basic Ninja Hairstyle 1", code: "hair-001", gender: 0 },
+    { name: "Male Basic Ninja Hairstyle 2", code: "hair-002", gender: 0 },
+    { name: "Male Basic Ninja Hairstyle 3", code: "hair-003", gender: 0 },
+    { name: "Male Basic Ninja Hairstyle 4", code: "hair-004", gender: 0 },
+    { name: "Male Basic Ninja Hairstyle 5", code: "hair-005", gender: 0 },
+    { name: "Male Basic Ninja Hairstyle 6", code: "hair-006", gender: 0 },
+    { name: "Female Basic Ninja Hairstyle 1", code: "hair-001", gender: 1 },
+    { name: "Female Basic Ninja Hairstyle 2", code: "hair-002", gender: 1 },
+    { name: "Female Basic Ninja Hairstyle 3", code: "hair-003", gender: 1 },
+    { name: "Female Basic Ninja Hairstyle 4", code: "hair-004", gender: 1 },
+    { name: "Female Basic Ninja Hairstyle 5", code: "hair-005", gender: 1 },
+    { name: "Female Basic Ninja Hairstyle 6", code: "hair-006", gender: 1 },
+];
+
+
+exports.gethairname = (hairid, gender) => {
+    if (!hairid || gender === undefined || gender === null) {
+        return "failed";
+    }
+
+    const hairDataz = hairData.find(h => h.code === hairid && h.gender === Number(gender));    console.log(hairDataz)
+
+    if (!hairDataz) {
+        return "";
+    }
+
+    return hairDataz.name;
+}

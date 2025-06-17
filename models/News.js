@@ -27,14 +27,17 @@ const ItemNewsSchema = new mongoose.Schema(
             type: String,
             index: true
         },
-        item: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Item"
-        },
-        itemtype: {
-            type: String,
-            index: true
-        }
+        items: [{
+            itemid: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Item"
+            },
+            itemtype: {
+                type: String,
+                index: true
+            }
+        },]
+
     },
     {
         timestamps: true

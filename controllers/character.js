@@ -23,6 +23,7 @@ const Announcement = require("../models/Announcement")
 const Friends = require("../models/Friends")
 const { chapterlistdata } = require("../data/datainitialization")
 const PvpStats = require("../models/PvpStats")
+const { gethairname } = require("../utils/bundle")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -32,7 +33,6 @@ exports.createcharacter = async (req, res) => {
         const { id } = req.user;
         const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body;
 
-        // Validation checks...
         if(!id) {
             return res.status(401).json({ 
                 message: "failed", 
@@ -41,12 +41,19 @@ exports.createcharacter = async (req, res) => {
         }
 
         let searchgender = gender === 0 ? `Male Basic Attire ${Number(outfit) + 1}` : `Female Basic Attire ${Number(outfit) + 1}`;
-
+        const hairname = await gethairname(hair, gender )
         const item = await Item.findOne({ name: searchgender })
         if(!item){
             return res.status(400).json({ message: "failed", data: "Item not found."})
         }
 
+        console.log(hairname)
+
+        const hairitem = await Item.findOne({ name: hairname })
+
+        if(!hairitem){
+            return res.status(400).json({ message: "failed", data: "Hair item not found."})
+        }
             
         const usernameRegex = /^[a-zA-Z0-9]+$/;
 
@@ -159,6 +166,21 @@ exports.createcharacter = async (req, res) => {
             $push: {
                 items: {
                     item: item._id,
+                    quantity: 1,
+                    isEquipped: true, // Optionally equip it by default
+                    acquiredAt: new Date()
+                }
+            }
+        },
+        { session }
+    );
+
+    await CharacterInventory.findOneAndUpdate(
+        { owner: characterId, type: "hair" },
+        {
+            $push: {
+                items: {
+                    item: hairitem._id,
                     quantity: 1,
                     isEquipped: true, // Optionally equip it by default
                     acquiredAt: new Date()

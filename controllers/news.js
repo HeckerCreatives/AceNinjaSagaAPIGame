@@ -100,7 +100,6 @@ exports.editnews = async (req, res) => {
 }
 
 exports.getnews = async (req, res) => {
-
     const {page, limit, type, gender, characterid} = req.query
 
     const pageOptions = {
@@ -120,36 +119,33 @@ exports.getnews = async (req, res) => {
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while fetching News data. Error: ${err}`)
-
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
 
-    // fetch if its read
     const readNews = await NewsRead.find({ owner: characterid })
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while fetching read news data. Error: ${err}`)
-
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
     })
 
     const totalNews = await News.countDocuments();
-    // Find the latest ItemNews
+    
     let ItemNewsData = await ItemNews.findOne()
     .sort({ createdAt: -1 })
-    .populate('item', 'name gender')
+    .populate('items.itemid', 'name gender')
 
-    if (ItemNewsData && ItemNewsData.item && ItemNewsData.item.gender !== 'unisex') {
-        // First get all ItemNews sorted by date
+    if (ItemNewsData) {
         let allItemNews = await ItemNews.find()
             .sort({ createdAt: -1 })
-            .populate('item', 'name gender');
+            .populate('items.itemid', 'name gender');
 
-        // Find the first item that matches the gender criteria
         if (gender) {
-            ItemNewsData = allItemNews.find(news => news.item && news.item.gender === gender);
+            ItemNewsData = allItemNews.find(news => 
+                news.items.some(item => item.itemid && item.itemid.gender === gender)
+            );
         } else {
-            ItemNewsData = allItemNews[0]; // Take the most recent if no gender specified
+            ItemNewsData = allItemNews[0];
         }
     }
 
@@ -158,7 +154,6 @@ exports.getnews = async (req, res) => {
     };
 
     const newsdata = {}
-
     let index = 0
 
     NewsData.forEach(temp => {
@@ -176,7 +171,6 @@ exports.getnews = async (req, res) => {
         index++;
     })
 
-    // First, shift all existing news items up by one index
     formattedResponse = {
         data: {
             news: newsdata,
@@ -189,33 +183,33 @@ exports.getnews = async (req, res) => {
         }
     }
 
-    // Add ItemNews as the first item if it exists and type is not video
     if (ItemNewsData && type !== 'video') {
-        const { _id, title, item, itemtype } = ItemNewsData;
+        const { _id, title, items } = ItemNewsData;
 
         if (!gender){
             return res.status(400).json({ message: "failed", data: "Please input character gender."})
         }
 
-        // Check if the item news is read
         const isItemNewsRead = readNews.some(read => read.itemNews && read.itemNews.toString() === _id.toString());
 
-        // Create a separate itemnews object
+        const formattedItems = items.map(item => ({
+            itemid: item.itemid._id,
+            itemtype: item.itemtype,
+            itemname: item.itemid.name,
+            itemgender: item.itemid.gender
+        }));
+
         formattedResponse.data = {
             itemnews: {
                 id: _id,
                 title,
-                item: item ? item._id : null,
-                itemtype,
-                itemname: item ? item.name : null,
-                itemgender: item ? item.gender: null,
+                items: formattedItems,
                 isRead: isItemNewsRead
             },
             news: formattedResponse.data.news,
             pagination: formattedResponse.data.pagination
         };
     } else {
-        // If no ItemNewsData or type is video, just return the news data
         formattedResponse.data = {
             itemnews: {},
             news: formattedResponse.data.news,
@@ -228,7 +222,6 @@ exports.getnews = async (req, res) => {
         data: formattedResponse.data,
         pagination: formattedResponse.pagination
     });
-
 }
 
 // exports.editnews = async (req, res) => {
