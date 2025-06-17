@@ -757,7 +757,7 @@ exports.sellitem = async (req, res) => {
 exports.equipitem = async (req, res) => {
 
 
-    const { itemid, characterid } = req.body
+    const { itemid, characterid, hairid } = req.body
 
 
     const session = await mongoose.startSession();
@@ -842,6 +842,12 @@ exports.equipitem = async (req, res) => {
                 new: true
             }
         );
+
+        if (item.items[0].item.type === "hair") {
+            player.hair = hairid
+
+            await player.save({ session });
+        }
 
         // Commit transaction
         await session.commitTransaction();
