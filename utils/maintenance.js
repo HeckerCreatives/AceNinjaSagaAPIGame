@@ -10,9 +10,9 @@ exports.checkmaintenance = async (type) => {
         console.log(maintenance.value)
         
         if (maintenance.value === "0") {
-            return "success"; // Maintenance is active
+            return "failed"; // Maintenance is active
         }
-        return "failed"; // Maintenance is not active
+        return "success"; // Maintenance is not active
     } catch (err) {
         console.error(`Failed to check maintenance status for ${type}, error:`, err);
         return false;
