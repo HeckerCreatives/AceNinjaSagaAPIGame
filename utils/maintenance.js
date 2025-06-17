@@ -6,6 +6,8 @@ exports.checkmaintenance = async (type) => {
 
     try {
         const maintenance = await Maintenance.findOne({ type: type });
+
+        console.log(maintenance.value)
         
         if (maintenance.value === "0") {
             return "success"; // Maintenance is active
