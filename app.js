@@ -41,5 +41,5 @@ app.use(cookieParser());
 require("./routes")(app);
 
 
-const port = process.env.PORT || 5005; // Dynamic port for deployment
+const port = process.env.PORT || 5000; // Dynamic port for deployment
 server.listen(port, () => console.log(`Server is running on port: ${port}`));
