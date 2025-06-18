@@ -1188,7 +1188,7 @@ exports.getcharacterchapters = async (req, res) => {
 
     const formattedResponse = {
         data: characterchapters.reduce((acc, chapter, index) => {
-            acc[index + 1] = {
+            acc[chapter.name] = {
                 id: chapter._id,
                 name: chapter.name,
                 completed: chapter.completed,
