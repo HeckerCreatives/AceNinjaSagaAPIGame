@@ -1673,7 +1673,7 @@ exports.getnotification = async (req, res) => {
             data: {
                 news: {
                     images: readNewsCount.length <= 0 ? 0 : readNewsCount[0].unread,
-                    videos: readNewsVideoCount.length <= 0 ? 0 : readNewsVideoCount[0].unread
+                    video: readNewsVideoCount.length <= 0 ? 0 : readNewsVideoCount[0].unread
                 },
                 announcement: {
                     unreadcount: readAnnouncementCount.length <= 0 ? 0 : readAnnouncementCount[0].unread
