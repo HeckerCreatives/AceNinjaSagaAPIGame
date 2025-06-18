@@ -1504,21 +1504,153 @@ exports.getnotification = async (req, res) => {
             return res.status(404).json({ message: "failed", data: "Character not found" });
         }
 
-        // Count total news, announcements, and item news using countDocuments
-        const [newsCount, announcementCount] = await Promise.all([
-            News.countDocuments(),
-            Announcement.countDocuments(),
-            // ItemNews.findOne()
-            //     .sort({ createdAt: -1 })
-            //     .populate('items.itemid', 'name gender')
-            //     .lean()
-        ]);
-
         // Count read news for the character
-        const [readNewsCount, readAnnouncementCount, readItemNewsCount, friendRequestCount] = await Promise.all([
-            NewsRead.countDocuments({ owner: characterid, news: { $exists: true } }),
-            NewsRead.countDocuments({ owner: characterid, announcement: { $exists: true } }),
-            NewsRead.countDocuments({ owner: characterid, itemNews: { $exists: true } }),
+        const [readNewsCount, readNewsVideoCount, readAnnouncementCount, friendRequestCount] = await Promise.all([
+            News.aggregate([
+                {
+                    $match: {
+                        type: "image"
+                    }
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $lookup: {
+                    from: "newsreads",
+                    let: { newsId: "$_id" },
+                    pipeline: [
+                        {
+                        $match: {
+                            $expr: {
+                            $and: [
+                                { $eq: ["$news", "$$newsId"] },
+                                { $eq: ["$owner", new mongoose.Types.ObjectId(characterid)] }
+                            ]
+                            }
+                        }
+                        }
+                    ],
+                        as: "readByUser"
+                    }
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $match: {
+                        readByUser: { $eq: [] }
+                    }
+                },
+                {
+                    $count: "unread"
+                }
+            ]),
+            News.aggregate([
+                 {
+                    $match: {
+                        type: "video"
+                    }
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $lookup: {
+                    from: "newsreads",
+                    let: { newsId: "$_id" },
+                    pipeline: [
+                        {
+                        $match: {
+                            $expr: {
+                            $and: [
+                                { $eq: ["$news", "$$newsId"] },
+                                { $eq: ["$owner", new mongoose.Types.ObjectId(characterid)] }
+                            ]
+                            }
+                        }
+                        }
+                    ],
+                        as: "readByUser"
+                    }
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $match: {
+                        readByUser: { $eq: [] }
+                    }
+                },
+                {
+                    $count: "unread"
+                }
+            ]),
+            Announcement.aggregate([
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: 10
+                },
+                {
+                    $lookup: {
+                    from: "newsreads",
+                    let: { announcementId: "$_id" },
+                    pipeline: [
+                        {
+                        $match: {
+                            $expr: {
+                            $and: [
+                                    { $eq: ["$announcement", "$$announcementId"] },
+                                    { $eq: ["$owner", new mongoose.Types.ObjectId(characterid)] }
+                                ]
+                            }
+                        }
+                        }
+                    ],
+                        as: "readByUser"
+                    }
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: 10
+                },
+                {
+                    $match: {
+                        readByUser: { $eq: [] }
+                    }
+                },
+                {
+                    $count: "unread"
+                }
+            ]),
             Friends.countDocuments({ friend: characterid, status: 'pending' })
         ]);
 
@@ -1537,27 +1669,14 @@ exports.getnotification = async (req, res) => {
         const weeklyHasLoggedToday = weeklyLogin.daily[weeklyLogin.currentDay] === true;
         const monthlyHasLoggedToday = monthlyLogin.days[dayOfMonth - 1]?.loggedIn === true;
 
-        // Calculate total unread notifications for news and item news
-        let totalUnreadNews = (newsCount || 0) - (readNewsCount || 0);
-
-        // Add item news if it matches character's gender
-        // if (itemNews && itemNews.item) {
-        //     const gender = character.gender === 0 ? 'male' : 'female';
-        //     if (itemNews.item.gender === 'unisex' || itemNews.item.gender === gender) {
-        //         totalUnreadNews += (1 - readItemNewsCount);
-        //     }
-        // }
-
-        // Calculate unread announcements
-        const unreadAnnouncements = Math.max(0, announcementCount - readAnnouncementCount);
-
         const response = {
             data: {
                 news: {
-                    unreadcount: Math.max(0, totalUnreadNews),
+                    images: readNewsCount.length <= 0 ? 0 : readNewsCount[0].unread,
+                    videos: readNewsVideoCount.length <= 0 ? 0 : readNewsVideoCount[0].unread
                 },
                 announcement: {
-                    unreadcount: unreadAnnouncements
+                    unreadcount: readAnnouncementCount.length <= 0 ? 0 : readAnnouncementCount[0].unread
                 },
                 friendrequests: {
                     count: friendRequestCount
