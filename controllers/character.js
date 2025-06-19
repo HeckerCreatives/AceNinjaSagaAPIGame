@@ -24,6 +24,7 @@ const Friends = require("../models/Friends")
 const { chapterlistdata } = require("../data/datainitialization")
 const PvpStats = require("../models/PvpStats")
 const { gethairname } = require("../utils/bundle")
+const { challengeRewards } = require("../utils/gamerewards")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -1229,10 +1230,10 @@ exports.challengechapter = async (req, res) => {
                 data: "You are not authorized to view this page. Please login the right account to view the page."
             });
         }
-
+        let name = `chapter${chapter}challenge${challenge}`;
         const charchapter = await CharacterChapter.findOne({ 
             owner: new mongoose.Types.ObjectId(characterid), 
-            name: `chapter${chapter}challenge${challenge}` 
+            name: name 
         }).session(session);
 
         if (!charchapter) {
@@ -1265,11 +1266,8 @@ exports.challengechapter = async (req, res) => {
             });
         }
 
-        const rewards = {
-            exp: character.level * 10,
-            gold: character.level * 50,
-            crystal: character.level * 2,
-        };
+        
+        const rewards = challengeRewards[`chapter${chapter}challenge${challenge}`];
 
         character.experience += rewards.exp;
 
@@ -1329,7 +1327,7 @@ exports.challengechapter = async (req, res) => {
 
         await Characterwallet.updateOne(
             { owner: characterid, type: "crystal" },
-            { $inc: { amount: rewards.crystal } },
+            { $inc: { amount: rewards.crystals } },
             { session, upsert: true }
         );
 
@@ -1354,6 +1352,7 @@ exports.challengechapter = async (req, res) => {
         await session.commitTransaction();
         return res.status(200).json({
             message: "success",
+            rewards: rewards,
         });
     } catch (error) {
         await session.abortTransaction();

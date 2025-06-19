@@ -79,7 +79,6 @@ exports.editannouncement = async (req, res) => {
 }
 
 exports.getannouncement = async (req, res) => {
-
     const { page, limit, filter, characterid } = req.query;
 
     const pageOptions = {
@@ -87,58 +86,72 @@ exports.getannouncement = async (req, res) => {
         limit: parseInt(limit) || 10
     };
 
-    const AnnouncementData = await Announcement.find({ announcementtype: filter })
-        .sort({ createdAt: -1 })
-        .skip(pageOptions.page * pageOptions.limit)
-        .limit(pageOptions.limit)
-        .then(data => data)
-        .catch(err => {
-            console.log(`There's a problem encountered while fetching News data. Error: ${err}`);
-            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+    try {
+        const pipeline = [
+            { $match: { announcementtype: filter } },
+            { $sort: { createdAt: -1 } },
+            { $skip: pageOptions.page * pageOptions.limit },
+            { $limit: pageOptions.limit },
+            {
+                $lookup: {
+                    from: 'newsreads',
+                    let: { announcementId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$owner', characterid ? new mongoose.Types.ObjectId(characterid) : null] },
+                                        { $eq: ['$announcement', '$$announcementId'] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: 'readStatus'
+                }
+            },
+            {
+                $addFields: {
+                    isRead: { $gt: [{ $size: '$readStatus' }, 0] }
+                }
+            }
+        ];
+
+        const AnnouncementData = await Announcement.aggregate(pipeline);
+        const totalList = await Announcement.countDocuments({ announcementtype: filter });
+
+        const formattedResponse = {
+            data: AnnouncementData.reduce((acc, data, index) => {
+                const { _id, title, content, type, url, announcementtype, createdAt, isRead } = data;
+                acc[index + 1] = {
+                    id: _id,
+                    title,
+                    content,
+                    type,
+                    url,
+                    announcementtype,
+                    createdAt,
+                    isRead
+                };
+                return acc;
+            }, {})
+        };
+
+        return res.status(200).json({
+            message: "success",
+            data: {
+                announcements: formattedResponse.data,
+                total: totalList,
+                page: pageOptions.page,
+                limit: pageOptions.limit,
+                pages: Math.ceil(totalList / pageOptions.limit)
+            }
         });
-
-    const totalList = await Announcement.countDocuments({ announcementtype: filter });
-
-    // Fetch read announcements for this character/user
-    let readAnnouncements = [];
-    if (characterid) {
-        readAnnouncements = await NewsRead.find({ owner: characterid, announcement: { $exists: true } })
-            .then(data => data.map(r => r.announcement && r.announcement.toString()))
-            .catch(err => {
-                console.log(`Error fetching read announcements: ${err}`);
-                return [];
-            });
+    } catch (err) {
+        console.log(`There's a problem encountered while fetching News data. Error: ${err}`);
+        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
     }
-
-    const formattedResponse = {
-        data: AnnouncementData.reduce((acc, data, index) => {
-            const { id, title, content, type, url, announcementtype } = data;
-            const isRead = readAnnouncements.includes(data._id.toString());
-            acc[index + 1] = {
-                id,
-                title,
-                content,
-                type,
-                url,
-                announcementtype,
-                createdAt: data.createdAt,
-                isRead
-            };
-            return acc;
-        }, {}),
-        pagination: {}
-    };
-
-    return res.status(200).json({
-        message: "success",
-        data: {
-            announcements: formattedResponse.data,
-            total: totalList,
-            page: pageOptions.page,
-            limit: pageOptions.limit,
-            pages: Math.ceil(totalList / pageOptions.limit)
-        }
-    });
 }
 exports.deleteannouncement = async (req, res) => {
     const { id } = req.body

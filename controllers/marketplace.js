@@ -246,6 +246,21 @@ exports.getMarketItems = async (req, res) => {
                     item.timer = timer;
                     item.hoursLeft = hours;
                     item.minutesLeft = minutes;
+
+                        if (
+                    item.type === "freebie" &&
+                    Array.isArray(existingClaim) &&
+                    existingClaim.length > 0 &&
+                    existingClaim.some(claim => claim.transactionid?.toString() === item.itemId?.toString())
+                ) {
+                    item.timer = timer;
+                    item.hoursLeft = hours;
+                    item.minutesLeft = minutes;
+                } else {
+                    item.timer = 0;
+                    item.hoursLeft = 0;
+                    item.minutesLeft = 0;
+                }
             }
             acc[index + 1] = item;
             return acc;
