@@ -1233,6 +1233,9 @@ exports.challengechapter = async (req, res) => {
             });
         }
         let name = `chapter${chapter}challenge${challenge}`;
+
+        console.log(name)
+
         const charchapter = await CharacterChapter.findOne({ 
             owner: new mongoose.Types.ObjectId(characterid), 
             name: name 
