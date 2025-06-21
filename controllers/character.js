@@ -1354,7 +1354,9 @@ exports.challengechapter = async (req, res) => {
         await session.commitTransaction();
         return res.status(200).json({
             message: "success",
-            rewards: rewards,
+            data: {
+                rewards: rewards
+            },
         });
     } catch (error) {
         await session.abortTransaction();
