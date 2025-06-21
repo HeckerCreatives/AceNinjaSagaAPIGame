@@ -1213,6 +1213,8 @@ exports.challengechapter = async (req, res) => {
         const { id } = req.user;
         const { characterid, chapter, challenge, status, totaldamage, selfheal, skillsused, enemydefeated } = req.body;
 
+        console.log(characterid, chapter, challenge, status, totaldamage, selfheal, skillsused, enemydefeated)
+
         if (!characterid || !chapter || !challenge || !status || totaldamage === undefined || selfheal === undefined || skillsused === undefined || enemydefeated === undefined) {
             await session.abortTransaction();
             return res.status(400).json({ 
