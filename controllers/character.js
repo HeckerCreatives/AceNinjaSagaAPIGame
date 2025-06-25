@@ -1672,7 +1672,11 @@ exports.getnotification = async (req, res) => {
         }
 
         const dayOfMonth = new Date().getDate();
-        const weeklyHasLoggedToday = weeklyLogin.daily[weeklyLogin.currentDay] === true;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const weeklyHasLoggedToday = weeklyLogin.lastClaimed && 
+            new Date(weeklyLogin.lastClaimed).setHours(0, 0, 0, 0) === today.getTime();
+
         const monthlyHasLoggedToday = monthlyLogin.days[dayOfMonth - 1]?.loggedIn === true;
 
         const response = {

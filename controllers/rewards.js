@@ -784,10 +784,11 @@ exports.getmonthlylogin = async (req, res) => {
     const calendar = cmlogin.days.reduce((acc, dayObj) => {
         const today = new Date();
         const dayOfMonth = today.getDate();
+
         acc[dayObj.day] = {
             day: dayObj.day,
             loggedIn: dayObj.loggedIn,
-            missed: dayObj.day < dayOfMonth ? true : dayObj.missed,
+            missed: dayObj.day < dayOfMonth && !dayObj.loggedIn ? true : dayObj.missed,
         };
         return acc;
     }, {});
