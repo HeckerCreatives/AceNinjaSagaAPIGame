@@ -555,20 +555,6 @@ exports.claimfreebie = async (req, res) => {
             return res.status(404).json({ message: "failed", data: "Freebie item not found" });
         }
 
-        const claimexist = await existsreset(
-            characterid.toString(),
-            "freebie",
-            "claim"
-        );
-
-        if (claimexist) {
-            await session.abortTransaction();
-            return res.status(400).json({
-                message: "failed",
-                data: "You have already claimed your freebie today. Please try again tomorrow."
-            });
-        }
-
         // Determine reward type and amount
         let rewardType = null;
         let rewardAmount = 0;
@@ -589,6 +575,20 @@ exports.claimfreebie = async (req, res) => {
         } else {
             await session.abortTransaction();
             return res.status(400).json({ message: "failed", data: "Freebie item has no reward" });
+        }
+
+        const claimexist = await existsreset(
+            characterid.toString(),
+            `freebie${rewardType}`,
+            "claim"
+        );
+
+        if (claimexist) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "You have already claimed your freebie today. Please try again tomorrow."
+            });
         }
 
         // Give reward
@@ -666,7 +666,7 @@ exports.claimfreebie = async (req, res) => {
 
         const addclaimreset = await addreset(
             characterid.toString(),
-            "freebie",
+            `freebie${rewardType}`,
             "claim",
         )
 
