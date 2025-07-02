@@ -1,5 +1,4 @@
-
-const Reset = require('../models/reset'); // Assuming you have a Reset model defined in models/reset.js
+const Reset = require('../models/Reset.js');
 
 exports.addreset = async (owner, type, action) => {
     try {
