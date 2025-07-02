@@ -9,7 +9,7 @@ const Analytics = require("../models/Analytics")
 const CharacterStats = require("../models/Characterstats")
 const { checkcharacter } = require("../utils/character")
 const { gethairbundle } = require("../utils/bundle")
-
+const { addreset, existsreset } = require("../utils/reset")
 
 exports.getMarketItems = async (req, res) => {
     const { page, limit, type, rarity, search, markettype, gender, characterid } = req.query
@@ -555,22 +555,17 @@ exports.claimfreebie = async (req, res) => {
             return res.status(404).json({ message: "failed", data: "Freebie item not found" });
         }
 
-        // Check if the character has claimed this freebie today
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const existingClaim = await Analytics.findOne({
-            owner: characterid,
-            transactionid: itemid,
-            createdAt: { $gte: today }
-        }).session(session);
+        const claimexist = await existsreset(
+            characterid.toString(),
+            "freebie",
+            "claim"
+        );
 
-        console.log(today)
-        console.log(existingClaim)
-        if (existingClaim) {
+        if (claimexist) {
             await session.abortTransaction();
             return res.status(400).json({
                 message: "failed",
-                data: "You have already claimed this freebie today"
+                data: "You have already claimed your freebie today. Please try again tomorrow."
             });
         }
 
@@ -668,6 +663,12 @@ exports.claimfreebie = async (req, res) => {
                 data: "Failed to log analytics for claiming freebie"
             });
         }
+
+        const addclaimreset = await addreset(
+            characterid.toString(),
+            "freebie",
+            "claim",
+        )
 
         // Calculate time left until next claim (next claim is at 12am midnight UTC+8)
         const now = new Date();

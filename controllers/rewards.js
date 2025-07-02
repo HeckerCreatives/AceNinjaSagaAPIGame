@@ -8,6 +8,7 @@ const CharacterStats = require("../models/Characterstats")
 const { CharacterSkillTree } = require("../models/Skills")
 const { progressutil } = require("../utils/progress")
 const { addanalytics } = require("../utils/analyticstools")
+const { addreset, existsreset } = require("../utils/reset")
 
 // #region  USER
 
@@ -609,6 +610,17 @@ exports.claimweeklylogin = async (req, res) => {
             });
         }
 
+        const claimexist = await existsreset(
+            characterid.toString(),
+            "weeklylogin",
+            "claim"
+        );
+
+        if (claimexist){
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "You already claimed your weekly login today." });
+        }
+
         const userweeklylogin = await CharacterWeeklyLogin.findOne({ owner: characterid }).session(session);
         if(!userweeklylogin){
             await session.abortTransaction();
@@ -719,7 +731,16 @@ exports.claimweeklylogin = async (req, res) => {
                         data: "Failed to log analytics for weekly login claim"
                     });
                 }
+            const addresetexist = await addreset(
+            characterid.toString(),
+            "weeklylogin",
+            "claim"
+            );
 
+            if (addresetexist === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "Failed to add reset for weekly login claim." });
+            }
         
         const progress = await progressutil('dailyloginclaimed', characterid, 1);
         if (progress.message !== "success") {
@@ -887,6 +908,16 @@ exports.checkinmonthlylogin = async (req, res) => {
             });
         }
 
+        const claimexist = await existsreset(
+            characterid.toString(),
+            "monthlylogin",
+            "checkin"
+        );
+
+        if (claimexist) {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "You already checked in today." });
+        }
         const cmlogin = await CharacterMonthlyLogin.findOne({ owner: characterid }).session(session);
         if (!cmlogin) {
             await session.abortTransaction();
@@ -921,6 +952,18 @@ exports.checkinmonthlylogin = async (req, res) => {
         todayObj.loggedIn = true;
         cmlogin.lastLogin = today;
         cmlogin.totalLoggedIn = cmlogin.days.filter(d => d.loggedIn).length;
+
+        // Add reset for monthly login checkin
+        const addresetexist = await addreset(
+            characterid.toString(),
+            "monthlylogin",
+            "checkin"
+        );
+
+        if (addresetexist === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Failed to add reset for monthly login checkin." });
+        }
 
         await cmlogin.save({ session });
         await session.commitTransaction();
