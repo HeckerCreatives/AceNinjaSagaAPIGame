@@ -25,6 +25,7 @@ const { chapterlistdata } = require("../data/datainitialization")
 const PvpStats = require("../models/PvpStats")
 const { gethairname } = require("../utils/bundle")
 const { challengeRewards } = require("../utils/gamerewards")
+const { addreset, existsreset } = require("../utils/reset")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -1674,11 +1675,24 @@ exports.getnotification = async (req, res) => {
         const dayOfMonth = new Date().getDate();
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const weeklyHasLoggedToday = weeklyLogin.lastClaimed && 
-            new Date(weeklyLogin.lastClaimed).setHours(0, 0, 0, 0) === today.getTime();
-
-        const monthlyHasLoggedToday = monthlyLogin.days[dayOfMonth - 1]?.loggedIn === true;
-
+        const weeklyHasLoggedToday = await existsreset(
+            characterid,
+            "weeklylogin",
+            "claim"
+        ).then(reset => {
+            if (reset) return false
+            return true
+        })
+        
+        const monthlyHasLoggedToday = await existsreset(
+            characterid,
+            "monthlylogin",
+            "checkin"
+        ).then(reset => {
+            if (reset) return false
+            return true
+        })
+        
         const response = {
             data: {
                 news: {
@@ -1694,8 +1708,8 @@ exports.getnotification = async (req, res) => {
                 rewards: {
                     dailyspin: dailySpin.spin,
                     dailyexpspin: dailySpin.expspin,
-                    weeklylogin: !weeklyHasLoggedToday,
-                    monthlylogin: !monthlyHasLoggedToday,
+                    weeklylogin: weeklyHasLoggedToday,
+                    monthlylogin: monthlyHasLoggedToday,
                 }
             }
         };

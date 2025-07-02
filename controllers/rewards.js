@@ -535,13 +535,11 @@ exports.getweeklylogin = async (req, res) => {
     }
 
     const daytoday = new Date().getDay()
-    const lastclaimed = userweeklylogin.lastClaimed.getDay()
-    let claimed 
-    if (daytoday === lastclaimed) {
-        claimed = true
-    } else {
-        claimed = false
-    }
+    const lastclaimed = await existsreset(
+        characterid.toString(),
+        "weeklylogin",
+        "claim"
+    );
 
       // Get current time in UTC+8 (Philippines time)
     const now = new Date();
