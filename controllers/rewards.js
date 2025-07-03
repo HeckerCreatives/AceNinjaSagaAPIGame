@@ -631,11 +631,6 @@ exports.claimweeklylogin = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "Weekly login data not found." });
         }
 
-        if (userweeklylogin.lastClaimed.getDay() === new Date().getDay()) {
-            await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "You already claimed your weekly login today." });
-        }
-
         if (userweeklylogin.currentDay === "day7") {
             userweeklylogin.currentDay = "day1";
         } else {
@@ -801,8 +796,7 @@ exports.getmonthlylogin = async (req, res) => {
 
     // Prepare calendar data
     const calendar = cmlogin.days.reduce((acc, dayObj) => {
-        const today = new Date();
-        const dayOfMonth = today.getDate();
+        const dayOfMonth = cmlogin.currentDay
 
         acc[dayObj.day] = {
             day: dayObj.day,
@@ -924,7 +918,7 @@ exports.checkinmonthlylogin = async (req, res) => {
 
         // Get today's day number (1-28)
         const today = new Date();
-        const dayOfMonth = today.getDate();
+        const dayOfMonth = cmlogin.currentDay || today.getDate();
         const todayObj = cmlogin.days.find(d => d.day === dayOfMonth);
 
         if (!todayObj) {
@@ -932,11 +926,11 @@ exports.checkinmonthlylogin = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "Invalid day for monthly login." });
         }
 
-        // Check if already checked in today
-        if (todayObj.loggedIn) {
-            await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "You already checked in today." });
-        }
+        // // Check if already checked in today
+        // if (todayObj.loggedIn) {
+        //     await session.abortTransaction();
+        //     return res.status(400).json({ message: "failed", data: "You already checked in today." });
+        // }
 
         // Mark missed days (if user skipped days)
         for (let i = 0; i < cmlogin.days.length; i++) {
@@ -950,6 +944,12 @@ exports.checkinmonthlylogin = async (req, res) => {
         todayObj.loggedIn = true;
         cmlogin.lastLogin = today;
         cmlogin.totalLoggedIn = cmlogin.days.filter(d => d.loggedIn).length;
+
+        if (!cmlogin.currentDay || cmlogin.currentDay === 0) {
+            cmlogin.currentDay = dayOfMonth + 1; // Start from next day
+        } else {
+            cmlogin.currentDay = cmlogin.currentDay >= 28 ? 1 : cmlogin.currentDay + 1;
+        }
 
         // Add reset for monthly login checkin
         const addresetexist = await addreset(
@@ -1102,24 +1102,24 @@ exports.claimmonthlylogin = async (req, res) => {
             };
         }
         
-            const analyticresponse = await addanalytics(
-                characterid.toString(),
-                cmlogin._id.toString(),
-                "claim", 
-                "rewards",
-                'Monthly Login Rewards Claimed',
-                `Claimed rewards: ${Object.entries(claimed).map(([day, reward]) => 
-                    `Day ${day}: ${reward.amount} ${reward.type}`
-                ).join(', ')}`,
-                0
-            );
-        
-                if (analyticresponse === "failed") {
-                    return res.status(500).json({
-                        message: "failed",
-                        data: "Failed to log analytics for monthly login claim"
-                    });
-                }
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            cmlogin._id.toString(),
+            "claim", 
+            "rewards",
+            'Monthly Login Rewards Claimed',
+            `Claimed rewards: ${Object.entries(claimed).map(([day, reward]) => 
+                `Day ${day}: ${reward.amount} ${reward.type}`
+            ).join(', ')}`,
+            0
+        );
+    
+        if (analyticresponse === "failed") {
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for monthly login claim"
+            });
+        }
         
 
         await cmlogin.save({ session });

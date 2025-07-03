@@ -15,6 +15,10 @@ const CharacterMonthlyLoginSchema = new mongoose.Schema({
             claimed: { type: Boolean, default: false } // if reward was claimed (for reward days)
         }
     ],
+    currentDay: {
+        type: Number,
+        default: 1 // Start from day 1
+    },
     totalLoggedIn: {
         type: Number,
         default: 0

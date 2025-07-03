@@ -670,6 +670,14 @@ exports.claimfreebie = async (req, res) => {
             "claim",
         )
 
+        if (addclaimreset === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to add reset for claiming freebie"
+            });
+        }
+
         // Calculate time left until next claim (next claim is at 12am midnight UTC+8)
         const now = new Date();
         const phTime = new Date(
