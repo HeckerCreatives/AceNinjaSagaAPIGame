@@ -878,7 +878,7 @@ exports.getmonthlylogin = async (req, res) => {
             calendar,
             rewarddays,
             totalloggedin: cmlogin.totalLoggedIn,
-            today: dayOfMonth,
+            today: cmlogin.currentDay || dayOfMonth,
             canCheckin,
             canClaim,
             resetin: {
