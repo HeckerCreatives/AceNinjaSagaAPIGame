@@ -534,13 +534,19 @@ exports.getweeklylogin = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "User weekly login data not found." })
     }
 
-    const daytoday = new Date().getDay()
+
     const lastclaimed = await existsreset(
         characterid.toString(),
         "weeklylogin",
         "claim"
     );
 
+    let claimed 
+    if (lastclaimed) {
+        claimed = true
+    } else {
+        claimed = false
+    }
       // Get current time in UTC+8 (Philippines time)
     const now = new Date();
     const phTime = new Date(now.getTime() 
@@ -843,6 +849,14 @@ exports.getmonthlylogin = async (req, res) => {
         return isMilestoneDay && cmlogin.totalLoggedIn >= day && dayEntry && !dayEntry.claimed;
     });
 
+    const existingcheckin = await existsreset(
+        characterid.toString(),
+        "monthlylogin",
+        "checkin"
+    );
+
+    const canCheckin = !existingcheckin
+
           // Get current time in UTC+8 (Philippines time)
     const now = new Date();
     const phTime = new Date(now.getTime() 
@@ -865,6 +879,7 @@ exports.getmonthlylogin = async (req, res) => {
             rewarddays,
             totalloggedin: cmlogin.totalLoggedIn,
             today: dayOfMonth,
+            canCheckin,
             canClaim,
             resetin: {
                 hours: hoursRemaining,
