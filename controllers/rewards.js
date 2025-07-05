@@ -931,6 +931,14 @@ exports.checkinmonthlylogin = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "User monthly login data not found." });
         }
 
+        if (cmlogin.currentDay && cmlogin.currentDay >= 29) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "Monthly login cycle completed. Please wait for the next cycle to start."
+            });
+        }
+
         // Get today's day number (1-28)
         const today = new Date();
         const dayOfMonth = cmlogin.currentDay || today.getDate();
@@ -940,12 +948,6 @@ exports.checkinmonthlylogin = async (req, res) => {
             await session.abortTransaction();
             return res.status(400).json({ message: "failed", data: "Invalid day for monthly login." });
         }
-
-        // // Check if already checked in today
-        // if (todayObj.loggedIn) {
-        //     await session.abortTransaction();
-        //     return res.status(400).json({ message: "failed", data: "You already checked in today." });
-        // }
 
         // Mark missed days (if user skipped days)
         for (let i = 0; i < cmlogin.days.length; i++) {
@@ -963,8 +965,10 @@ exports.checkinmonthlylogin = async (req, res) => {
         if (!cmlogin.currentDay || cmlogin.currentDay === 0) {
             cmlogin.currentDay = dayOfMonth + 1; // Start from next day
         } else {
-            cmlogin.currentDay = cmlogin.currentDay >= 28 ? 1 : cmlogin.currentDay + 1;
+            cmlogin.currentDay = cmlogin.currentDay + 1; // Increment to next day
         }
+
+
 
         // Add reset for monthly login checkin
         const addresetexist = await addreset(

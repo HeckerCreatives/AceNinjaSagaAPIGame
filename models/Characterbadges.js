@@ -1,15 +1,15 @@
 const mongoose = require("mongoose");
 
-const CharacterTitleSchema = new mongoose.Schema(
+const CharacterBadgesSchema = new mongoose.Schema(
     {
         owner: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Characterdata",
             index: true
         },
-        title: {
+        badge: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Title",
+            ref: "Badge",
         },
         index: {
             type: Number,
@@ -27,5 +27,5 @@ const CharacterTitleSchema = new mongoose.Schema(
     }
 )
 
-const Charactertitle = mongoose.model("Charactertitle", CharacterTitleSchema)
-module.exports = Charactertitle
+const Characterbadge = mongoose.model("Characterbadge", CharacterBadgesSchema)
+module.exports = Characterbadge

@@ -290,7 +290,7 @@ exports.gethairname = (hairid, gender) => {
         return "failed";
     }
 
-    const hairDataz = hairData.find(h => h.code === hairid && h.gender === Number(gender));    console.log(hairDataz)
+    const hairDataz = hairData.find(h => h.code === hairid && h.gender === Number(gender));
 
     if (!hairDataz) {
         return "";

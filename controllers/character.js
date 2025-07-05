@@ -119,11 +119,8 @@ exports.createcharacter = async (req, res) => {
             critdamage: 0,
         }], { session });
 
-        // Create character titles
-        await Charactertitle.create([{ 
-            owner: characterId, 
-            items: [{ itemid: "" }]
-        }], { session });
+        // Character titles will be added when earned through battlepass or other rewards
+        // No default titles are created during character creation
 
         const getranktier = await RankTier.findOne({ name: "Rookie" })
         const currentseason = await Season.findOne({ isActive: "active" })
@@ -704,8 +701,9 @@ exports.getcharactertitles = async (req, res) => {
         data: charactertitles.reduce((acc, title, index) => {
             acc[index + 1] = {
                 id: title._id,
-                type: title.type,
-                items: title.items
+                titleRef: title.title,
+                name: title.name,
+                index: title.index
             }
             return acc
         }, {})
