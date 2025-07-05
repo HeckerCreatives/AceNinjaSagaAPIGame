@@ -9,6 +9,8 @@ const { CharacterInventory, Item } = require("../models/Market");
 const { checkmaintenance } = require("../utils/maintenance");
 const { addanalytics } = require("../utils/analyticstools");
 const { determineRewardType, awardBattlepassReward } = require("../utils/battlepassrewards");
+const Badge = require("../models/Badge");
+const Title = require("../models/Title");
 
 
 exports.getbattlepass = async (req, res) => {
@@ -166,11 +168,52 @@ exports.getbattlepass = async (req, res) => {
     // Get character gender for reward filtering
     const characterGender = await getCharacterGenderString(characterid);
     
-    console.log(characterGender)
-    const filterRewardByGender = (reward) => {
+    const filterRewardByGender = async (reward) => {
         if (!reward || !characterGender) return reward;
         
-        // Only filter outfit/skin type rewards
+        // Handle badge rewards - lookup index from Badge model
+        if (reward.type === 'badge') {
+            try {
+                const badge = await Badge.findById(reward.id);
+                if (badge) {
+                    return {
+                        type: reward.type,
+                        amount: reward.amount || 1,
+                        id: badge.index // Use badge index instead of ObjectId
+                    };
+                }
+            } catch (error) {
+                console.error('Error looking up badge:', error);
+            }
+            return {
+                type: reward.type,
+                amount: reward.amount || 1,
+                id: reward.id // Fallback to original id
+            };
+        }
+        
+        // Handle title rewards - lookup index from Title model
+        if (reward.type === 'title') {
+            try {
+                const title = await Title.findById(reward.id);
+                if (title) {
+                    return {
+                        type: reward.type,
+                        amount: reward.amount || 1,
+                        id: title.index // Use title index instead of ObjectId
+                    };
+                }
+            } catch (error) {
+                console.error('Error looking up title:', error);
+            }
+            return {
+                type: reward.type,
+                amount: reward.amount || 1,
+                id: reward.id // Fallback to original id
+            };
+        }
+        
+        // Only filter outfit/skin type rewards for gender
         if (!['outfit', 'skin'].includes(reward.type)) {
             return reward;
         }
@@ -208,16 +251,16 @@ exports.getbattlepass = async (req, res) => {
             timeleft: remainingSeconds,
             status: currentSeason.status,
             premiumCost: currentSeason.premiumCost,
-            tiers: currentSeason.tiers.reduce((acc, tier, index) => {
+            tiers: await Promise.all(currentSeason.tiers.map(async (tier, index) => {
                 const tierNumber = index + 1;
                 const freeClaimed = battlepassData.claimedRewards.some(r => r.tier === tierNumber && r.rewardType === "free");
                 const premiumClaimed = battlepassData.claimedRewards.some(r => r.tier === tierNumber && r.rewardType === "premium");
                 
-                // Apply gender filtering to rewards
-                const filteredFreeReward = filterRewardByGender(tier.freeReward);
-                const filteredPremiumReward = filterRewardByGender(tier.premiumReward);
+                // Apply gender filtering to rewards (now async)
+                const filteredFreeReward = await filterRewardByGender(tier.freeReward);
+                const filteredPremiumReward = await filterRewardByGender(tier.premiumReward);
                 
-                acc[tierNumber] = {
+                return [tierNumber, {
                     tierNumber: tier.tierNumber,
                     freeReward: {
                         ...filteredFreeReward,
@@ -228,9 +271,11 @@ exports.getbattlepass = async (req, res) => {
                         hasclaimed: premiumClaimed
                     },
                     xpRequired: tier.xpRequired,
-                };
+                }];
+            })).then(tiersArray => tiersArray.reduce((acc, [tierNumber, tierData]) => {
+                acc[tierNumber] = tierData;
                 return acc;
-            }, {}),
+            }, {})),
             grandreward: {
                 gender: currentSeason.grandreward.length > 0 ? currentSeason.grandreward[0].gender == "unixsex" ? "unisex" : "player" : "none",
                 items: currentSeason.grandreward
