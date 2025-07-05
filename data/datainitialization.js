@@ -273,6 +273,42 @@ const chapterlistdata = [
                         completed: false,
                         chapter: 1403
                     },
+                    {
+                        
+                        name: "chapter15challenge1",
+                        completed: false,
+                        chapter: 1501
+                    },
+                    {
+                        
+                        name: "chapter15challenge2",
+                        completed: false,
+                        chapter: 1502
+                    },
+                    {
+                        
+                        name: "chapter15challenge3",
+                        completed: false,
+                        chapter: 1503
+                    },
+                    {
+                        
+                        name: "chapter16challenge1",
+                        completed: false,
+                        chapter: 1601
+                    },
+                    {
+                        
+                        name: "chapter16challenge2",
+                        completed: false,
+                        chapter: 1602
+                    },
+                    {
+                        
+                        name: "chapter16challenge3",
+                        completed: false,
+                        chapter: 1603
+                    },
                 ]
 exports.chapterlistdata = chapterlistdata;
 
