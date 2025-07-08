@@ -344,6 +344,7 @@ exports.getbattlepass = async (req, res) => {
 }
 
 
+
 exports.claimbattlepassreward = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -391,6 +392,85 @@ exports.claimbattlepassreward = async (req, res) => {
             throw new Error("Character not found.");
         }
 
+        // Get character gender for response filtering
+        const characterGender = await getCharacterGenderString(characterid);
+        
+        // Same filtering function as in getbattlepass
+        const filterRewardByGender = async (reward) => {
+            if (!reward || !characterGender) return reward;
+            
+            // Handle badge rewards - lookup index from Badge model
+            if (reward.type === 'badge') {
+                try {
+                    const badge = await Badge.findById(reward.id);
+                    if (badge) {
+                        return {
+                            type: reward.type,
+                            amount: reward.amount || 1,
+                            id: badge.index // Use badge index instead of ObjectId
+                        };
+                    }
+                } catch (error) {
+                    console.error('Error looking up badge:', error);
+                }
+                return {
+                    type: reward.type,
+                    amount: reward.amount || 1,
+                    id: reward.id // Fallback to original id
+                };
+            }
+            
+            // Handle title rewards - lookup index from Title model
+            if (reward.type === 'title') {
+                try {
+                    const title = await Title.findById(reward.id);
+                    if (title) {
+                        return {
+                            type: reward.type,
+                            amount: reward.amount || 1,
+                            id: title.index // Use title index instead of ObjectId
+                        };
+                    }
+                } catch (error) {
+                    console.error('Error looking up title:', error);
+                }
+                return {
+                    type: reward.type,
+                    amount: reward.amount || 1,
+                    id: reward.id // Fallback to original id
+                };
+            }
+            
+            // Only filter outfit/skin type rewards for gender
+            if (!['outfit', 'skin'].includes(reward.type)) {
+                return reward;
+            }
+            
+            // If reward has both id and fid (male/female variants)
+            if (reward.id && reward.fid) {
+                return {
+                    type: reward.type,
+                    amount: reward.amount || 1,
+                    id: characterGender === 'male' ? reward.id : reward.fid
+                };
+            }
+            
+            // If reward has gender-specific variants
+            if (reward.variants && Array.isArray(reward.variants)) {
+                const appropriateVariant = reward.variants.find(v => v.gender === characterGender);
+                if (appropriateVariant) {
+                    return {
+                        type: reward.type,
+                        amount: reward.amount || 1,
+                        id: appropriateVariant.itemId
+                    };
+                }
+            }
+            
+            // Return original reward if no gender filtering needed
+            return reward;
+        };
+
         const claimedRewards = battlepassData.claimedRewards || [];
         const hasPremium = battlepassData.hasPremium;
         const maxTier = battlepassData.currentTier;
@@ -434,6 +514,9 @@ exports.claimbattlepassreward = async (req, res) => {
                     continue;
                 }
 
+                // Filter the reward for response (same as getbattlepass)
+                const filteredReward = await filterRewardByGender(reward);
+
                 // Create history entry
                 historyEntries.push({
                     insertOne: {
@@ -460,7 +543,7 @@ exports.claimbattlepassreward = async (req, res) => {
                 claimed[t] = claimed[t] || {};
                 claimed[t][rewardObj.rewardType] = {
                     rewardType: rewardObj.rewardType,
-                    reward: rewardObj.reward
+                    reward: filteredReward // Use filtered reward instead of raw reward
                 };
 
                 rewardResults.push({
@@ -552,7 +635,6 @@ exports.claimbattlepassreward = async (req, res) => {
         session.endSession();
     }
 };
-
 
 exports.buypremiumbattlepass = async (req, res) => {
     const session = await mongoose.startSession();
