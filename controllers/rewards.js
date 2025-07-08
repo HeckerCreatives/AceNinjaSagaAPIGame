@@ -637,14 +637,6 @@ exports.claimweeklylogin = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "Weekly login data not found." });
         }
 
-        if (userweeklylogin.currentDay === "day7") {
-            userweeklylogin.currentDay = "day1";
-        } else {
-            const currentDayNumber = parseInt(userweeklylogin.currentDay.replace("day", ""));
-            const nextDayNumber = currentDayNumber + 1;
-            userweeklylogin.currentDay = `day${nextDayNumber}`;
-        }
-
         userweeklylogin.lastClaimed = new Date();
         userweeklylogin.daily[userweeklylogin.currentDay] = true;
         await userweeklylogin.save({ session });
@@ -961,13 +953,6 @@ exports.checkinmonthlylogin = async (req, res) => {
         todayObj.loggedIn = true;
         cmlogin.lastLogin = today;
         cmlogin.totalLoggedIn = cmlogin.days.filter(d => d.loggedIn).length;
-
-        if (!cmlogin.currentDay || cmlogin.currentDay === 0) {
-            cmlogin.currentDay = dayOfMonth + 1; // Start from next day
-        } else {
-            cmlogin.currentDay = cmlogin.currentDay + 1; // Increment to next day
-        }
-
 
 
         // Add reset for monthly login checkin

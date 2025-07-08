@@ -1673,23 +1673,14 @@ exports.getnotification = async (req, res) => {
         const dayOfMonth = new Date().getDate();
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const weeklyHasLoggedToday = await existsreset(
-            characterid,
-            "weeklylogin",
-            "claim"
-        ).then(reset => {
-            if (reset) return false
-            return true
-        })
-        
-        const monthlyHasLoggedToday = await existsreset(
-            characterid,
-            "monthlylogin",
-            "checkin"
-        ).then(reset => {
-            if (reset) return false
-            return true
-        })
+
+        const [expexist, coinsexist, crystalexists, weeklyHasLoggedToday, monthlyHasLoggedToday] = await Promise.all([
+            existsreset(characterid, "freebieexp", "claim").then(reset => !reset),
+            existsreset(characterid, "freebiecoins", "claim").then(reset => !reset),
+            existsreset(characterid, "freebiecrystal", "claim").then(reset => !reset),
+            existsreset(characterid, "weeklylogin", "claim").then(reset => !reset),
+            existsreset(characterid, "monthlylogin", "checkin").then(reset => !reset)
+        ]);
         
         const response = {
             data: {
@@ -1708,6 +1699,9 @@ exports.getnotification = async (req, res) => {
                     dailyexpspin: dailySpin.expspin,
                     weeklylogin: weeklyHasLoggedToday,
                     monthlylogin: monthlyHasLoggedToday,
+                    freebieexp: expexist,
+                    freebiecoins: coinsexist,
+                    freebiecrystal: crystalexists
                 }
             }
         };
