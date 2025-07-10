@@ -217,7 +217,7 @@ exports.createcharacter = async (req, res) => {
             owner: characterId,
             season: currentSeason._id, 
             currentTier: 1,
-            currentXP: 0,
+            currentXP: 1000,
             hasPremium: false,
             claimedRewards: []
         }], { session });
@@ -286,7 +286,8 @@ exports.createcharacter = async (req, res) => {
                     owner: characterId,
                     days: daysArray,
                     totalLoggedIn: 0,
-                    lastLogin: new Date(Date.now() - 24 * 60 * 60 * 1000) 
+                    lastLogin: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                    currentDay: new Date().getDate()
                 }], { session });
         await CharacterWeeklyLogin.create([{
             owner: characterId,

@@ -36,6 +36,7 @@ exports.getcharacterbadges = async (req, res) => {
             });
         })
 
+
     if (!characterbadges || characterbadges.length === 0) {
         return res.status(404).json({
             message: "Not Found", 

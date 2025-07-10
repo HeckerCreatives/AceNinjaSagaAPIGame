@@ -880,7 +880,7 @@ exports.claimbattlepassquest = async (req, res) => {
     quest.isCompleted = true;
     quest.lastUpdated = new Date();
     // add exp reward to battlepass progress
-    const battlepassProgress = await BattlepassProgress.findOne({ owner: characterid, season: quest.season })
+    let battlepassProgress = await BattlepassProgress.findOne({ owner: characterid, season: quest.season })
         .then(data => data)
         .catch(err => {
             console.error(`Error fetching battle pass progress: ${err}`);
@@ -888,7 +888,7 @@ exports.claimbattlepassquest = async (req, res) => {
         });
     if (!battlepassProgress) {
         // create battlepass progress if not exists
-        await BattlepassProgress.create({
+        battlepassProgress = await BattlepassProgress.create({
             owner: characterid,
             season: quest.season,
             currentTier: 1,
@@ -898,18 +898,22 @@ exports.claimbattlepassquest = async (req, res) => {
         });
     }
 
-    const bptierlevelup = 1000; // example value, adjust as needed
-
     battlepassProgress.currentXP += mission.xpReward; // Add the mission reward to the battle pass progress
-    // Check if the battle pass progress level up
-    if (battlepassProgress.currentXP >= bptierlevelup) {
-        let remainingXP = battlepassProgress.currentXP - bptierlevelup;
-        battlepassProgress.currentXP = remainingXP; // Set the remaining XP for the next tier
-        battlepassProgress.currentTier += 1; // Level up the battle pass tier
+    
+    let currentTierIndex = battlepassProgress.currentTier - 1; // Convert to 0-based index
+    
+    // Make sure we don't exceed the maximum tier
+    while (currentTierIndex < battlepassseason.tiers.length - 1) { // -1 because we check the next tier
+        const nextTierData = battlepassseason.tiers[currentTierIndex + 1];
+        const xpRequiredForNextTier = nextTierData ? nextTierData.xpRequired : null;
         
-        if (battlepassProgress.currentXP < 0) {
-            battlepassProgress.currentXP = 0; // Ensure XP doesn't go negative
+        if (!xpRequiredForNextTier || battlepassProgress.currentXP < xpRequiredForNextTier) {
+            break; // Not enough XP to level up to next tier
         }
+        
+        // Level up to next tier
+        battlepassProgress.currentTier += 1;
+        currentTierIndex = battlepassProgress.currentTier - 1; // Update index for next iteration
     }
 
 
