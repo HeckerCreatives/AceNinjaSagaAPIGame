@@ -934,7 +934,6 @@ exports.claimbattlepassquest = async (req, res) => {
       if (mission.rewardtype === "exp") {
                 const character = await Characterdata.findOne({ _id: characterid })
                 if (!character) {
-                    await session.abortTransaction();
                     return res.status(404).json({
                         message: "failed",
                         data: "Character not found"
@@ -972,13 +971,12 @@ exports.claimbattlepassquest = async (req, res) => {
                                 magicdamage: 1 * levelsGained,
                                 critdamage: 1 * levelsGained
                             }
-                        },
-                        { session }
+                        }
                     );
     
                     await CharacterSkillTree.updateOne(
                         { owner: characterid },
-                        { $inc: { skillPoints: 4 * levelsGained } },
+                        { $inc: { skillPoints: 4 * levelsGained } }
                     );
                 }
     
