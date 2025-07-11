@@ -49,7 +49,6 @@ exports.createcharacter = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "Item not found."})
         }
 
-        console.log(hairname)
 
         const hairitem = await Item.findOne({ name: hairname })
 

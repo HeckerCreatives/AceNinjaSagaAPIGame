@@ -39,9 +39,9 @@ exports.getcharacterbadges = async (req, res) => {
 
     if (!characterbadges || characterbadges.length === 0) {
         return res.status(404).json({
-            message: "Not Found", 
-            data: "No badges found for this character."
-        });
+            message: "success",
+            data: {}  
+        })
     }
 
     const formattedResponse = characterbadges.reduce((acc, badge) => {
@@ -54,7 +54,7 @@ exports.getcharacterbadges = async (req, res) => {
     }, {});
 
     return res.status(200).json({
-        message: "Success", 
+        message: "success", 
         data: formattedResponse
     });
     

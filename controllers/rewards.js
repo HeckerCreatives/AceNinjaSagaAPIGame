@@ -386,17 +386,36 @@ exports.spinexpdaily = async (req, res) => {
             });
         }
 
-        let currentLevel = character.level;
-        let currentXP = character.experience + selectedSpin.amount;
-        let levelsGained = 0;
-        let xpNeeded = 80 * currentLevel;
+        // let currentLevel = character.level;
+        // let currentXP = character.experience + selectedSpin.amount;
+        // let levelsGained = 0;
+        // let xpNeeded = 80 * currentLevel;
 
-        while (currentXP >= xpNeeded && xpNeeded > 0){
-            const overflowXP = currentXP - xpNeeded;
-            currentLevel++;
+        // while (currentXP >= xpNeeded && xpNeeded > 0){
+        //     const overflowXP = currentXP - xpNeeded;
+        //     currentLevel++;
+        //     levelsGained++;
+        //     currentXP = overflowXP;
+        //     xpNeeded = 80 * currentLevel;
+        // }
+
+        // NEW: Calculate percentage-based XP reward
+        const currentLevel = character.level;
+        const xpPerLevel = 80 * currentLevel; // XP needed for current level
+        const percentageReward = selectedSpin.amount; // This is now the percentage (e.g., 50 for 50%)
+        const actualXpReward = Math.floor((xpPerLevel * percentageReward) / 100);
+
+        let newLevel = currentLevel;
+        let newXP = character.experience + actualXpReward;
+        let levelsGained = 0;
+        let xpNeeded = 80 * newLevel;
+
+        while (newXP >= xpNeeded && xpNeeded > 0){
+            const overflowXP = newXP - xpNeeded;
+            newLevel++;
             levelsGained++;
-            currentXP = overflowXP;
-            xpNeeded = 80 * currentLevel;
+            newXP = overflowXP;
+            xpNeeded = 80 * newLevel;
         }
 
         if (levelsGained > 0) {
@@ -430,32 +449,36 @@ exports.spinexpdaily = async (req, res) => {
             );
         }
 
-        character.level = currentLevel;
-        character.experience = currentXP;
+        // character.level = currentLevel;
+        // character.experience = currentXP;
+        character.level = newLevel;
+        character.experience = newXP;
         await character.save({ session });
 
         // Update user spin status
         userdailyspin.expspin = false;
         await userdailyspin.save({ session });
 
-        await session.commitTransaction();
+        // Add analytics before committing transaction
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            userdailyspin._id.toString(),
+            "spin", 
+            "rewards",
+            'Daily Experience Spin',
+            `Claimed reward: ${percentageReward}% XP (${actualXpReward} XP)`,
+            actualXpReward
+        );
+    
+        if (analyticresponse === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for daily exp spin"
+            });
+        }
 
-                const analyticresponse = await addanalytics(
-                characterid.toString(),
-                userdailyspin._id.toString(),
-                "spin", 
-                "rewards",
-                'Daily Experience Spin',
-                `Claimed reward: ${selectedSpin.amount} ${selectedSpin.type}`,
-                selectedSpin.amount
-            );
-        
-                if (analyticresponse === "failed") {
-                    return res.status(500).json({
-                        message: "failed",
-                        data: "Failed to log analytics for daily exp spin"
-                    });
-                }
+        await session.commitTransaction();
 
         return res.status(200).json({
             message: "success",
@@ -463,15 +486,14 @@ exports.spinexpdaily = async (req, res) => {
                 id: selectedSpin._id,
                 slot: selectedSpin.slot,
                 type: selectedSpin.type,
-                amount: selectedSpin.amount,
-                chance: selectedSpin.chance,
-                levelsGained,
-                newLevel: currentLevel,
-                newXP: currentXP
+                amount: actualXpReward,    // Show the calculated XP amount instead of percentage
+                chance: selectedSpin.chance
             }
         });
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         return res.status(500).json({ message: "failed", data: "Internal server error" });
     } finally {
         session.endSession();

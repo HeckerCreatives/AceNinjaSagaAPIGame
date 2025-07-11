@@ -37,10 +37,10 @@ exports.getcharactertitles = async (req, res) => {
         })
 
     if (!charactertitle || charactertitle.length === 0) {
-        return res.status(404).json({
-            message: "Not Found", 
-            data: "No titles found for this character."
-        });
+        return res.status(200).json({
+            message: "success",
+            data: {}
+        })
     }
 
     const formattedResponse = charactertitle.reduce((acc, title) => {
