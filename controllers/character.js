@@ -217,7 +217,7 @@ exports.createcharacter = async (req, res) => {
             owner: characterId,
             season: currentSeason._id, 
             currentTier: 1,
-            currentXP: 1000,
+            currentXP: 0,
             hasPremium: false,
             claimedRewards: []
         }], { session });
