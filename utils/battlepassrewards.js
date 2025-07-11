@@ -264,21 +264,21 @@ exports.determineRewardType = (reward, userGender = null) => {
         };
     }
 
-    // Handle skill separately (not an item)
-    if (reward.type === 'skill') {
-        return {
-            type: 'skill',
-            id: reward.id, // Use the skill ID
-            amount: reward.amount || 1
-        };
-    }
-
-    // Check if it's an item reward (badge, title, weapon, skin) - excluding skill
-    if (['badge', 'title', 'weapon', 'skin'].includes(reward.type)) {
-        let itemId = reward.id; // Default to male/main ID
-
-        // Handle gendered items (skin, weapon) using id/fid structure
-        if (genderStr && ['skin', 'weapon'].includes(reward.type)) {
+    // Handle items (skin, weapon, etc.)
+    if (['skin', 'skins', 'weapon', 'weapons', 'outfit', 'outfits'].includes(reward.type)) {
+        let itemId = reward.id || reward._id;
+        
+        // Handle gendered items
+        if (genderStr && ['skin', 'skins', 'weapon', 'weapons', 'outfit', 'outfits'].includes(reward.type)) {
+            // If item has gender property, check if it matches character gender
+            if (reward.gender) {
+                if (reward.gender !== genderStr) {
+                    // This item is for wrong gender, skip it
+                    return { type: 'invalid' };
+                }
+            }
+            
+            // Handle id/fid structure for gender variants
             if (genderStr === 'female' && reward.fid) {
                 itemId = reward.fid; // Use female ID
             } else if (genderStr === 'male' && reward.id) {
@@ -286,10 +286,15 @@ exports.determineRewardType = (reward, userGender = null) => {
             }
         }
 
+        // Normalize type to singular form for consistent processing
+        let normalizedType = reward.type;
+        if (reward.type === 'skins') normalizedType = 'skin';
+        if (reward.type === 'weapons') normalizedType = 'weapon';
+        if (reward.type === 'outfits') normalizedType = 'outfit';
+
         // Check if skin has corresponding hair bundle
         let hasHairBundle = false;
-        if (reward.type === 'skin') {
-            const { gethairbundle } = require('./bundle');
+        if (['skin', 'outfit'].includes(normalizedType)) {
             const correspondingHairId = gethairbundle(itemId);
             hasHairBundle = !!(correspondingHairId && correspondingHairId !== "failed" && correspondingHairId !== "");
         }
@@ -297,24 +302,34 @@ exports.determineRewardType = (reward, userGender = null) => {
         return {
             type: 'item',
             id: itemId,
-            itemType: reward.type, // Keep track of what kind of item it is
+            itemType: normalizedType, // Use normalized singular form
             amount: reward.amount || 1,
-            hasHairBundle: hasHairBundle // Indicates if skin comes with matching hair
+            hasHairBundle: hasHairBundle
         };
     }
 
-    // Handle bundle (multiple items)
-    if (reward.type === 'bundle' && reward.items) {
+    // Handle badge rewards
+    if (reward.type === 'badge') {
         return {
-            type: 'bundle',
-            items: reward.items.map(item => exports.determineRewardType(item, userGender))
+            type: 'badge',
+            id: reward.id || reward._id,
+            amount: reward.amount || 1
         };
     }
 
-    // Unknown or invalid reward
+    // Handle title rewards
+    if (reward.type === 'title') {
+        return {
+            type: 'title',
+            id: reward.id || reward._id,
+            amount: reward.amount || 1
+        };
+    }
+
+    // If we reach here, it's an unknown reward type
+    console.warn('Unknown reward type:', reward.type);
     return { type: 'unknown' };
 };
-
 /**
  * Helper function to get gendered item ID
  * @param {Object} reward - The reward object
@@ -481,10 +496,12 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                                 },
                                 { upsert: true, session }
                             );
+                            console.log(`Awarded skin bundle (outfit + hair) for character ${characterid}`);
                             return { success: true, message: `Awarded skin bundle (outfit + hair)` };
+                        } else {
+                            // No corresponding hair found, just return skin success
+                            return { success: true, message: `Awarded skin (no matching hair found)` };
                         }
-
-                        return { success: true, message: `Awarded skin` };
 
                     default:
                         return { success: false, message: `Unknown item type: ${processedReward.itemType}` };

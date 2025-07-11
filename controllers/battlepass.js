@@ -711,26 +711,45 @@ exports.buypremiumbattlepass = async (req, res) => {
             throw new Error("Grand reward items not found.");
         }
 
-        // Process each grand reward item
+        const awardedItems = [];
+        const characterGender = await getCharacterGenderString(characterid);
+
         for (const searchgrandrewarditem of searchgrandrewarditems) {
             if (searchgrandrewarditem.type === "crystalpacks") {
-            await Characterwallet.findOneAndUpdate(
-                { owner: characterid, type: 'crystal' },
-                { $inc: { amount: searchgrandrewarditem.crystals } },
-                { new: true, session }
-            );
+                await Characterwallet.findOneAndUpdate(
+                    { owner: characterid, type: 'crystal' },
+                    { $inc: { amount: searchgrandrewarditem.crystals } },
+                    { new: true, session }
+                );
+                awardedItems.push(searchgrandrewarditem);
             } else if (searchgrandrewarditem.type === "goldpacks") {
-            await Characterwallet.findOneAndUpdate(
-                { owner: characterid, type: 'coins' },
-                { $inc: { amount: searchgrandrewarditem.coins } },
-                { new: true, session }
-            );
+                await Characterwallet.findOneAndUpdate(
+                    { owner: characterid, type: 'coins' },
+                    { $inc: { amount: searchgrandrewarditem.coins } },
+                    { new: true, session }
+                );
+                awardedItems.push(searchgrandrewarditem);
             } else {
-            await CharacterInventory.findOneAndUpdate(
-                { owner: characterid, type: searchgrandrewarditem.inventorytype },
-                { $push: { items: { item: searchgrandrewarditem._id } } },
-                { upsert: true, new: true, session }
-            );
+                const itemMatchesGender = !searchgrandrewarditem.gender || searchgrandrewarditem.gender === characterGender || searchgrandrewarditem.gender === 'unisex' || searchgrandrewarditem.gender === 'unixsex';
+                if (itemMatchesGender) {
+                    const processedReward = determineRewardType(searchgrandrewarditem, characterGender);
+                    
+                    if (processedReward.type !== 'invalid' && processedReward.type !== 'unknown') {
+                        const awardResult = await awardBattlepassReward(characterid, processedReward, session);
+                        
+                        if (!awardResult.success) {
+                            console.error(`Failed to award grand reward:`, awardResult.message);
+                            throw new Error(`Failed to award grand reward: ${awardResult.message}`);
+                        }
+                        
+                        awardedItems.push(searchgrandrewarditem);
+                        console.log(`Successfully awarded grand reward: ${awardResult.message}`);
+                    } else {
+                        console.warn(`Invalid reward type for grand reward:`, searchgrandrewarditem);
+                    }
+                } else {
+                    console.log(`Skipped grand reward item due to gender mismatch: ${searchgrandrewarditem.name} (${searchgrandrewarditem.gender}) for ${characterGender} character`);
+                }
             }
         }
 
@@ -762,13 +781,14 @@ exports.buypremiumbattlepass = async (req, res) => {
             message: "success",
             data: {
             crystalcost: currentSeason.premiumCost,
-            grandreward: searchgrandrewarditems.reduce((acc, item) => {
+            grandreward: awardedItems.reduce((acc, item) => {
                 acc[item._id] = {
                     name: item.name,
                     type: item.type,
                     rarity: item.rarity,
                     description: item.description,
-                    amount: item.amount || 1 // Default to 1 if amount is not specified
+                    amount: item.amount || 1,
+                    gender: item.gender || 'unisex' // Show gender for clarity
                 };
                 return acc;
             }, {})

@@ -8,7 +8,7 @@ const { CharacterInventory, Item } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
 const { BattlepassProgress, BattlepassSeason, BattlepassMissionProgress } = require("../models/Battlepass")
-const { checkcharacter } = require("../utils/character")
+const { checkcharacter, getCharacterGender } = require("../utils/character")
 
 const RankTier = require("../models/RankTier")
 const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
@@ -540,6 +540,7 @@ exports.getplayerdata = async (req, res) => {
                 id: 1,
                 username: 1,
                 title: 1,
+                gender: 1,
                 level: 1,
                 experience: 1,
                 badge: 1,
@@ -559,6 +560,13 @@ exports.getplayerdata = async (req, res) => {
         characterData[0].pvpwins = totalWins || 0
         // characterData[0].clanwarwins = totalClanWarWins || 0
         characterData[0].clanwarwins = 0
+    }
+
+    // get gender name
+    if (characterData[0].gender !== null) {
+       const result = await getCharacterGender(characterid)
+       
+       characterData[0].gender = result.genderString
     }
 
     return res.status(200).json({ message: "success", data: characterData[0]})

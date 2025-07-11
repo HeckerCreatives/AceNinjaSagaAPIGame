@@ -178,7 +178,7 @@ const itembundledata = [
     },
     {
         itemid: "6828695886cc0f2042749503",
-        hairid: "6828695886cc0f2042749553"
+        hairid: "6828695886cc0f2042749952"
     },
     // end female fashion bundle 1-7
     // female drip bundle 1-6
