@@ -6,6 +6,7 @@ const CharacterStats = require("../models/Characterstats");
 const Analytics = require("../models/Analytics");
 const { addanalytics } = require("../utils/analyticstools");
 const { checkmaintenance } = require("../utils/maintenance");
+const { checkcharacter } = require("../utils/character");
 
 exports.getSkills = async (req, res) => {
     const { type, search, category, path, page, limit } = req.query;
@@ -836,16 +837,22 @@ exports.resetbasicskills = async (req, res) => {
 
     const {characterid} = req.body
 
-    const tempchardata = await Characterdata.findOne({owner: new mongoose.Types.ObjectId(id), _id: new mongoose.Types.ObjectId(characterid)})
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem with getting the user data. Error: ${err}`)
+    const tempchardata = await checkcharacter(id, characterid)
 
-        return res.status(400).json({message: "bad-request", data: "There's a problem with the server. Please try again later"})
-    })
+    if (tempchardata === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized", 
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
 
-    if (!tempchardata){
-        return res.status(400).json({message: "failed", data: "Selected Character is not valid!"})
+    const checkcharacterwallet = await Characterwallet.findOne({owner: new mongoose.Types.ObjectId(characterid), type: "crystal"})
+
+    if (!checkcharacterwallet || parseInt(checkcharacterwallet.amount) < 1000) {
+        return res.status(400).json({
+            message: "failed",
+            data: "You don't have enough crystals to reset your basic skills! You need 1000 crystals to reset your basic skills."
+        });
     }
 
     const skillTree = await CharacterSkillTree.findOne({owner: new mongoose.Types.ObjectId(characterid)})
@@ -855,36 +862,133 @@ exports.resetbasicskills = async (req, res) => {
         return res.status(400).json({message: "failed", data: "Selected Character doesn't have valid skill tree!"})
     }
 
-    // Remove skills with category "Basic"
-    skillTree.skills = skillTree.skills.filter(
-        skillEntry => skillEntry?.skill?.category !== 'Basic'
-    );
+    const session = await mongoose.startSession();
 
-    // Also remove from unlockedSkills
-    // First, find all Skill IDs with category Basic
-    const basicSkillIds = (await Skill.find({ category: 'Basic' })).map(skill => skill._id.toString());
+    try {
+        await session.startTransaction();
 
-    skillTree.unlockedSkills = skillTree.unlockedSkills.filter(
-        id => !basicSkillIds.includes(id.toString())
-    );
+        skillTree.skills = skillTree.skills.filter(
+            skillEntry => skillEntry?.skill?.category !== 'Basic'
+        );
 
-    const totalSp = 4 * (tempchardata.level - 1)
+        const basicSkillIds = (await Skill.find({ category: 'Basic' })).map(skill => skill._id.toString());
 
-    skillTree.skillPoints = totalSp;
+        skillTree.unlockedSkills = skillTree.unlockedSkills.filter(
+            id => !basicSkillIds.includes(id.toString())
+        );
 
-    await skillTree.save();
+        const totalSp = 4 * (tempchardata.level - 1)
 
-    await CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
-        health: 10 * tempchardata.level,
-        energy: 5 * tempchardata.level,
-        armor: 2 * tempchardata.level,
-        magicresist: 1 * tempchardata.level,
-        speed: 1 * tempchardata.level,
-        attackdamage: 1 * tempchardata.level,
-        armorpen: 1 * tempchardata.level,
-        magicpen: 1 * tempchardata.level,
-        magicdamage: 1 * tempchardata.level,
-        critdamage: 1 * tempchardata.level
-    })
-    return res.json({message: "success"})
+        skillTree.skillPoints = totalSp;
+
+
+        checkcharacterwallet.amount = parseInt(checkcharacterwallet.amount) - 1000;
+
+        await Promise.all([
+            skillTree.save({ session }),
+            checkcharacterwallet.save({ session }),
+            CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
+                health: 10 * tempchardata.level,
+                energy: 5 * tempchardata.level,
+                armor: 2 * tempchardata.level,
+                magicresist: 1 * tempchardata.level,
+                speed: 1 * tempchardata.level,
+                attackdamage: 1 * tempchardata.level,
+                armorpen: 1 * tempchardata.level,
+                magicpen: 1 * tempchardata.level,
+                magicdamage: 1 * tempchardata.level,
+                critdamage: 1 * tempchardata.level
+            }, { session })
+        ]);
+
+
+        const analyticresponse = await addanalytics(
+            characterid,
+            "",
+            "reset",
+            "skill",
+            "Basic",
+            "Reset basic skills for 1000 crystals",
+            1000
+        );
+
+        if (analyticresponse === "failed") {
+            throw new Error("Failed to log analytics");
+        }
+
+
+        await session.commitTransaction();
+        
+        return res.json({message: "success"});
+
+    } catch (error) {
+        await session.abortTransaction();
+        console.log(`Error in basic skills reset: ${error}`);
+        return res.status(500).json({
+            message: "failed",
+            data: "There's a problem with the server! Please try again later."
+        });
+    } finally {
+        session.endSession();
+    }
 }
+
+exports.getSkillPoints = async (req, res) => {
+    const { characterid } = req.query;
+    const { id } = req.user;
+
+    try {
+
+        const checker = await checkcharacter(id, characterid);
+        if (checker === "failed") {
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to view this character's data."
+            });
+        }
+
+        const skillTree = await CharacterSkillTree.findOne({ owner: characterid });
+
+        if (!skillTree) {
+
+            const character = await Characterdata.findById(characterid);
+            if (!character) {
+                return res.status(404).json({
+                    message: "failed",
+                    data: "Character not found"
+                });
+            }
+
+            const defaultSP = 4 * (character.level - 1); // 4 SP per level above 1
+            
+            return res.status(200).json({
+                message: "success",
+                data: {
+                    skillPoints: defaultSP,
+                    characterLevel: character.level,
+                    maxPossibleSP: defaultSP
+                }
+            });
+        }
+
+
+        const character = await Characterdata.findById(characterid);
+        const maxPossibleSP = character ? 4 * (character.level - 1) : 0;
+
+        return res.status(200).json({
+            message: "success",
+            data: {
+                skillPoints: skillTree.skillPoints || 0,
+                characterLevel: character?.level || 1,
+                maxPossibleSP: maxPossibleSP
+            }
+        });
+
+    } catch (err) {
+        console.log(`Error in skill points retrieval: ${err}`);
+        return res.status(500).json({
+            message: "failed",
+            data: "There's a problem with the server! Please try again later."
+        });
+    }
+};

@@ -918,94 +918,99 @@ exports.claimbattlepassquest = async (req, res) => {
         });
     }
 
-    battlepassProgress.currentXP += mission.xpReward; // Add the mission reward to the battle pass progress
-    
-    let currentTierIndex = battlepassProgress.currentTier - 1; // Convert to 0-based index
-    
-    // Make sure we don't exceed the maximum tier
-    while (currentTierIndex < battlepassseason.tiers.length - 1) { // -1 because we check the next tier
-        const nextTierData = battlepassseason.tiers[currentTierIndex + 1];
-        const xpRequiredForNextTier = nextTierData ? nextTierData.xpRequired : null;
-        
-        if (!xpRequiredForNextTier || battlepassProgress.currentXP < xpRequiredForNextTier) {
-            break; // Not enough XP to level up to next tier
-        }
-        
-        // Level up to next tier
-        battlepassProgress.currentTier += 1;
-        currentTierIndex = battlepassProgress.currentTier - 1; // Update index for next iteration
-    }
 
+    switch (mission.rewardtype) {
+        case "coins":
+            await Characterwallet.updateOne(
+                { owner: characterid, type: "coins" },
+                { $inc: { amount: mission.xpReward } }
+            );
+            break;
 
-      if (mission.rewardtype === "coins") {
-                await Characterwallet.updateOne(
-                    { owner: characterid, type: "coins" },
-                    { $inc: { amount: mission.xpReward } },
-                );
+        case "crystal":
+        case "crystals":
+            await Characterwallet.updateOne(
+                { owner: characterid, type: "crystal" },
+                { $inc: { amount: mission.xpReward } }
+            );
+            break;
+
+        case "exp":
+            const character = await Characterdata.findOne({ _id: characterid });
+            if (!character) {
+                return res.status(404).json({
+                    message: "failed",
+                    data: "Character not found"
+                });
             }
-    
-      if (mission.rewardtype === "crystal" || mission.rewardtype === "crystals") {
-                await Characterwallet.updateOne(
-                    { owner: characterid, type: "crystal" },
-                    { $inc: { amount: mission.xpReward } },
-                );
+
+            character.experience += mission.xpReward;
+
+            let currentLevel = character.level;
+            let currentXP = character.experience;
+            let levelsGained = 0;
+            let xpNeeded = 80 * currentLevel;
+
+            while (currentXP >= xpNeeded && xpNeeded > 0) {
+                const overflowXP = currentXP - xpNeeded;
+                currentLevel++;
+                levelsGained++;
+                currentXP = overflowXP;
+                xpNeeded = 80 * currentLevel;
             }
-    
-      if (mission.rewardtype === "exp") {
-                const character = await Characterdata.findOne({ _id: characterid })
-                if (!character) {
-                    return res.status(404).json({
-                        message: "failed",
-                        data: "Character not found"
-                    });
-                }
-    
-                character.experience += mission.xpReward;
-    
-                let currentLevel = character.level;
-                let currentXP = character.experience;
-                let levelsGained = 0;
-                let xpNeeded = 80 * currentLevel;
-    
-                while (currentXP >= xpNeeded && xpNeeded > 0) {
-                    const overflowXP = currentXP - xpNeeded;
-                    currentLevel++;
-                    levelsGained++;
-                    currentXP = overflowXP;
-                    xpNeeded = 80 * currentLevel;
-                }
-    
-                if (levelsGained > 0) {
-                    await CharacterStats.updateOne(
-                        { owner: characterid },
-                        {
-                            $inc: {
-                                health: 10 * levelsGained,
-                                energy: 5 * levelsGained,
-                                armor: 2 * levelsGained,
-                                magicresist: 1 * levelsGained,
-                                speed: 1 * levelsGained,
-                                attackdamage: 1 * levelsGained,
-                                armorpen: 1 * levelsGained,
-                                magicpen: 1 * levelsGained,
-                                magicdamage: 1 * levelsGained,
-                                critdamage: 1 * levelsGained
-                            }
+
+            if (levelsGained > 0) {
+                await CharacterStats.updateOne(
+                    { owner: characterid },
+                    {
+                        $inc: {
+                            health: 10 * levelsGained,
+                            energy: 5 * levelsGained,
+                            armor: 2 * levelsGained,
+                            magicresist: 1 * levelsGained,
+                            speed: 1 * levelsGained,
+                            attackdamage: 1 * levelsGained,
+                            armorpen: 1 * levelsGained,
+                            magicpen: 1 * levelsGained,
+                            magicdamage: 1 * levelsGained,
+                            critdamage: 1 * levelsGained
                         }
-                    );
-    
-                    await CharacterSkillTree.updateOne(
-                        { owner: characterid },
-                        { $inc: { skillPoints: 4 * levelsGained } }
-                    );
-                }
-    
-                character.level = currentLevel;
-                character.experience = currentXP;
-                await character.save();
+                    }
+                );
+
+                await CharacterSkillTree.updateOne(
+                    { owner: characterid },
+                    { $inc: { skillPoints: 4 * levelsGained } }
+                );
             }
 
+            character.level = currentLevel;
+            character.experience = currentXP;
+            await character.save();
+            break;
 
+        case "battlepassexp":
+            battlepassProgress.currentXP += mission.xpReward;
+            
+            const XP_PER_TIER = 1000;
+            const maxTiers = battlepassseason.tiers.length;
+            
+            const calculatedTier = Math.min(
+                Math.floor(battlepassProgress.currentXP / XP_PER_TIER) + 1,
+                maxTiers
+            );
+            
+            if (calculatedTier > battlepassProgress.currentTier) {
+                const oldTier = battlepassProgress.currentTier;
+                battlepassProgress.currentTier = calculatedTier;
+                console.log(`Battlepass tier up! ${oldTier} → ${calculatedTier} (${battlepassProgress.currentXP} XP)`);
+            }
+            break;
+
+        default:
+            console.warn(`Unknown reward type: ${mission.rewardtype}`);
+            break;
+    }
 
     await battlepassProgress.save();
     

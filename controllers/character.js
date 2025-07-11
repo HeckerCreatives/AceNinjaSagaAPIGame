@@ -556,17 +556,71 @@ exports.getplayerdata = async (req, res) => {
     const totalWins = await PvP.countDocuments({ status: 1, owner: new mongoose.Types.ObjectId(characterid) })
     const characterData = await Characterdata.aggregate(matchCondition)
 
-    if (characterData.length > 0){
-        characterData[0].pvpwins = totalWins || 0
-        // characterData[0].clanwarwins = totalClanWarWins || 0
-        characterData[0].clanwarwins = 0
-    }
+    const characterSkills = await CharacterSkillTree.aggregate([
+        {
+            $match: {
+                owner: new mongoose.Types.ObjectId(characterid)
+            }
+        },
+        {
+            $unwind: "$skills"
+        },
+        {
+            $lookup: {
+                from: "skills",
+                localField: "skills.skill",
+                foreignField: "_id",
+                as: "skillDetails"
+            }
+        },
+        {
+            $unwind: "$skillDetails"
+        },
+        {
+            $match: {
+                "skillDetails.type": "Stat" // Only get stats-type skills
+            }
+        }
+    ]);
 
-    // get gender name
-    if (characterData[0].gender !== null) {
-       const result = await getCharacterGender(characterid)
-       
-       characterData[0].gender = result.genderString
+    const totalStats = {
+        health: characterData[0]?.stats.health,
+        energy: characterData[0]?.stats.energy,
+        armor: characterData[0]?.stats.armor,
+        magicresist: characterData[0]?.stats.magicresist,
+        speed: characterData[0]?.stats.speed,
+        attackdamage: characterData[0]?.stats.attackdamage,
+        armorpen: characterData[0]?.stats.armorpen,
+        magicpen: characterData[0]?.stats.magicpen,
+        critchance: characterData[0]?.stats.critchance,
+        magicdamage: characterData[0]?.stats.magicdamage,
+        lifesteal: characterData[0]?.stats.lifesteal,
+        omnivamp: characterData[0]?.stats.omnivamp,
+        healshieldpower: characterData[0]?.stats.healshieldpower,
+        critdamage: characterData[0]?.stats.critdamage
+    };
+
+
+    characterSkills.forEach(skill => {
+        if (skill.skillDetails.effects) {
+            const effects = new Map(Object.entries(skill.skillDetails.effects));
+
+            effects.forEach((value, stat) => {
+                if (totalStats.hasOwnProperty(stat)) {
+                    totalStats[stat] += value * skill.skills.level;
+                }
+            });
+        }
+    });
+
+
+
+    if (characterData.length > 0){
+        const result = await getCharacterGender(characterid)
+        characterData[0].pvpwins = totalWins || 0
+        characterData[0].clanwarwins = 0
+        characterData[0].stats = totalStats
+        characterData[0].gender = result.genderString
     }
 
     return res.status(200).json({ message: "success", data: characterData[0]})
