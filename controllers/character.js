@@ -832,16 +832,16 @@ exports.addxp = async (req, res) => {
                 { owner: characterid }, 
                 {
                     $inc: {
-                        health: 10 * levelsGained,
-                        energy: 5 * levelsGained,
-                        armor: 2 * levelsGained,
-                        magicresist: 1 * levelsGained,
-                        speed: 1 * levelsGained,
-                        attackdamage: 1 * levelsGained,
-                        armorpen: 1 * levelsGained,
-                        magicpen: 1 * levelsGained,
-                        magicdamage: 1 * levelsGained,
-                        critdamage: 1 * levelsGained
+                        health: 10,
+                        energy: 5,
+                        armor: 2,
+                        magicresist: 1,
+                        speed: 1,
+                        attackdamage: 1,
+                        armorpen: 1,
+                        magicpen: 1,
+                        magicdamage: 1,
+                        critdamage: 1
                     }
                 }
             );
