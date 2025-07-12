@@ -1,7 +1,7 @@
 const { default: mongoose } = require("mongoose")
 const Pvp = require("../models/Pvp")
 const Season = require("../models/Season")
-const Rankings = require("../models/Ranking")
+const { Rankings } = require("../models/Ranking")
 const PvpStats = require("../models/PvpStats")
 const Characterdata = require("../models/Characterdata")
 const { RemainingTime, getSeasonRemainingTimeInMilliseconds } = require("../utils/datetimetools")

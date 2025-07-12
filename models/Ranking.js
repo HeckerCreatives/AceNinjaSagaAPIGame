@@ -26,8 +26,42 @@ const RankingSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+const RankingHistorySchema = new mongoose.Schema(
+    {
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Characterdata",
+            index: true,
+            required: true
+        },
+        mmr: {
+            type: Number,
+            index: true,
+            default: 0
+        },
+        rank: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "RankTier"
+        },
+        season: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Season",
+            required: true
+        },
+        index: {
+            type: Number,
+            required: true
+        },
+    },
+    { timestamps: true }
+);
+
+const RankingHistory = mongoose.model("RankingHistory", RankingHistorySchema);
 const Rankings = mongoose.model("Rankings", RankingSchema);
-module.exports = Rankings;
+module.exports = {
+    Rankings,
+    RankingHistory
+};
 
 
 
