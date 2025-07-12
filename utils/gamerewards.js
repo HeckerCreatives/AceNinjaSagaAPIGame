@@ -15,18 +15,18 @@ exports.challengeRewards = {
         crystals: 0,
     },
     "chapter2challenge1": {
-        exp: 65,
-        gold: 650,
+        exp: 210,
+        gold: 1500,
         crystals: 0,
     },
     "chapter2challenge2": {
-        exp: 250,
-        gold: 2500,
+        exp: 70,
+        gold: 500,
         crystals: 0,
     },
     "chapter2challenge3": {
-        exp: 300,
-        gold: 3000,
+        exp: 75,
+        gold: 500,
         crystals: 0,
     },
     "chapter3challenge1": {
