@@ -803,7 +803,7 @@ exports.addxp = async (req, res) => {
         let currentXP = character.experience + xp;
         let levelsGained = 0;
         let baseXP = 100;
-        let growth = 1.4;
+        let growth = 0.25;
 
         let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
 
