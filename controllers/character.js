@@ -802,16 +802,19 @@ exports.addxp = async (req, res) => {
         let currentLevel = character.level;
         let currentXP = character.experience + xp;
         let levelsGained = 0;
-        let xpNeeded = 80 * currentLevel;
+        let baseXP = 100;
+        let growth = 1.4;
+
+        let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
 
         // Calculate multiple level ups
-        while (currentXP >= xpNeeded && xpNeeded > 0){
+        while (currentXP >= xpNeeded && xpNeeded > 0) {
             const overflowXP = currentXP - xpNeeded;
 
-            currentLevel++
+            currentLevel++;
             levelsGained++;
-            currentXP = overflowXP
-            xpNeeded = 80 * currentLevel
+            currentXP = overflowXP;
+            xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
         }
 
 
@@ -832,16 +835,16 @@ exports.addxp = async (req, res) => {
                 { owner: characterid }, 
                 {
                     $inc: {
-                        health: 10,
-                        energy: 5,
-                        armor: 2,
-                        magicresist: 1,
-                        speed: 1,
-                        attackdamage: 1,
-                        armorpen: 1,
-                        magicpen: 1,
-                        magicdamage: 1,
-                        critdamage: 1
+                        health: 5 * (levelsGained * currentLevel),
+                        energy: 2 * (levelsGained * currentLevel),
+                        armor: 2 * levelsGained,
+                        magicresist: 1 * levelsGained,
+                        speed: 1 * levelsGained,
+                        attackdamage: 1 * levelsGained,
+                        armorpen: 1 * levelsGained,
+                        magicpen: 1 * levelsGained,
+                        magicdamage: 1 * levelsGained,
+                        critdamage: 1 * levelsGained
                     }
                 }
             );
