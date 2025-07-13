@@ -802,17 +802,14 @@ exports.addxp = async (req, res) => {
         let currentLevel = character.level;
         let currentXP = character.experience + xp;
         let levelsGained = 0;
-        let baseXP = 100;
-        let growth = 0.25;
-
-        let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
+        let xpNeeded = 80 * currentLevel;
 
         while (currentXP >= xpNeeded && xpNeeded > 0) {
-            currentXP -= xpNeeded; // instead of using overflowXP, just subtract
+            const overflowXP = currentXP - xpNeeded;
             currentLevel++;
             levelsGained++;
-            xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-            console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+            currentXP = overflowXP;
+            xpNeeded = 80 * currentLevel;
         }
 
 

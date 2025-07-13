@@ -563,20 +563,16 @@ exports.claimbattlepassreward = async (req, res) => {
         if (rewardResults.some(r => r.result.message && r.result.message.includes('experience'))) {
             const updatedCharacter = await Characterdata.findById(characterid).session(session);
             if (updatedCharacter) {
-                let currentLevel = character.level;
-                let currentXP = character.experience + xp;
+                let currentLevel = updatedCharacter.level;
+                let currentXP = updatedCharacter.experience;
                 let levelsGained = 0;
-                let baseXP = 100;
-                let growth = 0.25;
-
-                let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
+                let xpNeeded = 80 * currentLevel;
 
                 while (currentXP >= xpNeeded && xpNeeded > 0) {
-                    currentXP -= xpNeeded; // instead of using overflowXP, just subtract
                     currentLevel++;
                     levelsGained++;
-                    xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-                    console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+                    currentXP -= xpNeeded;
+                    xpNeeded = 80 * currentLevel;
                 }
 
                 if (levelsGained > 0) {
@@ -585,16 +581,16 @@ exports.claimbattlepassreward = async (req, res) => {
                             { owner: characterid },
                             {
                                 $inc: {
-                                    health: 5 * (levelsGained * currentLevel),
-                                    energy: 2 * (levelsGained * currentLevel),
+                                    health: 10 * levelsGained,
+                                    energy: 5 * levelsGained,
                                     armor: 2 * levelsGained,
-                                    magicresist: 1 * levelsGained,
-                                    speed: 1 * levelsGained,
-                                    attackdamage: 1 * levelsGained,
-                                    armorpen: 1 * levelsGained,
-                                    magicpen: 1 * levelsGained,
-                                    magicdamage: 1 * levelsGained,
-                                    critdamage: 1 * levelsGained
+                                    magicresist: levelsGained,
+                                    speed: levelsGained,
+                                    attackdamage: levelsGained,
+                                    armorpen: levelsGained,
+                                    magicpen: levelsGained,
+                                    magicdamage: levelsGained,
+                                    critdamage: levelsGained
                                 }
                             },
                             { session }
@@ -951,19 +947,16 @@ exports.claimbattlepassquest = async (req, res) => {
             character.experience += mission.xpReward;
 
             let currentLevel = character.level;
-            let currentXP = character.experience + xp;
+            let currentXP = character.experience;
             let levelsGained = 0;
-            let baseXP = 100;
-            let growth = 0.25;
-
-            let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
+            let xpNeeded = 80 * currentLevel;
 
             while (currentXP >= xpNeeded && xpNeeded > 0) {
-                currentXP -= xpNeeded; // instead of using overflowXP, just subtract
+                const overflowXP = currentXP - xpNeeded;
                 currentLevel++;
                 levelsGained++;
-                xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-                console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+                currentXP = overflowXP;
+                xpNeeded = 80 * currentLevel;
             }
 
             if (levelsGained > 0) {
@@ -971,8 +964,8 @@ exports.claimbattlepassquest = async (req, res) => {
                     { owner: characterid },
                     {
                         $inc: {
-                            health: 5 * (levelsGained * currentLevel),
-                            energy: 2 * (levelsGained * currentLevel),
+                            health: 10 * levelsGained,
+                            energy: 5 * levelsGained,
                             armor: 2 * levelsGained,
                             magicresist: 1 * levelsGained,
                             speed: 1 * levelsGained,

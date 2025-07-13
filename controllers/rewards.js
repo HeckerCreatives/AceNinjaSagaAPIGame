@@ -405,19 +405,17 @@ exports.spinexpdaily = async (req, res) => {
         const percentageReward = selectedSpin.amount; // This is now the percentage (e.g., 50 for 50%)
         const actualXpReward = Math.floor((xpPerLevel * percentageReward) / 100);
 
-        let currentXP = character.experience + xp;
+        let newLevel = currentLevel;
+        let newXP = character.experience + actualXpReward;
         let levelsGained = 0;
-        let baseXP = 100;
-        let growth = 0.25;
+        let xpNeeded = 80 * newLevel;
 
-        let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-
-        while (currentXP >= xpNeeded && xpNeeded > 0) {
-            currentXP -= xpNeeded; // instead of using overflowXP, just subtract
-            currentLevel++;
+        while (newXP >= xpNeeded && xpNeeded > 0){
+            const overflowXP = newXP - xpNeeded;
+            newLevel++;
             levelsGained++;
-            xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-            console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+            newXP = overflowXP;
+            xpNeeded = 80 * newLevel;
         }
 
         if (levelsGained > 0) {
@@ -425,8 +423,8 @@ exports.spinexpdaily = async (req, res) => {
                 { owner: characterid }, 
                 {
                     $inc: {
-                        health: 5 * (levelsGained * currentLevel),
-                        energy: 2 * (levelsGained * currentLevel),
+                        health: 10 * levelsGained,
+                        energy: 5 * levelsGained,
                         armor: 2 * levelsGained,
                         magicresist: 1 * levelsGained,
                         speed: 1 * levelsGained,
@@ -675,20 +673,17 @@ exports.claimweeklylogin = async (req, res) => {
                 return res.status(400).json({ message: "failed", data: "Character not found." });
             }
 
-           let currentLevel = character.level;
-            let currentXP = character.experience + xp;
+            let currentLevel = character.level;
+            let currentXP = character.experience + weeklylogin.amount;
             let levelsGained = 0;
-            let baseXP = 100;
-            let growth = 0.25;
+            let xpNeeded = 80 * currentLevel;
 
-            let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-
-            while (currentXP >= xpNeeded && xpNeeded > 0) {
-                currentXP -= xpNeeded; // instead of using overflowXP, just subtract
+            while (currentXP >= xpNeeded && xpNeeded > 0){
+                const overflowXP = currentXP - xpNeeded;
                 currentLevel++;
                 levelsGained++;
-                xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-                console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+                currentXP = overflowXP;
+                xpNeeded = 80 * currentLevel;
             }
 
             if (levelsGained > 0) {
@@ -696,8 +691,8 @@ exports.claimweeklylogin = async (req, res) => {
                     { owner: characterid }, 
                     {
                         $inc: {
-                            health: 5 * (levelsGained * currentLevel),
-                            energy: 2 * (levelsGained * currentLevel),
+                            health: 10 * levelsGained,
+                            energy: 5 * levelsGained,
                             armor: 2 * levelsGained,
                             magicresist: 1 * levelsGained,
                             speed: 1 * levelsGained,
@@ -1082,27 +1077,23 @@ exports.claimmonthlylogin = async (req, res) => {
                 const character = await Characterdata.findOne({ _id: characterid }).session(session);
                 if (!character) continue;
                 let currentLevel = character.level;
-                let currentXP = character.experience + xp;
+                let currentXP = character.experience + reward.amount;
                 let levelsGained = 0;
-                let baseXP = 100;
-                let growth = 0.25;
-
-                let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-
+                let xpNeeded = 80 * currentLevel;
                 while (currentXP >= xpNeeded && xpNeeded > 0) {
-                    currentXP -= xpNeeded; // instead of using overflowXP, just subtract
+                    const overflowXP = currentXP - xpNeeded;
                     currentLevel++;
                     levelsGained++;
-                    xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-                    console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+                    currentXP = overflowXP;
+                    xpNeeded = 80 * currentLevel;
                 }
                 if (levelsGained > 0) {
                     await CharacterStats.findOneAndUpdate(
                         { owner: characterid },
                         {
                             $inc: {
-                                health: 5 * (levelsGained * currentLevel),
-                                energy: 2 * (levelsGained * currentLevel),
+                                health: 10 * levelsGained,
+                                energy: 5 * levelsGained,
                                 armor: 2 * levelsGained,
                                 magicresist: 1 * levelsGained,
                                 speed: 1 * levelsGained,

@@ -106,20 +106,19 @@ exports.redeemcode = async (req, res) => {
                 });
             }
 
-            let currentLevel = character.level;
-            let currentXP = character.experience + xp;
-            let levelsGained = 0;
-            let baseXP = 100;
-            let growth = 0.25;
+            character.experience += expReward;
 
-            let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
+            let currentLevel = character.level;
+            let currentXP = character.experience;
+            let levelsGained = 0;
+            let xpNeeded = 80 * currentLevel;
 
             while (currentXP >= xpNeeded && xpNeeded > 0) {
-                currentXP -= xpNeeded; // instead of using overflowXP, just subtract
+                const overflowXP = currentXP - xpNeeded;
                 currentLevel++;
                 levelsGained++;
-                xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-                console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
+                currentXP = overflowXP;
+                xpNeeded = 80 * currentLevel;
             }
 
             if (levelsGained > 0) {
@@ -127,8 +126,8 @@ exports.redeemcode = async (req, res) => {
                     { owner: characterid },
                     {
                         $inc: {
-                            health: 5 * (levelsGained * currentLevel),
-                            energy: 2 * (levelsGained * currentLevel),
+                            health: 10 * levelsGained,
+                            energy: 5 * levelsGained,
                             armor: 2 * levelsGained,
                             magicresist: 1 * levelsGained,
                             speed: 1 * levelsGained,
