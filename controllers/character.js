@@ -812,6 +812,7 @@ exports.addxp = async (req, res) => {
             currentLevel++;
             levelsGained++;
             xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
+            console.log(`xp needed ${xpNeeded}  current level ${currentLevel}`)
         }
 
 
