@@ -27,7 +27,7 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
     let currentXP = character.experience + xpToAdd;
     let levelsGained = 0;
     let baseXP = 100;
-    let growth = 0.25;
+    let growth = 1.35;
 
     while (currentXP >= xpNeeded && xpNeeded > 0) {
         currentXP -= xpNeeded; // instead of using overflowXP, just subtract
