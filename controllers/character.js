@@ -1218,7 +1218,6 @@ exports.challengechapter = async (req, res) => {
         const { id } = req.user;
         const { characterid, chapter, challenge, status, totaldamage, selfheal, skillsused, enemydefeated } = req.body;
 
-        console.log(characterid, chapter, challenge, status, totaldamage, selfheal, skillsused, enemydefeated)
 
         if (!characterid || !chapter || !challenge || !status || totaldamage === undefined || selfheal === undefined || skillsused === undefined || enemydefeated === undefined) {
             await session.abortTransaction();
@@ -1239,7 +1238,6 @@ exports.challengechapter = async (req, res) => {
         }
         let name = `chapter${chapter}challenge${challenge}`;
 
-        console.log(name)
 
         const charchapter = await CharacterChapter.findOne({ 
             owner: new mongoose.Types.ObjectId(characterid), 
@@ -1279,7 +1277,7 @@ exports.challengechapter = async (req, res) => {
         
         const rewards = challengeRewards[`chapter${chapter}challenge${challenge}`];
 
-        const xpResult = await addXPAndLevel(character, rewards.xp, session);
+        const xpResult = await addXPAndLevel(character, rewards.exp, session);
         if (xpResult === "failed") {
             await session.abortTransaction();
             return res.status(400).json({
