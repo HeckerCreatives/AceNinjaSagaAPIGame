@@ -28,6 +28,8 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
     let levelsGained = 0;
     let baseXP = 100;
     let growth = 1.35;
+        
+    let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
 
     while (currentXP >= xpNeeded && xpNeeded > 0) {
         currentXP -= xpNeeded; // instead of using overflowXP, just subtract
