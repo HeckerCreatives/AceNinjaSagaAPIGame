@@ -26,6 +26,8 @@ const PvpStats = require("../models/PvpStats")
 const { gethairname } = require("../utils/bundle")
 const { challengeRewards } = require("../utils/gamerewards")
 const { addreset, existsreset } = require("../utils/reset")
+const { addXPAndLevel } = require("../utils/leveluptools")
+const { addwallet } = require("../utils/wallettools")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -799,74 +801,18 @@ exports.addxp = async (req, res) => {
             });
         }
 
-        let currentLevel = character.level;
-        let currentXP = character.experience + xp;
-        let levelsGained = 0;
-        let xpNeeded = 80 * currentLevel;
+        const result = await addXPAndLevel(character, xp);
 
-        while (currentXP >= xpNeeded && xpNeeded > 0) {
-            const overflowXP = currentXP - xpNeeded;
-            currentLevel++;
-            levelsGained++;
-            currentXP = overflowXP;
-            xpNeeded = 80 * currentLevel;
+        if (result === "failed"){
+            return res.status(400).json({ 
+                message: "failed", 
+                data: "Failed to add XP. Please try again later."
+            });
         }
-
-
-        // while (true) {
-            
-        //     if (currentXP >= xpNeeded) {
-        //         currentLevel++;
-        //         currentXP -= xpNeeded;
-        //         levelsGained++;
-        //     } else {
-        //         break;
-        //     }
-        // }
-
-        // If levels were gained, update stats and skill points
-        if (levelsGained > 0) {
-            await CharacterStats.findOneAndUpdate(
-                { owner: characterid }, 
-                {
-                    $inc: {
-                        health: 5 * (levelsGained * currentLevel),
-                        energy: 2 * (levelsGained * currentLevel),
-                        armor: 2 * levelsGained,
-                        magicresist: 1 * levelsGained,
-                        speed: 1 * levelsGained,
-                        attackdamage: 1 * levelsGained,
-                        armorpen: 1 * levelsGained,
-                        magicpen: 1 * levelsGained,
-                        magicdamage: 1 * levelsGained,
-                        critdamage: 1 * levelsGained
-                    }
-                }
-            );
-
-            await CharacterSkillTree.findOneAndUpdate(
-                { owner: characterid }, 
-                {
-                    $inc: {
-                        skillPoints: 4 * levelsGained
-                    }
-                }
-            );
-        }
-
-        // Update character level and experience
-        character.level = currentLevel;
-        character.experience = currentXP;
-        await character.save();
 
         return res.status(200).json({ 
             message: "success",
-            data: {
-                newLevel: currentLevel,
-                levelsGained,
-                currentXP,
-                nextLevelXP: 80 * currentLevel
-            }
+            data: result
         });
 
     } catch (err) {
@@ -1333,68 +1279,31 @@ exports.challengechapter = async (req, res) => {
         
         const rewards = challengeRewards[`chapter${chapter}challenge${challenge}`];
 
-        character.experience += rewards.exp;
-
-        let currentLevel = character.level;
-        let currentXP = character.experience;
-        let levelsGained = 0;
-        let xpNeeded = 80 * currentLevel;
-
-        while (currentXP >= xpNeeded && xpNeeded > 0) {
-            const overflowXP = currentXP - xpNeeded;
-            currentLevel++;
-            levelsGained++;
-            currentXP = overflowXP;
-            xpNeeded = 80 * currentLevel;
+        const xpResult = await addXPAndLevel(character, rewards.xp, session);
+        if (xpResult === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add XP. Please try again later."
+            });
         }
 
-        if (levelsGained > 0) {
-            await CharacterStats.findOneAndUpdate(
-                { owner: characterid },
-                {
-                    $inc: {
-                        health: 10 * levelsGained,
-                        energy: 5 * levelsGained,
-                        armor: 2 * levelsGained,
-                        magicresist: 1 * levelsGained,
-                        speed: 1 * levelsGained,
-                        attackdamage: 1 * levelsGained,
-                        armorpen: 1 * levelsGained,
-                        magicpen: 1 * levelsGained,
-                        magicdamage: 1 * levelsGained,
-                        critdamage: 1 * levelsGained
-                    }
-                },
-                { session }
-            );
-
-            await CharacterSkillTree.findOneAndUpdate(
-                { owner: characterid },
-                {
-                    $inc: {
-                        skillPoints: 4 * levelsGained
-                    }
-                },
-                { session }
-            );
+        const coinsResult = await addwallet(characterid, "coins", rewards.coins, session);
+        if (coinsResult === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add coins. Please try again later."
+            });
         }
-
-        character.level = currentLevel;
-        character.experience = currentXP;
-        await character.save({ session });
-
-        await Characterwallet.updateOne(
-            { owner: characterid, type: "coins" },
-            { $inc: { amount: rewards.gold } },
-            { session, upsert: true }
-        );
-
-        await Characterwallet.updateOne(
-            { owner: characterid, type: "crystal" },
-            { $inc: { amount: rewards.crystals } },
-            { session, upsert: true }
-        );
-
+        const crystalResult = await addwallet(characterid, "crystal", rewards.crystal, session);
+        if (crystalResult === "failed") {  
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add crystals. Please try again later."
+            });
+        }
     
         const multipleProgress = await multipleprogressutil(characterid, [
             { requirementtype: 'totaldamage', amount: totaldamage },

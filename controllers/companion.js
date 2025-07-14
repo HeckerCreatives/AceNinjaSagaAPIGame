@@ -6,6 +6,7 @@ const PvP = require("../models/Pvp");
 const { default: mongoose } = require("mongoose");
 const ClanwarsHistory = require("../models/Clanwarshistory");
 const { addanalytics } = require("../utils/analyticstools");
+const { checkwallet, reducewallet } = require("../utils/wallettools");
 
 exports.getcharactercompanions = async (req, res) => {
 
@@ -292,29 +293,26 @@ exports.buycompanion = async (req, res) => {
 
     // check if character has enough currency
 
-    const wallet = await Characterwallet.findOne({ owner: characterid, type: currency })
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
-        return res.status(400).json({
-            message: "bad-request", 
-            data: "There's a problem with the server. Please try again later."
-        });
-    })
+    const wallet = await checkwallet(characterid, currency)
 
-    if(!wallet){
+    if(wallet === "failed"){
         return res.status(400).json({ message: "failed", data: "Character wallet not found."})
     }
 
-    if(wallet.amount < price){
+    if(wallet < price){
         return res.status(400).json({ message: "failed", data: "Insufficient funds."})
     }
 
     // deduct wallet amount
 
-    wallet.amount -= price
+    const walletReduce = await reducewallet(characterid, price, currency)
 
-    await wallet.save()
+    if (walletReduce === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "Failed to deduct wallet amount."
+        });
+    }
 
     // add companion to character
 
@@ -327,26 +325,6 @@ exports.buycompanion = async (req, res) => {
             data: "There's a problem with the server. Please try again later."
         });
     })
-
-
-    
-            // const analyticresponse = await addanalytics(
-            //     characterid.toString(),
-            //     userdailyspin._id.toString(),
-            //     "spin", 
-            //     "dailyspin",
-            //     'Daily Spin',
-            //     `Claimed reward: ${selectedSpin.amount} ${selectedSpin.type}`,
-            //     selectedSpin.amount
-            // );
-        
-            // if (analyticresponse === "failed") {
-            //     await session.abortTransaction();
-            //     return res.status(500).json({
-            //         message: "failed",
-            //         data: "Failed to log analytics for daily spin"
-            //     });
-            // }
 
     // create analytics for companion purchase
 

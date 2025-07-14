@@ -9,6 +9,8 @@ const { getSeasonRemainingTimeInMilliseconds } = require('../utils/datetimetools
 const Season = require('../models/Season');
 const { checkmaintenance } = require('../utils/maintenance');
 const Characterwallet = require('../models/Characterwallet');
+const { addXPAndLevel } = require('../utils/leveluptools');
+const { addwallet } = require('../utils/wallettools');
 
 exports.getdailyquest = async (req, res) => {
 
@@ -222,58 +224,13 @@ exports.claimdailyquest = async (req, res) => {
             });
         }
 
-        let currentLevel = character.level;
-        let currentXP = character.experience + quest.xpReward;
-        let levelsGained = 0;
-        let xpNeeded = 80 * currentLevel;
-
-        while (currentXP >= xpNeeded && xpNeeded > 0) {
-            const overflowXP = currentXP - xpNeeded;
-            currentLevel++;
-            levelsGained++;
-            currentXP = overflowXP;
-            xpNeeded = 80 * currentLevel;
-        }
-
-        if (levelsGained > 0) {
-            await CharacterStats.findOneAndUpdate(
-                { owner: characterid },
-                {
-                    $inc: {
-                        health: 10 * levelsGained,
-                        energy: 5 * levelsGained,
-                        armor: 2 * levelsGained,
-                        magicresist: 1 * levelsGained,
-                        speed: 1 * levelsGained,
-                        attackdamage: 1 * levelsGained,
-                        armorpen: 1 * levelsGained,
-                        magicpen: 1 * levelsGained,
-                        magicdamage: 1 * levelsGained,
-                        critdamage: 1 * levelsGained
-                    }
-                }
-            ).then().catch(err => {
-                console.error(`Error updating character stats: ${err}`);
-                return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
-            });
-
-            await CharacterSkillTree.findOneAndUpdate(
-                { owner: characterid },
-                { $inc: { skillPoints: 4 * levelsGained } }
-            ).then().catch(err => {
-                console.error(`Error updating skill tree: ${err}`);
-                return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
+        const xpResult = await addXPAndLevel(characterid, quest.xpReward);
+        if (xpResult === "failed") {
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add experience and level up character."
             });
         }
-
-        character.level = currentLevel;
-        character.experience = currentXP;
-        await character.save()
-            .then()
-            .catch(err => {
-                console.error(`Error saving character: ${err}`);
-                return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." });
-            });
 
         questProgress.isCompleted = true;
         await questProgress.save()
@@ -289,19 +246,25 @@ exports.claimdailyquest = async (req, res) => {
         });
     }
 
-          if (quest.rewardtype === "coins") {
-                    await Characterwallet.updateOne(
-                        { owner: characterid, type: "coins" },
-                        { $inc: { amount: quest.xpReward } },
-                    );
-                }
+    if (quest.rewardtype === "coins") {
+        const coinsResult = await addwallet(characterid, quest.xpReward, 'coins');
+        if (coinsResult === "failed") {
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add coins to wallet."
+            });
+        }
+    }
         
-          if (quest.rewardtype === "crystal" || quest.rewardtype === "crystals") {
-                    await Characterwallet.updateOne(
-                        { owner: characterid, type: "crystal" },
-                        { $inc: { amount: quest.xpReward } },
-                    );
-                }
+    if (quest.rewardtype === "crystal" || quest.rewardtype === "crystals") {
+        const crystalsResult = await addwallet(characterid, quest.xpReward, 'crystals');
+        if (crystalsResult === "failed") {
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add crystals to wallet."
+            });
+        }
+    }
 
     const progress = await progressutil('dailyquests', characterid, 1)
     

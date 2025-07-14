@@ -11,6 +11,8 @@ const { addanalytics } = require("../utils/analyticstools");
 const { determineRewardType, awardBattlepassReward } = require("../utils/battlepassrewards");
 const Badge = require("../models/Badge");
 const Title = require("../models/Title");
+const { addXPAndLevel } = require("../utils/leveluptools");
+const { addwallet } = require("../utils/wallettools");
 
 
 exports.getbattlepass = async (req, res) => {
@@ -561,50 +563,14 @@ exports.claimbattlepassreward = async (req, res) => {
 
         // Handle character level up if experience was awarded
         if (rewardResults.some(r => r.result.message && r.result.message.includes('experience'))) {
-            const updatedCharacter = await Characterdata.findById(characterid).session(session);
-            if (updatedCharacter) {
-                let currentLevel = updatedCharacter.level;
-                let currentXP = updatedCharacter.experience;
-                let levelsGained = 0;
-                let xpNeeded = 80 * currentLevel;
+            const totalXP = rewardResults
+                .filter(r => r.result.xp)
+                .reduce((sum, r) => sum + r.result.xp, 0);
 
-                while (currentXP >= xpNeeded && xpNeeded > 0) {
-                    currentLevel++;
-                    levelsGained++;
-                    currentXP -= xpNeeded;
-                    xpNeeded = 80 * currentLevel;
-                }
-
-                if (levelsGained > 0) {
-                    await Promise.all([
-                        CharacterStats.updateOne(
-                            { owner: characterid },
-                            {
-                                $inc: {
-                                    health: 10 * levelsGained,
-                                    energy: 5 * levelsGained,
-                                    armor: 2 * levelsGained,
-                                    magicresist: levelsGained,
-                                    speed: levelsGained,
-                                    attackdamage: levelsGained,
-                                    armorpen: levelsGained,
-                                    magicpen: levelsGained,
-                                    magicdamage: levelsGained,
-                                    critdamage: levelsGained
-                                }
-                            },
-                            { session }
-                        ),
-                        CharacterSkillTree.updateOne(
-                            { owner: characterid },
-                            { $inc: { skillPoints: 4 * levelsGained } },
-                            { session }
-                        )
-                    ]);
-
-                    updatedCharacter.level = currentLevel;
-                    updatedCharacter.experience = currentXP;
-                    await updatedCharacter.save({ session });
+            if (totalXP > 0) {
+                const xpResult = await addXPAndLevel(characterid, totalXP, session);
+                if (xpResult === "failed") {
+                    throw new Error("Failed to process experience rewards.");
                 }
             }
         }
@@ -716,18 +682,18 @@ exports.buypremiumbattlepass = async (req, res) => {
 
         for (const searchgrandrewarditem of searchgrandrewarditems) {
             if (searchgrandrewarditem.type === "crystalpacks") {
-                await Characterwallet.findOneAndUpdate(
-                    { owner: characterid, type: 'crystal' },
-                    { $inc: { amount: searchgrandrewarditem.crystals } },
-                    { new: true, session }
-                );
+                const crystalResult = await addwallet(characterid, searchgrandrewarditem.amount, 'crystal', session);
+                if (crystalResult === "failed") {
+                    console.error(`Failed to award crystal packs:`, searchgrandrewarditem);
+                    throw new Error(`Failed to award crystal packs: ${searchgrandrewarditem.name}`);
+                }
                 awardedItems.push(searchgrandrewarditem);
             } else if (searchgrandrewarditem.type === "goldpacks") {
-                await Characterwallet.findOneAndUpdate(
-                    { owner: characterid, type: 'coins' },
-                    { $inc: { amount: searchgrandrewarditem.coins } },
-                    { new: true, session }
-                );
+                const coinResult = await addwallet(characterid, searchgrandrewarditem.coins, 'coins', session);
+                if (coinResult === "failed") {
+                    console.error(`Failed to award gold packs:`, searchgrandrewarditem);
+                    throw new Error(`Failed to award gold packs: ${searchgrandrewarditem.name}`);
+                }
                 awardedItems.push(searchgrandrewarditem);
             } else {
                 const itemMatchesGender = !searchgrandrewarditem.gender || searchgrandrewarditem.gender === characterGender || searchgrandrewarditem.gender === 'unisex' || searchgrandrewarditem.gender === 'unixsex';
@@ -921,72 +887,33 @@ exports.claimbattlepassquest = async (req, res) => {
 
     switch (mission.rewardtype) {
         case "coins":
-            await Characterwallet.updateOne(
-                { owner: characterid, type: "coins" },
-                { $inc: { amount: mission.xpReward } }
-            );
+            const coinResult = await addwallet(characterid, "coins", mission.xpReward);
+            if (coinResult === "failed") {
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to add coins. Please try again later."
+                });
+            }
             break;
-
         case "crystal":
         case "crystals":
-            await Characterwallet.updateOne(
-                { owner: characterid, type: "crystal" },
-                { $inc: { amount: mission.xpReward } }
-            );
+            const crystalResult = await addwallet(characterid, "crystal", mission.xpReward);
+            if (crystalResult === "failed") {
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to add crystals. Please try again later."
+                });
+            }
             break;
 
         case "exp":
-            const character = await Characterdata.findOne({ _id: characterid });
-            if (!character) {
-                return res.status(404).json({
+            const xpResult = await addXPAndLevel(characterid, mission.xpReward);
+            if (xpResult === "failed") {
+                return res.status(400).json({
                     message: "failed",
-                    data: "Character not found"
+                    data: "Failed to add experience. Please try again later."
                 });
             }
-
-            character.experience += mission.xpReward;
-
-            let currentLevel = character.level;
-            let currentXP = character.experience;
-            let levelsGained = 0;
-            let xpNeeded = 80 * currentLevel;
-
-            while (currentXP >= xpNeeded && xpNeeded > 0) {
-                const overflowXP = currentXP - xpNeeded;
-                currentLevel++;
-                levelsGained++;
-                currentXP = overflowXP;
-                xpNeeded = 80 * currentLevel;
-            }
-
-            if (levelsGained > 0) {
-                await CharacterStats.updateOne(
-                    { owner: characterid },
-                    {
-                        $inc: {
-                            health: 10 * levelsGained,
-                            energy: 5 * levelsGained,
-                            armor: 2 * levelsGained,
-                            magicresist: 1 * levelsGained,
-                            speed: 1 * levelsGained,
-                            attackdamage: 1 * levelsGained,
-                            armorpen: 1 * levelsGained,
-                            magicpen: 1 * levelsGained,
-                            magicdamage: 1 * levelsGained,
-                            critdamage: 1 * levelsGained
-                        }
-                    }
-                );
-
-                await CharacterSkillTree.updateOne(
-                    { owner: characterid },
-                    { $inc: { skillPoints: 4 * levelsGained } }
-                );
-            }
-
-            character.level = currentLevel;
-            character.experience = currentXP;
-            await character.save();
             break;
 
         case "battlepassexp":
@@ -1003,7 +930,6 @@ exports.claimbattlepassquest = async (req, res) => {
             if (calculatedTier > battlepassProgress.currentTier) {
                 const oldTier = battlepassProgress.currentTier;
                 battlepassProgress.currentTier = calculatedTier;
-                console.log(`Battlepass tier up! ${oldTier} → ${calculatedTier} (${battlepassProgress.currentXP} XP)`);
             }
             break;
 

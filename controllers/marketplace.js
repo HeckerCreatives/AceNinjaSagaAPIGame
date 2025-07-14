@@ -10,6 +10,8 @@ const CharacterStats = require("../models/Characterstats")
 const { checkcharacter } = require("../utils/character")
 const { gethairbundle } = require("../utils/bundle")
 const { addreset, existsreset } = require("../utils/reset")
+const { addXPAndLevel } = require("../utils/leveluptools")
+const { addwallet, checkwallet } = require("../utils/wallettools")
 
 exports.getMarketItems = async (req, res) => {
     const { page, limit, type, rarity, search, markettype, gender, characterid } = req.query
@@ -368,30 +370,29 @@ exports.buyitem = async (req, res) => {
             } 
             
             // Check wallet balance
-            const wallet = await Characterwallet.findOne({ 
-                owner: new mongoose.Types.ObjectId(characterid), 
-                type: itemData.currency 
-            }).session(session);
+            const wallet = await checkwallet(characterid, itemData.currency, session);
 
-            if (!wallet) {
+            if (wallet === "failed") {
                 await session.abortTransaction();
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
 
             let totalprice = itemData.price;
 
-            if (wallet.amount < totalprice) {
+            if (wallet < totalprice) {
                 await session.abortTransaction();
                 return res.status(400).json({ message: "failed", data: "Insufficient balance" });
             }
 
-            // Update wallet
-            await Characterwallet.findOneAndUpdate(
-                { owner: characterid, type: itemData.currency },
-                { $inc: { amount: -totalprice } },
-                { new: true, session }
-            );
-
+            // Deduct wallet amount
+            const walletReduce = await reducewallet(characterid, totalprice, itemData.currency, session);
+            if (walletReduce === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to deduct wallet amount."
+                });
+            }
 
             // if item type is skill then store it in Characterskills
 
@@ -459,18 +460,23 @@ exports.buyitem = async (req, res) => {
                 await skillTree.save({ session });
 
             } else if (itemData.type === "crystalpacks") {
-                await Characterwallet.findOneAndUpdate(
-                    { owner: characterid, type: 'crystal' },
-                    { $inc: { amount: itemData.crystals } },
-                    { new: true, session }
-                );
-
+                const crystalResult = await addwallet(characterid, 'crystal', itemData.crystals, session);
+                if (crystalResult === "failed") {
+                    await session.abortTransaction();
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to add crystals to wallet"
+                    });
+                }   
             } else if (itemData.type === "goldpacks") {
-                await Characterwallet.findOneAndUpdate(
-                    { owner: characterid, type: 'coins' },
-                    { $inc: { amount: itemData.coins } },
-                    { new: true, session }
-                );
+                const coinsResult = await addwallet(characterid, 'coins', itemData.coins, session);
+                if (coinsResult === "failed") {
+                    await session.abortTransaction();
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to add coins to wallet"
+                    });
+                }
             } else {
                 await CharacterInventory.findOneAndUpdate(
                     { owner: characterid, type: itemData.inventorytype },
@@ -593,56 +599,23 @@ exports.claimfreebie = async (req, res) => {
 
         // Give reward
         if (rewardType === "exp") {
-            const character = await Characterdata.findOne({ _id: characterid }).session(session);
-            if (!character) {
+            const xpResult = await addXPAndLevel(characterid, rewardAmount, session);
+            if (xpResult === "failed") {
                 await session.abortTransaction();
-                return res.status(404).json({ message: "failed", data: "Character not found" });
+                return res.status(500).json({
+                    message: "failed",
+                    data: "Failed to add experience points"
+                });
             }
-            let currentLevel = character.level;
-            let currentXP = character.experience + rewardAmount;
-            let levelsGained = 0;
-            let xpNeeded = 80 * currentLevel;
-            while (currentXP >= xpNeeded && xpNeeded > 0) {
-                const overflowXP = currentXP - xpNeeded;
-                currentLevel++;
-                levelsGained++;
-                currentXP = overflowXP;
-                xpNeeded = 80 * currentLevel;
-            }
-            if (levelsGained > 0) {
-                await CharacterStats.findOneAndUpdate(
-                    { owner: characterid },
-                    {
-                        $inc: {
-                            health: 10 * levelsGained,
-                            energy: 5 * levelsGained,
-                            armor: 2 * levelsGained,
-                            magicresist: 1 * levelsGained,
-                            speed: 1 * levelsGained,
-                            attackdamage: 1 * levelsGained,
-                            armorpen: 1 * levelsGained,
-                            magicpen: 1 * levelsGained,
-                            magicdamage: 1 * levelsGained,
-                            critdamage: 1 * levelsGained
-                        }
-                    },
-                    { session }
-                );
-                await CharacterSkillTree.findOneAndUpdate(
-                    { owner: characterid },
-                    { $inc: { skillPoints: 4 * levelsGained } },
-                    { session }
-                );
-            }
-            character.level = currentLevel;
-            character.experience = currentXP;
-            await character.save({ session });
         } else {
-            await Characterwallet.updateOne(
-                { owner: characterid, type: rewardType },
-                { $inc: { amount: rewardAmount } },
-                { new: true, upsert: true, session }
-            );
+            const walletResult = await addwallet(characterid, rewardType, rewardAmount, session);
+            if (walletResult === "failed") {
+                await session.abortTransaction();
+                return res.status(500).json({
+                    message: "failed",
+                    data: `Failed to add ${rewardType} to wallet`
+                });
+            }
         }
 
         // Create analytics for claiming freebie
@@ -740,16 +713,22 @@ exports.sellitem = async (req, res) => {
             let coinsamount = itemData.item.price * 0.5
 
             if (itemData.item.currency === "coins") {
-                await Characterwallet.findOneAndUpdate(
-                    { owner: characterid, type: 'coins' },
-                    { $inc: { amount: coinsamount } }
-                );
+                const coinsResult = await addwallet(characterid, 'coins', coinsamount);
+                if (coinsResult === "failed") {
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to add coins to wallet"
+                    });
+                }
 
             } else if(itemData.item.currency === "crystal") {
-                await Characterwallet.findOneAndUpdate(
-                    { owner: characterid, type: 'crystal' },
-                    { $inc: { amount: coinsamount } }
-                );
+                const crystalsResult = await addwallet(characterid, 'crystal', coinsamount);
+                if (crystalsResult === "failed") {
+                    return res.status(500).json({
+                        message: "failed",
+                        data: "Failed to add crystals to wallet"
+                    });
+                }
             } else {
                 return res.status(400).json({ message: "failed", data: "Invalid currency" });
             }

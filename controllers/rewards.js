@@ -9,6 +9,8 @@ const { CharacterSkillTree } = require("../models/Skills")
 const { progressutil } = require("../utils/progress")
 const { addanalytics } = require("../utils/analyticstools")
 const { addreset, existsreset } = require("../utils/reset")
+const { addXPAndLevel } = require("../utils/leveluptools")
+const { addwallet } = require("../utils/wallettools")
 
 // #region  USER
 
@@ -166,11 +168,14 @@ exports.spindaily = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "Failed to select a spin reward." });
         }
 
-        await Characterwallet.updateOne(
-            { owner: characterid, type: selectedSpin.type },
-            { $inc: { amount: selectedSpin.amount } },
-            { new: true, upsert: true, session }
-        );
+        const walletResult = await addwallet(characterid, selectedSpin.type, selectedSpin.amount, session);
+        if (walletResult === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add wallet amount."
+            });
+        }
 
         // Update user spin status
         userdailyspin.spin = false;
@@ -386,18 +391,6 @@ exports.spinexpdaily = async (req, res) => {
             });
         }
 
-        // let currentLevel = character.level;
-        // let currentXP = character.experience + selectedSpin.amount;
-        // let levelsGained = 0;
-        // let xpNeeded = 80 * currentLevel;
-
-        // while (currentXP >= xpNeeded && xpNeeded > 0){
-        //     const overflowXP = currentXP - xpNeeded;
-        //     currentLevel++;
-        //     levelsGained++;
-        //     currentXP = overflowXP;
-        //     xpNeeded = 80 * currentLevel;
-        // }
 
         // NEW: Calculate percentage-based XP reward
         const currentLevel = character.level;
@@ -405,56 +398,14 @@ exports.spinexpdaily = async (req, res) => {
         const percentageReward = selectedSpin.amount; // This is now the percentage (e.g., 50 for 50%)
         const actualXpReward = Math.floor((xpPerLevel * percentageReward) / 100);
 
-        let newLevel = currentLevel;
-        let newXP = character.experience + actualXpReward;
-        let levelsGained = 0;
-        let xpNeeded = 80 * newLevel;
-
-        while (newXP >= xpNeeded && xpNeeded > 0){
-            const overflowXP = newXP - xpNeeded;
-            newLevel++;
-            levelsGained++;
-            newXP = overflowXP;
-            xpNeeded = 80 * newLevel;
+        const xpResult = await addXPAndLevel(characterid, actualXpReward, session);
+        if (xpResult === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "Failed to add experience points."
+            });
         }
-
-        if (levelsGained > 0) {
-            await CharacterStats.findOneAndUpdate(
-                { owner: characterid }, 
-                {
-                    $inc: {
-                        health: 10 * levelsGained,
-                        energy: 5 * levelsGained,
-                        armor: 2 * levelsGained,
-                        magicresist: 1 * levelsGained,
-                        speed: 1 * levelsGained,
-                        attackdamage: 1 * levelsGained,
-                        armorpen: 1 * levelsGained,
-                        magicpen: 1 * levelsGained,
-                        magicdamage: 1 * levelsGained,
-                        critdamage: 1 * levelsGained
-                    }
-                },
-                { session }
-            );
-
-            await CharacterSkillTree.findOneAndUpdate(
-                { owner: characterid }, 
-                {
-                    $inc: {
-                        skillPoints: 4 * levelsGained
-                    }
-                },
-                { session }
-            );
-        }
-
-        // character.level = currentLevel;
-        // character.experience = currentXP;
-        character.level = newLevel;
-        character.experience = newXP;
-        await character.save({ session });
-
         // Update user spin status
         userdailyspin.expspin = false;
         await userdailyspin.save({ session });
@@ -664,68 +615,23 @@ exports.claimweeklylogin = async (req, res) => {
         await userweeklylogin.save({ session });
 
         if (weeklylogin.type === "exp") {
-            const character = await Characterdata.findOne({ 
-                _id: new mongoose.Types.ObjectId(characterid)
-            }).session(session);
-
-            if(!character) {
+           const xpResult = await addXPAndLevel(characterid, weeklylogin.amount, session);
+            if (xpResult === "failed") {
                 await session.abortTransaction();
-                return res.status(400).json({ message: "failed", data: "Character not found." });
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to add experience points."
+                });
             }
-
-            let currentLevel = character.level;
-            let currentXP = character.experience + weeklylogin.amount;
-            let levelsGained = 0;
-            let xpNeeded = 80 * currentLevel;
-
-            while (currentXP >= xpNeeded && xpNeeded > 0){
-                const overflowXP = currentXP - xpNeeded;
-                currentLevel++;
-                levelsGained++;
-                currentXP = overflowXP;
-                xpNeeded = 80 * currentLevel;
-            }
-
-            if (levelsGained > 0) {
-                await CharacterStats.findOneAndUpdate(
-                    { owner: characterid }, 
-                    {
-                        $inc: {
-                            health: 10 * levelsGained,
-                            energy: 5 * levelsGained,
-                            armor: 2 * levelsGained,
-                            magicresist: 1 * levelsGained,
-                            speed: 1 * levelsGained,
-                            attackdamage: 1 * levelsGained,
-                            armorpen: 1 * levelsGained,
-                            magicpen: 1 * levelsGained,
-                            magicdamage: 1 * levelsGained,
-                            critdamage: 1 * levelsGained
-                        }
-                    },
-                    { session }
-                );
-
-                await CharacterSkillTree.findOneAndUpdate(
-                    { owner: characterid }, 
-                    {
-                        $inc: {
-                            skillPoints: 4 * levelsGained
-                        }
-                    },
-                    { session }
-                );
-            }
-
-            character.level = currentLevel;
-            character.experience = currentXP;
-            await character.save({ session });
         } else {
-            await Characterwallet.updateOne(
-                { owner: characterid, type: weeklylogin.type },
-                { $inc: { amount: weeklylogin.amount } },
-                { new: true, upsert: true, session }
-            );
+           const walletResult = await addwallet(characterid, weeklylogin.type, weeklylogin.amount, session);
+            if (walletResult === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to add wallet amount."
+                });
+            }
         }
 
             const analyticresponse = await addanalytics(
@@ -1074,53 +980,23 @@ exports.claimmonthlylogin = async (req, res) => {
 
             // Give reward
             if (reward.type === "exp") {
-                const character = await Characterdata.findOne({ _id: characterid }).session(session);
-                if (!character) continue;
-                let currentLevel = character.level;
-                let currentXP = character.experience + reward.amount;
-                let levelsGained = 0;
-                let xpNeeded = 80 * currentLevel;
-                while (currentXP >= xpNeeded && xpNeeded > 0) {
-                    const overflowXP = currentXP - xpNeeded;
-                    currentLevel++;
-                    levelsGained++;
-                    currentXP = overflowXP;
-                    xpNeeded = 80 * currentLevel;
+                const xpResult = await addXPAndLevel(characterid, reward.amount, session);
+                if (xpResult === "failed") {
+                    await session.abortTransaction();
+                    return res.status(400).json({
+                        message: "failed",
+                        data: "Failed to add experience points."
+                    });
                 }
-                if (levelsGained > 0) {
-                    await CharacterStats.findOneAndUpdate(
-                        { owner: characterid },
-                        {
-                            $inc: {
-                                health: 10 * levelsGained,
-                                energy: 5 * levelsGained,
-                                armor: 2 * levelsGained,
-                                magicresist: 1 * levelsGained,
-                                speed: 1 * levelsGained,
-                                attackdamage: 1 * levelsGained,
-                                armorpen: 1 * levelsGained,
-                                magicpen: 1 * levelsGained,
-                                magicdamage: 1 * levelsGained,
-                                critdamage: 1 * levelsGained
-                            }
-                        },
-                        { session }
-                    );
-                    await CharacterSkillTree.findOneAndUpdate(
-                        { owner: characterid },
-                        { $inc: { skillPoints: 4 * levelsGained } },
-                        { session }
-                    );
-                }
-                character.level = currentLevel;
-                character.experience = currentXP;
-                await character.save({ session });
             } else {
-                await Characterwallet.updateOne(
-                    { owner: characterid, type: reward.type },
-                    { $inc: { amount: reward.amount } },
-                    { new: true, upsert: true, session }
-                );
+                const walletResult = await addwallet(characterid, reward.type, reward.amount, session);
+                if (walletResult === "failed") {
+                    await session.abortTransaction();
+                    return res.status(400).json({
+                        message: "failed",
+                        data: "Failed to add wallet amount."
+                    });
+                }
             }
             claimed[dayObj.day] = {
                 type: reward.type,

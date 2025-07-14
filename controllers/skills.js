@@ -7,6 +7,7 @@ const Analytics = require("../models/Analytics");
 const { addanalytics } = require("../utils/analyticstools");
 const { checkmaintenance } = require("../utils/maintenance");
 const { checkcharacter } = require("../utils/character");
+const { checkwallet, reducewallet } = require("../utils/wallettools");
 
 exports.getSkills = async (req, res) => {
     const { type, search, category, path, page, limit } = req.query;
@@ -429,18 +430,13 @@ exports.acquirebuybasedskills = async (req, res) => {
 
 
         // Check if wallet exists
-        let wallet = await Characterwallet.findOne({
-            owner: characterid, 
-            type: skill.currency
-        });
-
-        if (!wallet) {
+        let wallet = await checkwallet(characterid, skill.currency);
+        if (wallet === "failed") {
             return res.status(404).json({
                 message: "failed",
-                data: "Wallet not found"
+                data: "Wallet not found or invalid currency"
             });
         }
-
         // Get character's skill tree
         let skillTree = await CharacterSkillTree.findOne({ owner: characterid })
             .populate('skills.skill');
@@ -499,7 +495,7 @@ exports.acquirebuybasedskills = async (req, res) => {
         }
 
         // Check currency
-        if (parseInt(wallet.amount) < parseInt(skill.price)) {
+        if (parseInt(wallet) < parseInt(skill.price)) {
             return res.status(400).json({
                 message: "failed",
                 data: `Not enough ${skill.currency}. Required: ${skill.price}, Available: ${wallet.amount}`
@@ -517,14 +513,15 @@ exports.acquirebuybasedskills = async (req, res) => {
         }
 
         // Deduct currency
-        wallet.amount = (parseInt(wallet.amount) - parseInt(skill.price)).toString();
-
+        const walletReduce = await reducewallet(characterid, skill.currency, skill.price);
+        if (walletReduce === "failed") {
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to deduct currency from wallet"
+            });
+        }
         // Save all changes atomically
-        await Promise.all([
-            skillTree.save(),
-            wallet.save()
-        ]);
-
+        await skillTree.save();
 
         const skilltree = await CharacterSkillTree.findOne({ owner: characterid })
             .populate('skills.skill');
@@ -846,9 +843,14 @@ exports.resetbasicskills = async (req, res) => {
         });
     }
 
-    const checkcharacterwallet = await Characterwallet.findOne({owner: new mongoose.Types.ObjectId(characterid), type: "crystal"})
-
-    if (!checkcharacterwallet || parseInt(checkcharacterwallet.amount) < 1000) {
+    const checkcharacterwallet = await checkwallet(characterid, "crystal");
+    if (checkcharacterwallet === "failed") {
+        return res.status(404).json({
+            message: "failed",
+            data: "Character wallet not found or invalid currency"
+        });
+    }
+    if (parseInt(checkcharacterwallet) < 1000) {
         return res.status(400).json({
             message: "failed",
             data: "You don't have enough crystals to reset your basic skills! You need 1000 crystals to reset your basic skills."
@@ -882,11 +884,10 @@ exports.resetbasicskills = async (req, res) => {
         skillTree.skillPoints = totalSp;
 
 
-        checkcharacterwallet.amount = parseInt(checkcharacterwallet.amount) - 1000;
 
         await Promise.all([
             skillTree.save({ session }),
-            checkcharacterwallet.save({ session }),
+            reducewallet(characterid, "crystal", 1000, session),
             CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
                 health: 10 * tempchardata.level,
                 energy: 5 * tempchardata.level,

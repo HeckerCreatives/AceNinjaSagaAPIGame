@@ -7,6 +7,8 @@ const { checkcharacter } = require("../utils/character");
 const Characterdata = require("../models/Characterdata");
 const { CharacterInventory } = require("../models/Market");
 const { gethairbundle } = require("../utils/bundle");
+const { addwallet } = require("../utils/wallettools");
+const { addXPAndLevel } = require("../utils/leveluptools");
 
 exports.redeemcode = async (req, res) => {
     const session = await mongoose.startSession();
@@ -81,76 +83,36 @@ exports.redeemcode = async (req, res) => {
         const expReward = redeemCode.rewards?.get('exp') || 0;
 
         if (coinsReward > 0) {
-            await Characterwallet.updateOne(
-                { owner: characterid, type: "coins" },
-                { $inc: { amount: coinsReward } },
-                { upsert: true, session }
-            );
+            const coinsResult = await addwallet(characterid, coinsReward, 'coins', session);
+            if (coinsResult === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to add coins to wallet."
+                });
+            }
         }
 
         if (crystalReward > 0) {
-            await Characterwallet.updateOne(
-                { owner: characterid, type: "crystal" },
-                { $inc: { amount: crystalReward } },
-                { upsert: true, session }
-            );
+            const crystalResult = await addwallet(characterid, crystalReward, 'crystal', session);
+            if (crystalResult === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to add crystals to wallet."
+                });
+            }
         }
 
         if (expReward > 0) {
-            const character = await Characterdata.findOne({ _id: characterid }).session(session);
-            if (!character) {
+            const xpResult = await addXPAndLevel(characterid, expReward, session);
+            if (xpResult === "failed") {
                 await session.abortTransaction();
-                return res.status(404).json({
+                return res.status(400).json({
                     message: "failed",
-                    data: "Character not found"
+                    data: "Failed to add experience points."
                 });
             }
-
-            character.experience += expReward;
-
-            let currentLevel = character.level;
-            let currentXP = character.experience;
-            let levelsGained = 0;
-            let xpNeeded = 80 * currentLevel;
-
-            while (currentXP >= xpNeeded && xpNeeded > 0) {
-                const overflowXP = currentXP - xpNeeded;
-                currentLevel++;
-                levelsGained++;
-                currentXP = overflowXP;
-                xpNeeded = 80 * currentLevel;
-            }
-
-            if (levelsGained > 0) {
-                await CharacterStats.updateOne(
-                    { owner: characterid },
-                    {
-                        $inc: {
-                            health: 10 * levelsGained,
-                            energy: 5 * levelsGained,
-                            armor: 2 * levelsGained,
-                            magicresist: 1 * levelsGained,
-                            speed: 1 * levelsGained,
-                            attackdamage: 1 * levelsGained,
-                            armorpen: 1 * levelsGained,
-                            magicpen: 1 * levelsGained,
-                            magicdamage: 1 * levelsGained,
-                            critdamage: 1 * levelsGained
-                        }
-                    },
-                    { session }
-                );
-
-                await CharacterSkillTree.updateOne(
-                    { owner: characterid },
-                    { $inc: { skillPoints: 4 * levelsGained } },
-                    { session }
-                );
-            }
-
-            character.level = currentLevel;
-            character.experience = currentXP;
-            await character.save({ session });
         }
 
         // Create CodesRedeemed entry
@@ -265,11 +227,6 @@ exports.redeemcode = async (req, res) => {
                 }
             }
         }
-
-        // Fetch updated wallet and character for accurate response
-        const walletCoins = await Characterwallet.findOne({ owner: characterid, type: "coins" }).session(session);
-        const walletCrystal = await Characterwallet.findOne({ owner: characterid, type: "crystal" }).session(session);
-        const character = await Characterdata.findOne({ _id: characterid }).session(session);
 
         // Build reward summary
         const rewardSummary = [];
