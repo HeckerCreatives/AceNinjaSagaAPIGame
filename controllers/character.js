@@ -1294,7 +1294,7 @@ exports.challengechapter = async (req, res) => {
                 data: "Failed to add coins. Please try again later."
             });
         }
-        const crystalResult = await addwallet(characterid, "crystal", rewards.crystal, session);
+        const crystalResult = await addwallet(characterid, "crystal", rewards.crystals, session);
         if (crystalResult === "failed") {  
             await session.abortTransaction();
             return res.status(400).json({
