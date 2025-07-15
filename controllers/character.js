@@ -217,7 +217,7 @@ exports.createcharacter = async (req, res) => {
         await BattlepassProgress.create([{
             owner: characterId,
             season: currentSeason._id, 
-            currentTier: 0,
+            currentTier: 1,
             currentXP: 0,
             hasPremium: false,
             claimedRewards: []
