@@ -885,10 +885,9 @@ exports.resetbasicskills = async (req, res) => {
 
 
 
-        await Promise.all([
-            skillTree.save({ session }),
-            reducewallet(characterid, 1000, "crystal", session),
-            CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
+        await skillTree.save({ session })
+
+        await  CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
                 health: 10 * tempchardata.level,
                 energy: 5 * tempchardata.level,
                 armor: 2 * tempchardata.level,
@@ -900,7 +899,12 @@ exports.resetbasicskills = async (req, res) => {
                 magicdamage: 1 * tempchardata.level,
                 critdamage: 1 * tempchardata.level
             }, { session })
-        ]);
+
+        const walletReduce = reducewallet(characterid, 1000, "crystal", session)
+        if (walletReduce === "failed") {
+            throw new Error("Failed to deduct crystals from wallet");
+        }
+
 
 
         const analyticresponse = await addanalytics(
