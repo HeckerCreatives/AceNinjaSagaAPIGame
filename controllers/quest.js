@@ -247,7 +247,7 @@ exports.claimdailyquest = async (req, res) => {
     }
 
     if (quest.rewardtype === "coins") {
-        const coinsResult = await addwallet(characterid, quest.xpReward, 'coins');
+        const coinsResult = await addwallet(characterid, 'coins', quest.xpReward);
         if (coinsResult === "failed") {
             return res.status(400).json({
                 message: "failed",
@@ -257,7 +257,7 @@ exports.claimdailyquest = async (req, res) => {
     }
         
     if (quest.rewardtype === "crystal" || quest.rewardtype === "crystals") {
-        const crystalsResult = await addwallet(characterid, quest.xpReward, 'crystals');
+        const crystalsResult = await addwallet(characterid, 'crystals', quest.xpReward);
         if (crystalsResult === "failed") {
             return res.status(400).json({
                 message: "failed",

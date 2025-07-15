@@ -513,7 +513,7 @@ exports.acquirebuybasedskills = async (req, res) => {
         }
 
         // Deduct currency
-        const walletReduce = await reducewallet(characterid, skill.currency, skill.price);
+        const walletReduce = await reducewallet(characterid, skill.price, skill.currency);
         if (walletReduce === "failed") {
             return res.status(500).json({
                 message: "failed",
@@ -887,7 +887,7 @@ exports.resetbasicskills = async (req, res) => {
 
         await Promise.all([
             skillTree.save({ session }),
-            reducewallet(characterid, "crystal", 1000, session),
+            reducewallet(characterid, 1000, "crystal", session),
             CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
                 health: 10 * tempchardata.level,
                 energy: 5 * tempchardata.level,

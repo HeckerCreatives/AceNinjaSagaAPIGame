@@ -682,14 +682,14 @@ exports.buypremiumbattlepass = async (req, res) => {
 
         for (const searchgrandrewarditem of searchgrandrewarditems) {
             if (searchgrandrewarditem.type === "crystalpacks") {
-                const crystalResult = await addwallet(characterid, searchgrandrewarditem.amount, 'crystal', session);
+                const crystalResult = await addwallet(characterid, 'crystal', searchgrandrewarditem.amount, session);
                 if (crystalResult === "failed") {
                     console.error(`Failed to award crystal packs:`, searchgrandrewarditem);
                     throw new Error(`Failed to award crystal packs: ${searchgrandrewarditem.name}`);
                 }
                 awardedItems.push(searchgrandrewarditem);
             } else if (searchgrandrewarditem.type === "goldpacks") {
-                const coinResult = await addwallet(characterid, searchgrandrewarditem.coins, 'coins', session);
+                const coinResult = await addwallet(characterid, 'coins', searchgrandrewarditem.coins, session);
                 if (coinResult === "failed") {
                     console.error(`Failed to award gold packs:`, searchgrandrewarditem);
                     throw new Error(`Failed to award gold packs: ${searchgrandrewarditem.name}`);

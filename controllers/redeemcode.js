@@ -83,7 +83,7 @@ exports.redeemcode = async (req, res) => {
         const expReward = redeemCode.rewards?.get('exp') || 0;
 
         if (coinsReward > 0) {
-            const coinsResult = await addwallet(characterid, coinsReward, 'coins', session);
+            const coinsResult = await addwallet(characterid,'coins', coinsReward, session);
             if (coinsResult === "failed") {
                 await session.abortTransaction();
                 return res.status(400).json({
@@ -94,7 +94,7 @@ exports.redeemcode = async (req, res) => {
         }
 
         if (crystalReward > 0) {
-            const crystalResult = await addwallet(characterid, crystalReward, 'crystal', session);
+            const crystalResult = await addwallet(characterid, 'crystal', crystalReward, session);
             if (crystalResult === "failed") {
                 await session.abortTransaction();
                 return res.status(400).json({

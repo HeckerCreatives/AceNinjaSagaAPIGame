@@ -1,19 +1,24 @@
 const Characterwallet = require("../models/Characterwallet")
 
-exports.addwallet = async (characterid, amount, type, session = null) => {
+exports.addwallet = async (characterid, type, amount, session = null) => {
     try {
         const updateOptions = {};
         if (session) {
             updateOptions.session = session;
         }
-        await Characterwallet.updateOne(
+
+        console.log(`Adding ${amount} to wallet of character ${characterid} of type ${type}`);
+        const result = await Characterwallet.updateOne(
             { owner: characterid, type: type },
             { $inc: { amount: amount } },
             updateOptions
         );
-        return { status: "success" };
+        if (result.modifiedCount === 0) {
+            return "failed";
+        }
+        return "success";
     } catch (error) {
-        return { status: "failed" };
+        return "failed";
     }
 }
 
@@ -23,14 +28,17 @@ exports.reducewallet = async (characterid, amount, type, session = null) => {
         if (session) {
             updateOptions.session = session;
         }
-        await Characterwallet.updateOne(
+        const result = await Characterwallet.updateOne(
             { owner: characterid, type: type },
             { $inc: { amount: -amount } },
             updateOptions
         );
-        return { status: "success" };
+        if (result.modifiedCount === 0) {
+            return "failed" ;
+        }
+        return "success" ;
     } catch (error) {
-        return { status: "failed" };
+        return "failed";
     }
 }
 
@@ -48,6 +56,6 @@ exports.checkwallet = async (characterid, type, session = null) => {
 
         return wallet ? wallet.amount : 0;
     } catch (error) {
-        return "failed"; // Return 0 if there's an error
+        return "failed";
     }
 }
