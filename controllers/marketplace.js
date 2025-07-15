@@ -11,7 +11,7 @@ const { checkcharacter } = require("../utils/character")
 const { gethairbundle } = require("../utils/bundle")
 const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
-const { addwallet, checkwallet } = require("../utils/wallettools")
+const { addwallet, checkwallet, reducewallet } = require("../utils/wallettools")
 
 exports.getMarketItems = async (req, res) => {
     const { page, limit, type, rarity, search, markettype, gender, characterid } = req.query
@@ -371,7 +371,6 @@ exports.buyitem = async (req, res) => {
             
             // Check wallet balance
             const wallet = await checkwallet(characterid, itemData.currency, session);
-
             if (wallet === "failed") {
                 await session.abortTransaction();
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
