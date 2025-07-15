@@ -135,8 +135,8 @@ const BattlepassProgressSchema = new mongoose.Schema(
         },
         currentTier: {
             type: Number,
-            default: 1,
-            min: 1
+            default: 0,
+            min: 0
         },
         currentXP: {
             type: Number,
