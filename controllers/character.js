@@ -1286,7 +1286,7 @@ exports.challengechapter = async (req, res) => {
             });
         }
 
-        const coinsResult = await addwallet(characterid, "coins", rewards.coins, session);
+        const coinsResult = await addwallet(characterid, "coins", rewards.gold, session);
         if (coinsResult === "failed") {
             await session.abortTransaction();
             return res.status(400).json({
