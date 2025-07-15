@@ -7,7 +7,7 @@ exports.addwallet = async (characterid, amount, type, session = null) => {
             updateOptions.session = session;
         }
         await Characterwallet.updateOne(
-            { character: characterid, type: type },
+            { owner: characterid, type: type },
             { $inc: { amount: amount } },
             updateOptions
         );
@@ -24,7 +24,7 @@ exports.reducewallet = async (characterid, amount, type, session = null) => {
             updateOptions.session = session;
         }
         await Characterwallet.updateOne(
-            { character: characterid, type: type },
+            { owner: characterid, type: type },
             { $inc: { amount: -amount } },
             updateOptions
         );
