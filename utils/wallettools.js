@@ -41,10 +41,11 @@ exports.checkwallet = async (characterid, type, session = null) => {
             updateOptions.session = session;
         }
         const wallet = await Characterwallet.findOne(
-            { character: characterid, type: type },
+            { owner: characterid, type: type },
             null,
             updateOptions
         ).lean();
+
         return wallet ? wallet.amount : 0;
     } catch (error) {
         return "failed"; // Return 0 if there's an error
