@@ -1265,10 +1265,10 @@ exports.challengechapter = async (req, res) => {
             let growth = 1.35;
 
             let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-            let fiftyPercentXP = Math.ceil(xpNeeded * 0.5) // Calculate 50% of the XP needed for the current level
-            rewards.exp = fiftyPercentXP;
+            // let fiftyPercentXP = Math.ceil(xpNeeded * 0.5) // Calculate 50% of the XP needed for the current level
+            rewards.exp = xpNeeded;
 
-            const xpResult = await addXPAndLevel(character, fiftyPercentXP, session);
+            const xpResult = await addXPAndLevel(character, xpNeeded, session);
             if (xpResult === "failed") {
                 throw new Error("Failed to add XP. Please try again later.");
             }
