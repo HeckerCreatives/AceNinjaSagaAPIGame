@@ -104,20 +104,20 @@ exports.createcharacter = async (req, res) => {
         // Create character stats
         await CharacterStats.create([{
             owner: characterId,
-            health: 100,
-            energy: 100,
-            armor: 10,
-            magicresist: 10,
-            speed: 10,
-            attackdamage: 10,
+            health: 1000,
+            energy: 1000,
+            armor: 0,
+            magicresist: 0,
+            speed: 50,
+            attackdamage: 0,
             armorpen: 0,
             magicpen: 0,
-            critchance: 0,
-            magicdamage: 10,
+            critchance: 5,
+            magicdamage: 0,
             lifesteal: 0,
             omnivamp: 0,
             healshieldpower: 0,
-            critdamage: 0,
+            critdamage: 70,
         }], { session });
 
         // Character titles will be added when earned through battlepass or other rewards
