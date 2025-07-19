@@ -1220,21 +1220,13 @@ exports.challengechapter = async (req, res) => {
 
 
         if (!characterid || !chapter || !challenge || !status || totaldamage === undefined || selfheal === undefined || skillsused === undefined || enemydefeated === undefined) {
-            await session.abortTransaction();
-            return res.status(400).json({ 
-                message: "failed", 
-                data: "Please input character ID, chapter, challenge, and status." 
-            });
+           throw new Error("Missing required fields: characterid, chapter, challenge, status, totaldamage, selfheal, skillsused, enemydefeated");
         }
 
         const checker = await checkcharacter(id, characterid);
 
         if (checker === "failed") {
-            await session.abortTransaction();
-            return res.status(400).json({
-                message: "Unauthorized",
-                data: "You are not authorized to view this page. Please login the right account to view the page."
-            });
+            throw new Error("Unauthorized: You are not authorized to view this page. Please login the right account to view the page.");
         }
         let name = `chapter${chapter}challenge${challenge}`;
 
@@ -1245,16 +1237,51 @@ exports.challengechapter = async (req, res) => {
         }).session(session);
 
         if (!charchapter) {
-            await session.abortTransaction();
-            return res.status(404).json({ 
-                message: "failed", 
-                data: "Chapter challenge not found." 
-            });
+           throw new Error("Character chapter not found.");
         }
 
         charchapter.completed = true;
         await charchapter.save({ session });
 
+        const character = await Characterdata.findOne({ 
+            _id: new mongoose.Types.ObjectId(characterid) 
+        }).session(session);
+
+        if (!character) {
+            throw new Error("Character not found.");
+        }
+        const characterchapterhistory = await CharacterChapterHistory.findOne({
+            owner: new mongoose.Types.ObjectId(characterid),
+            chapter: chapter,
+            challenge: challenge,
+            status: "win"
+        }).session(session);
+
+        const rewards = challengeRewards[`chapter${chapter}challenge${challenge}`];
+        if (!characterchapterhistory && status === "win") {
+
+            let currentLevel = character.level;
+            let baseXP = 100;
+            let growth = 1.35;
+
+            let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
+            let fiftyPercentXP = Math.ceil((xpNeeded * 0.5) * 10) / 10; // Rounds UP to nearest 0.1
+            rewards.exp = fiftyPercentXP;
+
+            const xpResult = await addXPAndLevel(character, fiftyPercentXP, session);
+            if (xpResult === "failed") {
+                throw new Error("Failed to add XP. Please try again later.");
+            }
+
+            const coinsResult = await addwallet(characterid, "coins", rewards.gold, session);
+            if (coinsResult === "failed") {
+                throw new Error("Failed to add coins. Please try again later.");
+            }
+            const crystalResult = await addwallet(characterid, "crystal", rewards.crystals, session);
+            if (crystalResult === "failed") {  
+                throw new Error("Failed to add crystals. Please try again later.");
+            }
+        }
         await CharacterChapterHistory.create([{
             owner: new mongoose.Types.ObjectId(characterid),
             chapter: chapter,
@@ -1262,47 +1289,6 @@ exports.challengechapter = async (req, res) => {
             status: status
         }], { session });
 
-        const character = await Characterdata.findOne({ 
-            _id: new mongoose.Types.ObjectId(characterid) 
-        }).session(session);
-
-        if (!character) {
-            await session.abortTransaction();
-            return res.status(404).json({ 
-                message: "failed", 
-                data: "Character not found." 
-            });
-        }
-
-        
-        const rewards = challengeRewards[`chapter${chapter}challenge${challenge}`];
-
-        const xpResult = await addXPAndLevel(character, rewards.exp, session);
-        if (xpResult === "failed") {
-            await session.abortTransaction();
-            return res.status(400).json({
-                message: "failed",
-                data: "Failed to add XP. Please try again later."
-            });
-        }
-
-        const coinsResult = await addwallet(characterid, "coins", rewards.gold, session);
-        if (coinsResult === "failed") {
-            await session.abortTransaction();
-            return res.status(400).json({
-                message: "failed",
-                data: "Failed to add coins. Please try again later."
-            });
-        }
-        const crystalResult = await addwallet(characterid, "crystal", rewards.crystals, session);
-        if (crystalResult === "failed") {  
-            await session.abortTransaction();
-            return res.status(400).json({
-                message: "failed",
-                data: "Failed to add crystals. Please try again later."
-            });
-        }
-    
         const multipleProgress = await multipleprogressutil(characterid, [
             { requirementtype: 'totaldamage', amount: totaldamage },
             { requirementtype: 'skillsused', amount: skillsused },
@@ -1312,12 +1298,9 @@ exports.challengechapter = async (req, res) => {
         ]);
 
         if (multipleProgress.message !== "success") {
-            await session.abortTransaction();
-            return res.status(400).json({ 
-                message: "failed", 
-                data: "Failed to update multiple progress."
-            });
+            throw new Error("Failed to update multiple progress: " + multipleProgress.data);
         }
+
 
 
         await session.commitTransaction();
@@ -1332,7 +1315,7 @@ exports.challengechapter = async (req, res) => {
         console.error(`Error in challengechapter: ${error}`);
         return res.status(500).json({ 
             message: "failed", 
-            data: "There's a problem with the server. Please contact support for more details." 
+            data: "An error occurred while processing the challenge chapter: " + error.message
         });
     } finally {
         session.endSession();
