@@ -72,14 +72,14 @@ exports.levelupplayer = async (characterid, levelsGained, currentLevel, session 
             { owner: characterid },
             {
                 $inc: {
-                    health: 5 * (levelsGained * currentLevel),
-                    energy: 2 * (levelsGained * currentLevel),
-                    armor: 2 * levelsGained,
-                    magicresist: 1 * levelsGained,
-                    speed: 1 * levelsGained,
+                    health: 50 * levelsGained,
+                    energy: 30 * levelsGained,
+                    armor: 3 * levelsGained,
+                    magicresist: 3 * levelsGained,
+                    speed: 3 * levelsGained,
                     attackdamage: 1 * levelsGained,
-                    armorpen: 1 * levelsGained,
-                    magicpen: 1 * levelsGained,
+                    armorpen: 0,
+                    magicpen: 0,
                     magicdamage: 1 * levelsGained,
                     critdamage: 1 * levelsGained
                 }
