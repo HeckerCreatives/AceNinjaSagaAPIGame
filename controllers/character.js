@@ -1265,7 +1265,7 @@ exports.challengechapter = async (req, res) => {
             let growth = 1.35;
 
             let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
-            let fiftyPercentXP = Math.ceil((xpNeeded * 0.5) * 10) / 10; // Rounds UP to nearest 0.1
+            let fiftyPercentXP = Math.ceil(xpNeeded * 0.5) // Calculate 50% of the XP needed for the current level
             rewards.exp = fiftyPercentXP;
 
             const xpResult = await addXPAndLevel(character, fiftyPercentXP, session);
