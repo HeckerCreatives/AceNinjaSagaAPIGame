@@ -918,18 +918,27 @@ exports.claimbattlepassquest = async (req, res) => {
 
         case "battlepassexp":
             battlepassProgress.currentXP += mission.xpReward;
-            
+
             const XP_PER_TIER = 1000;
             const maxTiers = battlepassseason.tiers.length;
-            
+
+            // Block at tier 1: XP can go up to 1999, but tier stays at 1
+            if (battlepassProgress.currentTier === 1 && battlepassProgress.currentXP < 2000) {
+                // Do not level up, just accumulate XP up to 1999
+                if (battlepassProgress.currentXP > 1999) {
+                    battlepassProgress.currentXP = 1999;
+                }
+                break;
+            }
+
+            // After 2000 XP, normal leveling resumes
             const calculatedTier = Math.min(
                 Math.floor(battlepassProgress.currentXP / XP_PER_TIER) + 1,
                 maxTiers
             );
-            
+
             if (calculatedTier > battlepassProgress.currentTier) {
-                const oldTier = battlepassProgress.currentTier;
-                battlepassProgress.currentTier = calculatedTier;
+                 battlepassProgress.currentTier += 1; // Only increment by 1
             }
             break;
 
