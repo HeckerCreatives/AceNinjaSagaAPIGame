@@ -503,6 +503,109 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                         return { success: true, message: `Awarded skin (no matching hair found)` };
                     }
 
+                case 'item':
+                    switch (processedReward.itemType) {
+                        case 'badge':
+                            // Add badge to character's badge collection
+                            const badge = await Badge.findById(processedReward.id).session(session);
+                            if (badge) {
+                                // Check if character already has this badge
+                                const existingBadge = await Characterbadge.findOne({ 
+                                    owner: characterid, 
+                                    index: badge.index 
+                                }).session(session);
+                                
+                                if (!existingBadge) {
+                                    await Characterbadge.create([{
+                                        owner: characterid,
+                                        badge: badge._id,
+                                        index: badge.index,
+                                        name: badge.title
+                                    }], { session });
+                                }
+                            }
+                            return { success: true, message: `Awarded badge` };
+
+                        case 'title':
+                            // Add title to character's title collection
+                            const title = await Title.findById(processedReward.id).session(session);
+                            if (title) {
+                                // Check if character already has this title
+                                const existingTitle = await Charactertitle.findOne({ 
+                                    owner: characterid, 
+                                    index: title.index 
+                                }).session(session);
+                                
+                                if (!existingTitle) {
+                                    await Charactertitle.create([{
+                                        owner: characterid,
+                                        title: title._id,
+                                        index: title.index,
+                                        name: title.title
+                                    }], { session });
+                                }
+                            }
+                            return { success: true, message: `Awarded title` };
+
+                        case 'weapon':
+                            // Add weapon to inventory
+                            await CharacterInventory.findOneAndUpdate(
+                                { owner: characterid, type: 'weapon' },
+                                {
+                                    $push: {
+                                        items: {
+                                            item: processedReward.id,
+                                            quantity: processedReward.amount || 1
+                                        }
+                                    }
+                                },
+                                { upsert: true, session }
+                            );
+                            return { success: true, message: `Awarded weapon` };
+
+                        case 'skin':
+                            // Add skin to inventory
+                            await CharacterInventory.findOneAndUpdate(
+                                { owner: characterid, type: 'outfit' },
+                                {
+                                    $push: {
+                                        items: {
+                                            item: processedReward.id,
+                                            quantity: processedReward.amount || 1
+                                        }
+                                    }
+                                },
+                                { upsert: true, session }
+                            );
+
+                            // Check if skin has corresponding hair bundle
+                            const correspondingHairId = gethairbundle(processedReward.id);
+                            
+                            if (correspondingHairId && correspondingHairId !== "failed" && correspondingHairId !== "") {
+                                // Award the corresponding hair as well
+                                await CharacterInventory.findOneAndUpdate(
+                                    { owner: characterid, type: 'hair' },
+                                    {
+                                        $push: {
+                                            items: {
+                                                item: correspondingHairId,
+                                                quantity: 1
+                                            }
+                                        }
+                                    },
+                                    { upsert: true, session }
+                                );
+                                console.log(`Awarded skin bundle (outfit + hair) for character ${characterid}`);
+                                return { success: true, message: `Awarded skin bundle (outfit + hair)` };
+                            } else {
+                                // No corresponding hair found, just return skin success
+                                return { success: true, message: `Awarded skin (no matching hair found)` };
+                            }
+
+                        default:
+                            return { success: false, message: `Unknown item type: ${processedReward.itemType}` };
+                    }
+
             case 'bundle':
                 // Process each item in bundle
                 const results = [];
