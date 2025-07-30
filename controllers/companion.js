@@ -402,35 +402,19 @@ exports.equipunequipcompanion = async (req, res) => {
     }
 
 
-    // check if companion is already equipped
+    if(charactercompanion.isEquipped){
+        charactercompanion.isEquipped = false;
+        await charactercompanion.save();
+        return res.status(200).json({ message: "success", data: "Companion unequipped successfully."});
+    } else {
+        await CharacterCompanion.updateMany(
+            { owner: characterid },
+            { $set: { isEquipped: false } }
+        );
 
-    const equipped = await CharacterCompanion.findOne({ owner: characterid, companion: companionid, isEquipped: true })
-    if(equipped){
-        equipped.isEquipped = false
-        await equipped.save()
-    } 
-    
-    // check if there are other equipped companions
-
-    const otherEquipped = await CharacterCompanion.findOne({ owner: characterid, isEquipped: true })
-    if(otherEquipped){
-        otherEquipped.isEquipped = false
-        await otherEquipped.save()
+        charactercompanion.isEquipped = true;
+        await charactercompanion.save();
     }
-
-    // equip companion
-
-    charactercompanion.isEquipped = true
-
-    await charactercompanion.save()
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem encountered while equipping companion. Error: ${err}.`)
-        return res.status(400).json({
-            message: "bad-request", 
-            data: "There's a problem with the server. Please try again later."
-        });
-    })
 
     return res.status(200).json({ message: "success"})
 }

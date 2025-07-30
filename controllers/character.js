@@ -8,7 +8,7 @@ const { CharacterInventory, Item } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
 const { BattlepassProgress, BattlepassSeason, BattlepassMissionProgress } = require("../models/Battlepass")
-const { checkcharacter, getCharacterGender } = require("../utils/character")
+const { checkcharacter, getCharacterGender, getdefaultstats, getLevelBasedStats } = require("../utils/character")
 
 const RankTier = require("../models/RankTier")
 const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
@@ -104,20 +104,7 @@ exports.createcharacter = async (req, res) => {
         // Create character stats
         await CharacterStats.create([{
             owner: characterId,
-            health: 1000,
-            energy: 1000,
-            armor: 0,
-            magicresist: 0,
-            speed: 50,
-            attackdamage: 0,
-            armorpen: 0,
-            magicpen: 0,
-            critchance: 5,
-            magicdamage: 0,
-            lifesteal: 0,
-            omnivamp: 0,
-            healshieldpower: 0,
-            critdamage: 70,
+            ...getLevelBasedStats(1)
         }], { session });
 
         // Character titles will be added when earned through battlepass or other rewards

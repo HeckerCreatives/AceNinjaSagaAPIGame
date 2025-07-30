@@ -6,7 +6,7 @@ const CharacterStats = require("../models/Characterstats");
 const Analytics = require("../models/Analytics");
 const { addanalytics } = require("../utils/analyticstools");
 const { checkmaintenance } = require("../utils/maintenance");
-const { checkcharacter } = require("../utils/character");
+const { checkcharacter, getLevelBasedStats } = require("../utils/character");
 const { checkwallet, reducewallet } = require("../utils/wallettools");
 
 exports.getSkills = async (req, res) => {
@@ -888,16 +888,7 @@ exports.resetbasicskills = async (req, res) => {
         await skillTree.save({ session })
 
         await  CharacterStats.findOneAndUpdate({owner: new mongoose.Types.ObjectId(characterid)}, {
-                health: 10 * tempchardata.level,
-                energy: 5 * tempchardata.level,
-                armor: 2 * tempchardata.level,
-                magicresist: 1 * tempchardata.level,
-                speed: 1 * tempchardata.level,
-                attackdamage: 1 * tempchardata.level,
-                armorpen: 1 * tempchardata.level,
-                magicpen: 1 * tempchardata.level,
-                magicdamage: 1 * tempchardata.level,
-                critdamage: 1 * tempchardata.level
+                ...getLevelBasedStats(tempchardata.level),
             }, { session })
 
         const walletReduce = reducewallet(characterid, 1000, "crystal", session)
