@@ -43,6 +43,11 @@ exports.getcharactercompanions = async (req, res) => {
             });
         })
 
+    const equippedCount = await CharacterCompanion.countDocuments({ owner: characterid, isEquipped: true });
+    if (equippedCount > 1) {
+        // Optionally log or handle this case
+        console.warn(`More than one companion equipped for character ${characterid}`);
+    }
     const totalData = await CharacterCompanion.countDocuments(query)
     const totalPages = Math.ceil(totalData / options.limit)
 
