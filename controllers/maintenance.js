@@ -15,6 +15,8 @@ exports.getmaintenance = async (req, res) => {
         return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
     })
 
+    console.log(`Maintenance List: ${maintenanceList}`)
+
     const finaldata = {
         type: maintenanceList.type,
         value: maintenanceList.value,
