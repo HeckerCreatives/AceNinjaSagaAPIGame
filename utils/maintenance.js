@@ -1,12 +1,12 @@
 const Maintenance = require("../models/Maintenance");
 
-
-
 exports.checkmaintenance = async (type) => {
-
     try {
         const maintenance = await Maintenance.findOne({ type: type });
-
+        if (!maintenance) {
+            console.error(`Maintenance record for ${type} not found.`);
+            return "success";
+        }
         if (maintenance.value === "1") {
             return "failed"; // Maintenance is active
         }
@@ -15,5 +15,4 @@ exports.checkmaintenance = async (type) => {
         console.error(`Failed to check maintenance status for ${type}, error:`, err);
         return false;
     }
-    
 }

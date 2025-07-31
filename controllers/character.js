@@ -1619,7 +1619,11 @@ exports.getnotification = async (req, res) => {
             existsreset(characterid, "monthlylogin", "checkin").then(reset => !reset)
         ]);
 
-        
+        let isMonthlyTrue = false;
+        if (monthlyLogin.currentDay < 28  && dayOfMonth < 28) {
+            isMonthlyTrue = true;
+        }
+
         const response = {
             data: {
                 news: {
@@ -1636,7 +1640,7 @@ exports.getnotification = async (req, res) => {
                     dailyspin: dailySpin.spin,
                     dailyexpspin: dailySpin.expspin,
                     weeklylogin: weeklyHasLoggedToday,
-                    monthlylogin: dayOfMonth > 28 ? false : monthlyHasLoggedToday,
+                    monthlylogin: isMonthlyTrue ? false : monthlyHasLoggedToday,
                     freebieexp: expexist,
                     freebiecoins: coinsexist,
                     freebiecrystal: crystalexists
