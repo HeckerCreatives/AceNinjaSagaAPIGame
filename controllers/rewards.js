@@ -10,7 +10,7 @@ const { progressutil } = require("../utils/progress")
 const { addanalytics } = require("../utils/analyticstools")
 const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
-const { addwallet } = require("../utils/wallettools")
+const { addwallet, checkwallet, reducewallet } = require("../utils/wallettools")
 
 // #region  USER
 
@@ -137,8 +137,23 @@ exports.spindaily = async (req, res) => {
         }
 
         if (userdailyspin.spin === false) {
-            await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "You already spinned today." });
+           const wallet = await checkwallet(characterid, "crystal", session);
+           
+           if (wallet === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "Failed to check wallet amount." });
+            }
+
+            if (wallet < 100){
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "You need at least 100 crystals to spin." });
+            }
+
+            const walletReduce = await reducewallet(characterid, "crystal", 100, session);
+            if (walletReduce === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "Failed to reduce wallet amount." });
+            }
         }
 
         const dailyspin = await DailySpin.find().session(session);
@@ -221,6 +236,7 @@ exports.spindaily = async (req, res) => {
         });
     } catch (error) {
         await session.abortTransaction();
+        console.error(`Error occurred during daily spin: ${error}`);
         return res.status(500).json({ message: "failed", data: "Internal server error" });
     } finally {
         session.endSession();
@@ -348,8 +364,23 @@ exports.spinexpdaily = async (req, res) => {
         }
 
         if (userdailyspin.expspin === false) {
-            await session.abortTransaction();
-            return res.status(400).json({ message: "failed", data: "You already spinned today." });
+           const wallet = await checkwallet(characterid, "crystal", session);
+           
+           if (wallet === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "Failed to check wallet amount." });
+            }
+
+            if (wallet < 100){
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "You need at least 100 crystals to spin." });
+            }
+
+            const walletReduce = await reducewallet(characterid, "crystal", 100, session);
+            if (walletReduce === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "Failed to reduce wallet amount." });
+            }
         }
 
         const dailyspin = await DailyExpSpin.find().session(session);

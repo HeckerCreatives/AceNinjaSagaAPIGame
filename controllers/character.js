@@ -1618,6 +1618,7 @@ exports.getnotification = async (req, res) => {
             existsreset(characterid, "weeklylogin", "claim").then(reset => !reset),
             existsreset(characterid, "monthlylogin", "checkin").then(reset => !reset)
         ]);
+
         
         const response = {
             data: {
@@ -1635,7 +1636,7 @@ exports.getnotification = async (req, res) => {
                     dailyspin: dailySpin.spin,
                     dailyexpspin: dailySpin.expspin,
                     weeklylogin: weeklyHasLoggedToday,
-                    monthlylogin: monthlyHasLoggedToday,
+                    monthlylogin: dayOfMonth > 28 ? false : monthlyHasLoggedToday,
                     freebieexp: expexist,
                     freebiecoins: coinsexist,
                     freebiecrystal: crystalexists
