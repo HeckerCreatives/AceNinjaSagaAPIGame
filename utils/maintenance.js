@@ -8,6 +8,7 @@ exports.checkmaintenance = async (type) => {
             return "success";
         }
         if (maintenance.value === "1") {
+            console.log(`Maintenance value for ${type} is active: ${maintenance.value}.`);
             return "failed"; // Maintenance is active
         }
         return "success"; // Maintenance is not active
