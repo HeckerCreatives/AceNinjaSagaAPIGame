@@ -1,7 +1,7 @@
 const { default: mongoose } = require("mongoose")
 const { News, ItemNews, NewsRead } = require("../models/News");
 const Announcement = require("../models/Announcement")
-const { checkcharacter } = require("../utils/character");
+const { checkcharacter, getCharacterGenderString } = require("../utils/character");
 
 
 // exports.creatnews = async (req, res) => {
@@ -100,7 +100,7 @@ exports.editnews = async (req, res) => {
 }
 
 exports.getnews = async (req, res) => {
-    const {page, limit, type, gender, characterid} = req.query
+    const {page, limit, type, characterid} = req.query
 
     const pageOptions = {
         page: parseInt(page) || 0,
@@ -112,6 +112,7 @@ exports.getnews = async (req, res) => {
         query.type = type;
     }
 
+    const gender = await getCharacterGenderString(characterid);
     const NewsData = await News.find(query)
     .sort({ createdAt: -1 })
     .skip(pageOptions.page * pageOptions.limit)

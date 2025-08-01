@@ -246,7 +246,7 @@ exports.buycompanion = async (req, res) => {
         });
     }
 
-    const companion = await Companion.find({name: { $regex: new RegExp('^' + companionname + '$', 'i') }})
+    const companion = await Companion.findOne({name: { $regex: new RegExp('^' + companionname + '$', 'i') }})
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -257,6 +257,10 @@ exports.buycompanion = async (req, res) => {
     })
     if(!companion){
         return res.status(400).json({ message: "failed", data: "Companion not found."})
+    }
+
+    if (companion.isLocked) {
+        return res.status(400).json({ message: "failed", data: "Companion is locked. Please unlock it first."});
     }
 
 
@@ -278,7 +282,7 @@ exports.buycompanion = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "Character level not enough."})
     }
 
-    const charactercompanion = await CharacterCompanion.find({ owner: characterid, companion: companion[0]._id })
+    const charactercompanion = await CharacterCompanion.find({ owner: characterid, companion: companion._id })
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -294,7 +298,7 @@ exports.buycompanion = async (req, res) => {
 
     // check price and currency and wallet balance
 
-    const { price, currency } = companion[0]
+    const { price, currency } = companion
 
     // check if character has enough currency
 
@@ -321,7 +325,7 @@ exports.buycompanion = async (req, res) => {
 
     // add companion to character
 
-   const data = await CharacterCompanion.create({ owner: characterid, companion: companion[0]._id, isEquipped: false })
+   const data = await CharacterCompanion.create({ owner: characterid, companion: companion._id, isEquipped: false })
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while buying companion. Error: ${err}.`)
@@ -338,8 +342,8 @@ exports.buycompanion = async (req, res) => {
         data._id.toString(),
         "buy", 
         "companion",
-        companion[0].name,
-        `Bought companion: ${companion[0].name} for ${price} ${currency}`,
+        companion.name,
+        `Bought companion: ${companion.name} for ${price} ${currency}`,
         price
     );
 

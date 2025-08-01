@@ -3,7 +3,7 @@ const Characterdata = require("../models/Characterdata")
 const CharacterStats = require("../models/Characterstats")
 const Charactertitle = require("../models/Charactertitles")
 const Characterwallet = require("../models/Characterwallet")
-const { Rankings } = require("../models/Ranking")
+const { Rankings, RankingHistory } = require("../models/Ranking")
 const { CharacterInventory, Item } = require("../models/Market")
 const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
@@ -544,7 +544,10 @@ exports.getplayerdata = async (req, res) => {
 
     const totalWins = await PvP.countDocuments({ status: 1, owner: new mongoose.Types.ObjectId(characterid) })
     const characterData = await Characterdata.aggregate(matchCondition)
+    const highestmmrreached = await RankingHistory.findOne({ owner: new mongoose.Types.ObjectId(characterid) })
 
+    characterData[0].highestmmr = highestmmrreached ? highestmmrreached.mmr : 0
+    characterData[0].highestmmrrank = highestmmrreached ? highestmmrreached.rank : "684ce1f4c61e8f1dd3ba04fa"
     const characterSkills = await CharacterSkillTree.aggregate([
         {
             $match: {
