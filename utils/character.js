@@ -100,19 +100,24 @@ exports.getCharacterGenderNumber = async (characterid) => {
 };
 
 
-exports.getLevelBasedStats = (level) => ({
-    health: 1000 * level,
-    energy: 1000 * level,
-    armor: 0 * level,
-    magicresist: 0 * level,
-    speed: 50 * level,
-    attackdamage: 0 * level,
-    armorpen: 0 * level,
-    magicpen: 0 * level,
-    critchance: 5 * level,
-    magicdamage: 0 * level,
-    lifesteal: 0 * level,
-    omnivamp: 0 * level,
-    healshieldpower: 0 * level,
-    critdamage: 70 * level,
-});
+exports.getLevelBasedStats = (level) => {
+    let newlevel = level - 1;
+
+    return {
+        health: 1000 + (newlevel * 50),
+        energy: 1000 + (newlevel * 30),
+        armor: 0 + (newlevel * 3),
+        magicresist: 0 + (newlevel * 3),
+        speed: 50 + (newlevel * 3),
+        attackdamage: 0 + (newlevel * 1),
+        armorpen: 0,
+        magicpen: 0,
+        critchance: 5,
+        magicdamage: 0 + (newlevel * 1),
+        lifesteal: 0,
+        omnivamp: 0,
+        healshieldpower: 0,
+        critdamage: 70 + (newlevel * 1),
+    }
+};
+
