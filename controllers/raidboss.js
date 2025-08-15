@@ -39,16 +39,16 @@ exports.getraidboss = async (req, res) => {
         
         const now = new Date();
         const phTime = new Date(now.getTime());
-        
+
         // Calculate time until next midnight (00:00) in UTC+8
         const midnight = new Date(phTime);
         midnight.setDate(midnight.getDate() + 1);
         midnight.setHours(0, 0, 0, 0);
-        
-        const timeUntilMidnight = midnight - phTime;
-        const minutesRemaining = Math.floor((timeUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
 
-        data.timeremaining = minutesRemaining
+        const timeUntilMidnight = midnight - phTime;
+        const secondsRemaining = Math.floor(timeUntilMidnight / 1000);
+
+        data.timeremaining = secondsRemaining
 
         return res.json({ message: "success", data });
     } catch (err) {
