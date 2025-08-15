@@ -323,10 +323,10 @@ exports.createcharacter = async (req, res) => {
             }], { session });
 
 
-        await RaidbossFight.create({
+        await RaidbossFight.create([{
             owner: new mongoose.Types.ObjectId(characterId),
             status: "notdone"
-        }, {session})
+        }], {session})
         
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
