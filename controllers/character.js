@@ -9,6 +9,7 @@ const { CharacterSkillTree } = require("../models/Skills")
 const Season = require("../models/Season")
 const { BattlepassProgress, BattlepassSeason, BattlepassMissionProgress } = require("../models/Battlepass")
 const { checkcharacter, getCharacterGender, getdefaultstats, getLevelBasedStats } = require("../utils/character")
+const RaidbossFight = require("../models/Raidbossfight")
 
 const RankTier = require("../models/RankTier")
 const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
@@ -320,6 +321,13 @@ exports.createcharacter = async (req, res) => {
                 winRate: 0,
                 rank: new mongoose.Types.ObjectId("684ce1f4c61e8f1dd3ba04fa") // Default rank ID, adjust as necessary
             }], { session });
+
+
+        await RaidbossFight.create({
+            owner: new mongoose.Types.ObjectId(characterId),
+            status: "notdone"
+        }, {session})
+        
         await session.commitTransaction();
         return res.status(200).json({ message: "success" });
 
