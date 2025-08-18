@@ -6,18 +6,30 @@ const RaidbossSchema = new mongoose.Schema(
             type: String,
             index: true
         },
-        rewards: [{
-            type: Map, 
-            of: Number 
-        }],
-        itemrewards: [{
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Item',
-        }],
-        skillrewards: [{
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Skill',
-        }],
+        rewards: [
+            {
+                type: {
+                    type: String,
+                    required: true
+                },
+                name: {
+                    type: String,
+                    required: true
+                },
+                amount: {
+                    type: Number,
+                    required: false
+                },
+                id: {
+                    type: String,
+                    required: false
+                },
+                gender: {
+                    type: String,
+                    required: false
+                }
+            }
+        ],
         status: {
             type: String,
             enum: ["active", "inactive"],
