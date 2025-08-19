@@ -3,7 +3,8 @@ const Raidboss = require("../models/Raidboss")
 const RaidbossFight = require("../models/Raidbossfight")
 const Characterdata = require("../models/Characterdata")
 const { awardBattlepassReward, determineRewardType } = require("../utils/battlepassrewards")
-const { gethairbundle } = require("../utils/bundle")
+const { gethairbundle } = require("../utils/bundle");
+const { getCharacterGenderString } = require("../utils/character");
 
 exports.getraidboss = async (req, res) => {
     const { id } = req.user;
@@ -16,6 +17,9 @@ exports.getraidboss = async (req, res) => {
             data: "Character ID is required" 
         });
     }
+
+    // Get character gender (await because the util is async)
+    const charactergender = await getCharacterGenderString(characterid);
 
     try {
         const bossdatas = await Raidboss.find({})
@@ -37,10 +41,26 @@ exports.getraidboss = async (req, res) => {
         bossdatas.forEach(tempdata => {
             const { bossname, rewards, status } = tempdata;
 
+            // Filter rewards: if a reward has a gender field, only include it when it matches the character's gender
+            // This handles cases where gendered items are stored with type 'item' but include a gender property
+            const filteredRewards = rewards.filter(reward => {
+                if (reward && reward.gender) {
+                    try {
+                        // if unisex or gender matches then
+                        if (reward.gender === "unisex" || reward.gender === charactergender) {
+                            return true;
+                        }
+                        return false;
+                    } catch (e) {
+                        return true;
+                    }
+                }
+                return true;
+            });
             data.boss[bossname] = {
                 id: tempdata._id, // Use Mongoose ID for reference
                 bossname: bossname,
-                rewards,    // rewards array with type, amount, id, gender
+                rewards: filteredRewards,    // rewards array with type, amount, id, gender
                 status
             };
         });
