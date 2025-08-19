@@ -8,26 +8,28 @@ const RaidbossSchema = new mongoose.Schema(
         },
         rewards: [
             {
-                type: {
-                    type: String,
-                    required: true
-                },
-                name: {
-                    type: String,
-                    required: true
-                },
-                amount: {
-                    type: Number,
-                    required: false
-                },
-                id: {
-                    type: String,
-                    required: false
-                },
-                gender: {
-                    type: String,
-                    required: false
-                }
+                type: Object,
+                required: true,
+                // type: {
+                //     type: String,
+                //     required: true
+                // },
+                // name: {
+                //     type: String,
+                //     required: true
+                // },
+                // amount: {
+                //     type: Number,
+                //     required: false
+                // },
+                // id: {
+                //     type: String,
+                //     required: false
+                // },
+                // gender: {
+                //     type: String,
+                //     required: false
+                // }
             }
         ],
         status: {

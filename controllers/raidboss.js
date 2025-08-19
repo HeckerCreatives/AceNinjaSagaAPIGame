@@ -40,27 +40,43 @@ exports.getraidboss = async (req, res) => {
 
         bossdatas.forEach(tempdata => {
             const { bossname, rewards, status } = tempdata;
-
-            // Filter rewards: if a reward has a gender field, only include it when it matches the character's gender
-            // This handles cases where gendered items are stored with type 'item' but include a gender property
-            const filteredRewards = rewards.filter(reward => {
-                if (reward && reward.gender) {
-                    try {
-                        // if unisex or gender matches then
-                        if (reward.gender === "unisex" || reward.gender === charactergender) {
-                            return true;
-                        }
-                        return false;
-                    } catch (e) {
-                        return true;
+            let filteredrewards = []
+            rewards.forEach(data => {
+                if (data.type === "skin"){
+                    if (charactergender.toLowerCase() === "male"){
+                        filteredrewards.push({
+                            type: data.type,
+                            name: data.name,
+                            amount: data.amount,
+                            itemid: data.id,
+                            gender: "male",
+                            _id: data._id
+                        })
+                    } else {
+                        filteredrewards.push({
+                            type: data.type,
+                            name: data.name,
+                            amount: data.amount,
+                            itemid: data.id,
+                            gender: "female",
+                            _id: data._id
+                        })
                     }
+                } else {
+                    filteredrewards.push({
+                        type: data.type,
+                        name: data.name,
+                        amount: data.amount,
+                        itemid: data.id,
+                        gender: "unisex",
+                        _id: data._id
+                    })
                 }
-                return true;
-            });
+            })
             data.boss[bossname] = {
                 id: tempdata._id, // Use Mongoose ID for reference
                 bossname: bossname,
-                rewards: filteredRewards,    // rewards array with type, amount, id, gender
+                rewards: filteredrewards,    // rewards array with type, amount, id, gender
                 status
             };
         });
