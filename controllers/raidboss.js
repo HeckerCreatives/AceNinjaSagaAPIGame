@@ -56,9 +56,9 @@ exports.getraidboss = async (req, res) => {
                     } else {
                         filteredrewards.push({
                             type: data.type,
-                            name: data.name,
+                            name: data.fname,
                             amount: data.amount,
-                            itemid: data.id,
+                            itemid: data.fid,
                             gender: "female",
                             _id: data._id
                         })
