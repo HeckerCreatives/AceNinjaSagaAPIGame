@@ -204,6 +204,8 @@ exports.awardRaidbossRewards = async (req, res) => {
             console.log('No rewards found for this boss');
         }
 
+        console.log(results)
+
         // Add analytics for raid boss reward claiming
         const analyticresponse = await addanalytics(
             characterid.toString(),
