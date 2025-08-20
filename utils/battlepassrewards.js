@@ -682,7 +682,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                     await Characterbadges.create([{
                         owner: characterid,
                         badge: badge._id,
-                        index: badge.index,
+                        index: badge.id,
                         name: badge.title
                     }], { session });
                 }
@@ -695,7 +695,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                     // Check if character already has this title
                     const existingTitle = await Charactertitles.findOne({ 
                         owner: characterid, 
-                        index: title.index 
+                        index: title.id 
                     }).session(session);
                     
                     if (existingTitle) {
