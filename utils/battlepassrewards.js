@@ -603,7 +603,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
             case 'badge':
                 // Add badge to character's badge collection
-                const badge = await Badge.findOne({ index: processedReward.id }).session(session);
+                const badge = await Badge.findOne({ index: Number(processedReward.id) }).session(session);
                 if (badge) {
                     // Check if character already has this badge
                     const existingBadge = await Characterbadges.findOne({ 
@@ -627,7 +627,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
             case 'title':
                 // Add title to character's title collection
-                const title = await Title.findOne({ index: processedReward.id }).session(session);
+                const title = await Title.findOne({ index: Number(processedReward.id) }).session(session);
                 if (title) {
                     // Check if character already has this title
                     const existingTitle = await Charactertitles.findOne({ 
