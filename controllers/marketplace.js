@@ -491,6 +491,60 @@ exports.buyitem = async (req, res) => {
                 );
             }
             }
+
+        // Log analytics for purchase
+        const rewardType = itemData.currency === 'crystal' ? 'crystal' :
+                   itemData.currency === 'coins' ? 'coins' :
+                   itemData.currency || null;
+        const rewardAmount = itemData.price || 0;
+        const description = `Bought item ${itemData.name} for ${itemData.price} ${itemData.currency}`;
+
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            itemid.toString(),
+            "buy",
+            "market",
+            rewardType,
+            description,
+            rewardAmount
+        );
+
+        if (analyticresponse === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+            message: "failed",
+            data: "Failed to log analytics for purchase"
+            });
+        }
+
+        // If purchase granted an additional bundled item, log that as well
+        if (itemData1) {
+            const bundleRewardType = itemData1.currency === 'crystal' ? 'crystal' :
+                         itemData1.currency === 'coins' ? 'coins' :
+                         itemData1.currency || itemData1.type || null;
+            const bundleAmount = itemData1.price || 0;
+            const bundleDesc = `Granted bundle item ${itemData1.name} from purchase of ${itemData.name}`;
+
+            const analyticresponse2 = await addanalytics(
+            characterid.toString(),
+            itemData1._id.toString(),
+            "grant",
+            "market",
+            bundleRewardType,
+            bundleDesc,
+            bundleAmount
+            );
+
+            if (analyticresponse2 === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for bundle item"
+            });
+            }
+        }
+
+
             
             // Commit transaction
             await session.commitTransaction();

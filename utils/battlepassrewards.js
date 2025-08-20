@@ -1,7 +1,7 @@
 const { getCorrelatedHairByOutfitId } = require('./bundle');
 const Characterwallet = require('../models/Characterwallet');
 const Characterdata = require('../models/Characterdata');
-const { CharacterInventory } = require('../models/Market');
+const { CharacterInventory, Item } = require('../models/Market');
 const { CharacterSkillTree } = require('../models/Skills');
 const Badge = require('../models/Badge');
 const Title = require('../models/Title');
@@ -457,14 +457,23 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                                 index: badge.index 
                             }).session(session);
                             
-                            if (!existingBadge) {
-                                await Characterbadges.create([{
-                                    owner: characterid,
-                                    badge: badge._id,
-                                    index: badge.index,
-                                    name: badge.title
-                                }], { session });
+                            if (existingBadge) {
+                                // Give 50% of badge value as currency instead
+                                const compensationAmount = Math.floor((badge.price || 100) * 0.5);
+                                await Characterwallet.findOneAndUpdate(
+                                    { owner: characterid, type: badge.currency || 'coins' },
+                                    { $inc: { amount: compensationAmount } },
+                                    { upsert: true, session }
+                                );
+                                return { success: true, message: `Badge already owned, awarded ${compensationAmount} ${badge.currency || 'coins'} instead` };
                             }
+                            
+                            await Characterbadges.create([{
+                                owner: characterid,
+                                badge: badge._id,
+                                index: badge.index,
+                                name: badge.title
+                            }], { session });
                         }
                         return { success: true, message: `Awarded badge` };
 
@@ -478,19 +487,43 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                                 index: title.index 
                             }).session(session);
                             
-                            if (!existingTitle) {
-                                await Charactertitles.create([{
-                                    owner: characterid,
-                                    title: title._id,
-                                    index: title.index,
-                                    name: title.title
-                                }], { session });
+                            if (existingTitle) {
+                                // Give 50% of title value as currency instead
+                                const compensationAmount = Math.floor((title.price || 150) * 0.5);
+                                await Characterwallet.findOneAndUpdate(
+                                    { owner: characterid, type: title.currency || 'coins' },
+                                    { $inc: { amount: compensationAmount } },
+                                    { upsert: true, session }
+                                );
+                                return { success: true, message: `Title already owned, awarded ${compensationAmount} ${title.currency || 'coins'} instead` };
                             }
+                            
+                            await Charactertitles.create([{
+                                owner: characterid,
+                                title: title._id,
+                                index: title.index,
+                                name: title.title
+                            }], { session });
                         }
                         return { success: true, message: `Awarded title` };
 
                     case 'weapon':
                         // Add weapon to inventory
+                        const existingWeapon = await CharacterInventory.findOne({ owner: characterid, type: 'weapon', 'items.item': processedReward.id }).session(session);
+                        if (existingWeapon) {
+                            // Get weapon details and give 50% compensation
+                            const weaponItem = await Item.findById(processedReward.id).session(session);
+                            if (weaponItem) {
+                                const compensationAmount = Math.floor((weaponItem.price || 200) * 0.5);
+                                await Characterwallet.findOneAndUpdate(
+                                    { owner: characterid, type: weaponItem.currency || 'coins' },
+                                    { $inc: { amount: compensationAmount } },
+                                    { upsert: true, session }
+                                );
+                                return { success: true, message: `Weapon already owned, awarded ${compensationAmount} ${weaponItem.currency || 'coins'} instead` };
+                            }
+                            return { success: false, message: `Weapon already owned` };
+                        }
                         await CharacterInventory.findOneAndUpdate(
                             { owner: characterid, type: 'weapon' },
                             {
@@ -508,6 +541,21 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                     case 'skin':
                     case 'outfit':
                         // Add skin/outfit to inventory
+                        const existingOutfit = await CharacterInventory.findOne({ owner: characterid, type: 'outfit', 'items.item': processedReward.id }).session(session);
+                        if (existingOutfit) {
+                            // Get outfit details and give 50% compensation
+                            const outfitItem = await Item.findById(processedReward.id).session(session);
+                            if (outfitItem) {
+                                const compensationAmount = Math.floor((outfitItem.price || 300) * 0.5);
+                                await Characterwallet.findOneAndUpdate(
+                                    { owner: characterid, type: outfitItem.currency || 'coins' },
+                                    { $inc: { amount: compensationAmount } },
+                                    { upsert: true, session }
+                                );
+                                return { success: true, message: `Outfit already owned, awarded ${compensationAmount} ${outfitItem.currency || 'coins'} instead` };
+                            }
+                            return { success: false, message: `Outfit already owned` };
+                        }
                         await CharacterInventory.findOneAndUpdate(
                             { owner: characterid, type: 'outfit' },
                             {
@@ -526,6 +574,21 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                         
                         if (correspondingHairId && correspondingHairId !== "failed" && correspondingHairId !== "") {
                             // Award the corresponding hair as well
+                            const existingHair = await CharacterInventory.findOne({ owner: characterid, type: 'hair', 'items.item': correspondingHairId }).session(session);
+                            if (existingHair) {
+                                // Hair already exists, give compensation for hair too
+                                const hairItem = await Item.findById(correspondingHairId).session(session);
+                                if (hairItem) {
+                                    const hairCompensation = Math.floor((hairItem.price || 150) * 0.5);
+                                    await Characterwallet.findOneAndUpdate(
+                                        { owner: characterid, type: hairItem.currency || 'coins' },
+                                        { $inc: { amount: hairCompensation } },
+                                        { upsert: true, session }
+                                    );
+                                    return { success: true, message: `Awarded skin bundle (outfit awarded, hair already owned - awarded ${hairCompensation} ${hairItem.currency || 'coins'} for hair)` };
+                                }
+                                return { success: true, message: `Awarded skin bundle (outfit awarded, hair already owned)` };
+                            }
                             await CharacterInventory.findOneAndUpdate(
                                 { owner: characterid, type: 'hair' },
                                 {
@@ -547,6 +610,22 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
                     case 'hair':
                         // Add hair to inventory
+                        const existingHair = await CharacterInventory.findOne({ owner: characterid, type: 'hair', 'items.item': processedReward.id }).session(session);
+                        if (existingHair) {
+                            // Get hair details and give 50% compensation
+                            const hairItem = await Item.findById(processedReward.id).session(session);
+                            if (hairItem) {
+                                const compensationAmount = Math.floor((hairItem.price || 150) * 0.5);
+                                await Characterwallet.findOneAndUpdate(
+                                    { owner: characterid, type: hairItem.currency || 'coins' },
+                                    { $inc: { amount: compensationAmount } },
+                                    { upsert: true, session }
+                                );
+                                return { success: true, message: `Hair already owned, awarded ${compensationAmount} ${hairItem.currency || 'coins'} instead` };
+                            }
+                            return { success: false, message: `Hair already owned` };
+                        }
+                        
                         await CharacterInventory.findOneAndUpdate(
                             { owner: characterid, type: 'hair' },
                             {
@@ -559,9 +638,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                             },
                             { upsert: true, session }
                         );
-                        return { success: true, message: `Awarded hair` };
-
-                    case 'generic':
+                        return { success: true, message: `Awarded hair` };                    case 'generic':
                         // Handle generic items - add to general inventory
                         await CharacterInventory.findOneAndUpdate(
                             { owner: characterid, type: 'item' },
@@ -591,14 +668,23 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                         index: badge.index 
                     }).session(session);
                     
-                    if (!existingBadge) {
-                        await Characterbadges.create([{
-                            owner: characterid,
-                            badge: badge._id,
-                            index: badge.index,
-                            name: badge.title
-                        }], { session });
+                    if (existingBadge) {
+                        // Give 50% of badge value as currency instead
+                        const compensationAmount = Math.floor((badge.price || 100) * 0.5);
+                        await Characterwallet.findOneAndUpdate(
+                            { owner: characterid, type: badge.currency || 'coins' },
+                            { $inc: { amount: compensationAmount } },
+                            { upsert: true, session }
+                        );
+                        return { success: true, message: `Badge already owned, awarded ${compensationAmount} ${badge.currency || 'coins'} instead` };
                     }
+                    
+                    await Characterbadges.create([{
+                        owner: characterid,
+                        badge: badge._id,
+                        index: badge.index,
+                        name: badge.title
+                    }], { session });
                 }
                 return { success: true, message: `Awarded badge` };
 
@@ -612,14 +698,16 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                         index: title.index 
                     }).session(session);
                     
-                    if (!existingTitle) {
-                        await Charactertitles.create([{
-                            owner: characterid,
-                            title: title._id,
-                            index: title.index,
-                            name: title.title
-                        }], { session });
+                    if (existingTitle) {
+                        return { success: false, message: `Title already owned` };
                     }
+                    
+                    await Charactertitles.create([{
+                        owner: characterid,
+                        title: title._id,
+                        index: title.index,
+                        name: title.title
+                    }], { session });
                 }
                 return { success: true, message: `Awarded title` };
 
@@ -713,3 +801,398 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
         return { success: false, message: `Error awarding reward: ${error.message}` };
     }
 };
+
+
+
+
+// exports.awardBattlepassReward = async (characterid, processedReward, session = null) => {
+//     try {
+//         switch (processedReward.type) {
+//             case 'exp':
+//                 // Award experience points
+//                 const character = await Characterdata.findById(characterid).session(session);
+//                 if (character) {
+//                     character.experience = (character.experience || 0) + processedReward.amount;
+//                     // Calculate level up if needed
+//                     await character.save({ session });
+//                 }
+//                 return { success: true, message: `Awarded ${processedReward.amount} experience` };
+
+//             case 'coins':
+//             case 'crystal':
+//                 // Award currency to wallet
+//                 await Characterwallet.findOneAndUpdate(
+//                     { owner: characterid, type: processedReward.type },
+//                     { $inc: { amount: processedReward.amount } },
+//                     { upsert: true, session }
+//                 );
+//                 return { success: true, message: `Awarded ${processedReward.amount} ${processedReward.type}` };
+
+//             case 'item':
+//                 switch (processedReward.itemType) {
+//                     case 'badge':
+//                         // Add badge to character's badge collection
+//                         const badge = await Badge.findById(processedReward.id).session(session);
+//                         if (badge) {
+//                             // Check if character already has this badge
+//                             const existingBadge = await Characterbadges.findOne({ 
+//                                 owner: characterid, 
+//                                 index: badge.index 
+//                             }).session(session);
+                            
+//                             if (existingBadge) {
+//                                 // Give 50% of badge value as currency instead
+//                                 const compensationAmount = Math.floor((badge.price || 100) * 0.5);
+//                                 await Characterwallet.findOneAndUpdate(
+//                                     { owner: characterid, type: badge.currency || 'coins' },
+//                                     { $inc: { amount: compensationAmount } },
+//                                     { upsert: true, session }
+//                                 );
+//                                 return { success: true, message: `Badge already owned, awarded ${compensationAmount} ${badge.currency || 'coins'} instead` };
+//                             }
+                            
+//                             await Characterbadges.create([{
+//                                 owner: characterid,
+//                                 badge: badge._id,
+//                                 index: badge.index,
+//                                 name: badge.title
+//                             }], { session });
+//                         }
+//                         return { success: true, message: `Awarded badge` };
+
+//                     case 'title':
+//                         // Add title to character's title collection
+//                         const title = await Title.findById(processedReward.id).session(session);
+//                         if (title) {
+//                             // Check if character already has this title
+//                             const existingTitle = await Charactertitles.findOne({ 
+//                                 owner: characterid, 
+//                                 index: title.index 
+//                             }).session(session);
+                            
+//                             if (existingTitle) {
+//                                 // Give 50% of title value as currency instead
+//                                 const compensationAmount = Math.floor((title.price || 150) * 0.5);
+//                                 await Characterwallet.findOneAndUpdate(
+//                                     { owner: characterid, type: title.currency || 'coins' },
+//                                     { $inc: { amount: compensationAmount } },
+//                                     { upsert: true, session }
+//                                 );
+//                                 return { success: true, message: `Title already owned, awarded ${compensationAmount} ${title.currency || 'coins'} instead` };
+//                             }
+                            
+//                             await Charactertitles.create([{
+//                                 owner: characterid,
+//                                 title: title._id,
+//                                 index: title.index,
+//                                 name: title.title
+//                             }], { session });
+//                         }
+//                         return { success: true, message: `Awarded title` };
+
+//                     case 'weapon':
+//                         // Add weapon to inventory
+//                         const existingWeapon = await CharacterInventory.findOne({ owner: characterid, type: 'weapon', 'items.item': processedReward.id }).session(session);
+//                         if (existingWeapon) {
+//                             // Get weapon details and give 50% compensation
+//                             const weaponItem = await Item.findById(processedReward.id).session(session);
+//                             if (weaponItem) {
+//                                 const compensationAmount = Math.floor((weaponItem.price || 200) * 0.5);
+//                                 await Characterwallet.findOneAndUpdate(
+//                                     { owner: characterid, type: weaponItem.currency || 'coins' },
+//                                     { $inc: { amount: compensationAmount } },
+//                                     { upsert: true, session }
+//                                 );
+//                                 return { success: true, message: `Weapon already owned, awarded ${compensationAmount} ${weaponItem.currency || 'coins'} instead` };
+//                             }
+//                             return { success: false, message: `Weapon already owned` };
+//                         }
+//                         await CharacterInventory.findOneAndUpdate(
+//                             { owner: characterid, type: 'weapon' },
+//                             {
+//                                 $push: {
+//                                     items: {
+//                                         item: processedReward.id,
+//                                         quantity: processedReward.amount || 1
+//                                     }
+//                                 }
+//                             },
+//                             { upsert: true, session }
+//                         );
+//                         return { success: true, message: `Awarded weapon` };
+
+//                     case 'skin':
+//                     case 'outfit':
+//                         // Add skin/outfit to inventory
+//                         const existingOutfit = await CharacterInventory.findOne({ owner: characterid, type: 'outfit', 'items.item': processedReward.id }).session(session);
+//                         if (existingOutfit) {
+//                             // Get outfit details and give 50% compensation
+//                             const outfitItem = await Item.findById(processedReward.id).session(session);
+//                             if (outfitItem) {
+//                                 const compensationAmount = Math.floor((outfitItem.price || 300) * 0.5);
+//                                 await Characterwallet.findOneAndUpdate(
+//                                     { owner: characterid, type: outfitItem.currency || 'coins' },
+//                                     { $inc: { amount: compensationAmount } },
+//                                     { upsert: true, session }
+//                                 );
+//                                 return { success: true, message: `Outfit already owned, awarded ${compensationAmount} ${outfitItem.currency || 'coins'} instead` };
+//                             }
+//                             return { success: false, message: `Outfit already owned` };
+//                         }
+//                         await CharacterInventory.findOneAndUpdate(
+//                             { owner: characterid, type: 'outfit' },
+//                             {
+//                                 $push: {
+//                                     items: {
+//                                         item: processedReward.id,
+//                                         quantity: processedReward.amount || 1
+//                                     }
+//                                 }
+//                             },
+//                             { upsert: true, session }
+//                         );
+
+//                         // Check if skin has corresponding hair bundle
+//                         const correspondingHairId = gethairbundle(processedReward.id);
+                        
+//                         if (correspondingHairId && correspondingHairId !== "failed" && correspondingHairId !== "") {
+//                             // Award the corresponding hair as well
+//                             const existingHair = await CharacterInventory.findOne({ owner: characterid, type: 'hair', 'items.item': correspondingHairId }).session(session);
+//                             if (existingHair) {
+//                                 // Hair already exists, give compensation for hair too
+//                                 const hairItem = await Item.findById(correspondingHairId).session(session);
+//                                 if (hairItem) {
+//                                     const hairCompensation = Math.floor((hairItem.price || 150) * 0.5);
+//                                     await Characterwallet.findOneAndUpdate(
+//                                         { owner: characterid, type: hairItem.currency || 'coins' },
+//                                         { $inc: { amount: hairCompensation } },
+//                                         { upsert: true, session }
+//                                     );
+//                                     return { success: true, message: `Awarded skin bundle (outfit awarded, hair already owned - awarded ${hairCompensation} ${hairItem.currency || 'coins'} for hair)` };
+//                                 }
+//                                 return { success: true, message: `Awarded skin bundle (outfit awarded, hair already owned)` };
+//                             }
+//                             await CharacterInventory.findOneAndUpdate(
+//                                 { owner: characterid, type: 'hair' },
+//                                 {
+//                                     $push: {
+//                                         items: {
+//                                             item: correspondingHairId,
+//                                             quantity: 1
+//                                         }
+//                                     }
+//                                 },
+//                                 { upsert: true, session }
+//                             );
+//                             console.log(`Awarded skin bundle (outfit + hair) for character ${characterid}`);
+//                             return { success: true, message: `Awarded skin bundle (outfit + hair)` };
+//                         } else {
+//                             // No corresponding hair found, just return skin success
+//                             return { success: true, message: `Awarded skin (no matching hair found)` };
+//                         }
+
+//                     case 'hair':
+//                         // Add hair to inventory
+//                         const existingHair = await CharacterInventory.findOne({ owner: characterid, type: 'hair', 'items.item': processedReward.id }).session(session);
+//                         if (existingHair) {
+//                             // Get hair details and give 50% compensation
+//                             const hairItem = await Item.findById(processedReward.id).session(session);
+//                             if (hairItem) {
+//                                 const compensationAmount = Math.floor((hairItem.price || 150) * 0.5);
+//                                 await Characterwallet.findOneAndUpdate(
+//                                     { owner: characterid, type: hairItem.currency || 'coins' },
+//                                     { $inc: { amount: compensationAmount } },
+//                                     { upsert: true, session }
+//                                 );
+//                                 return { success: true, message: `Hair already owned, awarded ${compensationAmount} ${hairItem.currency || 'coins'} instead` };
+//                             }
+//                             return { success: false, message: `Hair already owned` };
+//                         }
+                        
+//                         await CharacterInventory.findOneAndUpdate(
+//                             { owner: characterid, type: 'hair' },
+//                             {
+//                                 $push: {
+//                                     items: {
+//                                         item: processedReward.id,
+//                                         quantity: processedReward.amount || 1
+//                                     }
+//                                 }
+//                             },
+//                             { upsert: true, session }
+//                         );
+//                         return { success: true, message: `Awarded hair` };                    case 'generic':
+//                         // Handle generic items - add to general inventory
+//                         await CharacterInventory.findOneAndUpdate(
+//                             { owner: characterid, type: 'item' },
+//                             {
+//                                 $push: {
+//                                     items: {
+//                                         item: processedReward.id,
+//                                         quantity: processedReward.amount || 1
+//                                     }
+//                                 }
+//                             },
+//                             { upsert: true, session }
+//                         );
+//                         return { success: true, message: `Awarded item` };
+
+//                     default:
+//                         return { success: false, message: `Unknown item type: ${processedReward.itemType}` };
+//                 }
+
+//             case 'badge':
+//                 // Add badge to character's badge collection
+//                 const badge = await Badge.findOne({ index: processedReward.id }).session(session);
+//                 if (badge) {
+//                     // Check if character already has this badge
+//                     const existingBadge = await Characterbadges.findOne({ 
+//                         owner: characterid, 
+//                         index: badge.index 
+//                     }).session(session);
+                    
+//                     if (existingBadge) {
+//                         // Give 50% of badge value as currency instead
+//                         const compensationAmount = Math.floor(100 * 0.5);
+//                         await Characterwallet.findOneAndUpdate(
+//                             { owner: characterid, type: badge.currency || 'coins' },
+//                             { $inc: { amount: compensationAmount } },
+//                             { upsert: true, session }
+//                         );
+//                         return { success: true, message: `Badge already owned, awarded ${compensationAmount} ${badge.currency || 'coins'} instead` };
+//                     }
+                    
+//                     await Characterbadges.create([{
+//                         owner: characterid,
+//                         badge: badge._id,
+//                         index: badge.index,
+//                         name: badge.title
+//                     }], { session });
+//                 }
+//                 return { success: true, message: `Awarded badge` };
+
+//             case 'title':
+//                 // Add title to character's title collection
+//                 const title = await Title.findOne({ index: processedReward.id }).session(session);
+//                 if (title) {
+//                     // Check if character already has this title
+//                     const existingTitle = await Charactertitles.findOne({ 
+//                         owner: characterid, 
+//                         index: title.index 
+//                     }).session(session);
+                    
+//                     if (existingTitle) {
+//                         // Give 50% of title value as currency instead
+//                         const compensationAmount = Math.floor(150 * 0.5);
+//                         await Characterwallet.findOneAndUpdate(
+//                             { owner: characterid, type: title.currency || 'coins' },
+//                             { $inc: { amount: compensationAmount } },
+//                             { upsert: true, session }
+//                         );
+//                         return { success: true, message: `Title already owned, awarded ${compensationAmount} ${title.currency || 'coins'} instead` };
+//                     }
+                    
+//                     await Charactertitles.create([{
+//                         owner: characterid,
+//                         title: title._id,
+//                         index: title.index,
+//                         name: title.title
+//                     }], { session });
+//                 }
+//                 return { success: true, message: `Awarded title` };
+
+//             case 'companion':
+//                 // Add companion to character's companion collection
+//                 const companion = await Companion.findById(processedReward.id).session(session);
+//                 const hasCompanion = await CharacterCompanion.findOne({ owner: characterid, companion: companion._id}).session(session);
+//                 if (hasCompanion){
+//                     // Give 50% of companion value as currency instead
+//                     const compensationAmount = Math.floor((companion.price || 500) * 0.5);
+//                     await Characterwallet.findOneAndUpdate(
+//                         { owner: characterid, type: companion.currency || 'coins' },
+//                         { $inc: { amount: compensationAmount } },
+//                         { upsert: true, session }
+//                     );
+//                     return { success: true, message: `Companion already owned, awarded ${compensationAmount} ${companion.currency || 'coins'} instead` };
+//                 }
+//                 if (companion) {
+//                     await CharacterCompanion.create(
+//                         {
+//                             owner: characterid,
+//                             companion: companion._id,
+//                             name: companion.name
+//                         }
+//                     )
+//                 }
+//                 return { success: true, message: `Awarded companion` };
+
+//             case 'freebie':
+//                 // Handle freebie rewards (assuming they're like items)
+//                 await CharacterInventory.findOneAndUpdate(
+//                     { owner: characterid, type: 'freebie' },
+//                     {
+//                         $push: {
+//                             items: {
+//                                 item: processedReward.id,
+//                                 quantity: processedReward.amount || 1
+//                             }
+//                         }
+//                     },
+//                     { upsert: true, session }
+//                 );
+//                 return { success: true, message: `Awarded freebie` };
+
+//             case 'skill':
+//                 // Award skill to character skill tree
+//                 const skillTree = await CharacterSkillTree.findOne({ owner: characterid }).session(session);
+//                 if (skillTree) {
+//                     // Check if skill already exists
+//                     const existingSkill = skillTree.skills.find(s => s.skill.toString() === processedReward.id);
+//                     if (!existingSkill) {
+//                         skillTree.skills.push({
+//                             skill: processedReward.id,
+//                             level: 1,
+//                             isEquipped: false
+//                         });
+//                         await skillTree.save({ session });
+//                     }
+//                 }
+//                 return { success: true, message: `Awarded skill` };
+
+//             case 'chapter':
+//                 // Handle chapter rewards (store as inventory item for now)
+//                 const chapter = await Chapter.findById(processedReward.id).session(session);
+//                 if (chapter) {
+//                     // Add chapter unlock as inventory item
+//                     await CharacterInventory.findOneAndUpdate(
+//                         { owner: characterid, type: 'chapter' },
+//                         {
+//                             $push: {
+//                                 items: {
+//                                     item: processedReward.id,
+//                                     quantity: processedReward.amount || 1
+//                                 }
+//                             }
+//                         },
+//                         { upsert: true, session }
+//                     );
+//                 }
+//                 return { success: true, message: `Awarded chapter unlock` };
+
+//             case 'bundle':
+//                 // Process each item in bundle
+//                 const results = [];
+//                 for (const bundleItem of processedReward.items) {
+//                     const result = await exports.awardBattlepassReward(characterid, bundleItem, session);
+//                     results.push(result);
+//                 }
+//                 return { success: true, message: `Awarded bundle`, details: results };
+
+//             default:
+//                 return { success: false, message: `Unknown reward type: ${processedReward.type}` };
+//         }
+//     } catch (error) {
+//         console.error('Error awarding battlepass reward:', error);
+//         return { success: false, message: `Error awarding reward: ${error.message}` };
+//     }
+// };

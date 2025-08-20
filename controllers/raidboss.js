@@ -5,6 +5,7 @@ const Characterdata = require("../models/Characterdata")
 const { awardBattlepassReward, determineRewardType } = require("../utils/battlepassrewards")
 const { gethairbundle } = require("../utils/bundle");
 const { getCharacterGenderString } = require("../utils/character");
+const { addanalytics } = require("../utils/analyticstools");
 
 exports.getraidboss = async (req, res) => {
     const { id } = req.user;
@@ -144,6 +145,8 @@ exports.awardRaidbossRewards = async (req, res) => {
         }
 
         const results = [];
+        const awardedRewards = [];
+        const charactergender = await getCharacterGenderString(characterid);
 
         console.log(`Awarding rewards for boss: ${boss.bossname}, character: ${characterid}`);
 
@@ -157,13 +160,67 @@ exports.awardRaidbossRewards = async (req, res) => {
                 if (processedReward.type !== 'invalid' && processedReward.type !== 'unknown') {
                     const result = await awardBattlepassReward(characterid, processedReward, session);
                     results.push(result);
-                    console.log(`Reward result:`, result);
+                    
+                    if (result.success) {
+                        // Create filtered reward details matching getraidboss structure
+                        let filteredReward;
+                        if (reward.type === "skin") {
+                            if (charactergender.toLowerCase() === "male") {
+                                filteredReward = {
+                                    type: reward.type,
+                                    name: reward.name,
+                                    amount: reward.amount,
+                                    itemid: reward.id,
+                                    gender: "male",
+                                    _id: reward._id
+                                };
+                            } else {
+                                filteredReward = {
+                                    type: reward.type,
+                                    name: reward.name,
+                                    amount: reward.amount,
+                                    itemid: reward.id,
+                                    gender: "female",
+                                    _id: reward._id
+                                };
+                            }
+                        } else {
+                            filteredReward = {
+                                type: reward.type,
+                                name: reward.name,
+                                amount: reward.amount,
+                                itemid: reward.id,
+                                gender: "unisex",
+                                _id: reward._id
+                            };
+                        }
+                        awardedRewards.push(filteredReward);
+                    }
                 } else {
                     console.warn(`Skipping invalid reward:`, reward);
                 }
             }
         } else {
             console.log('No rewards found for this boss');
+        }
+
+        // Add analytics for raid boss reward claiming
+        const analyticresponse = await addanalytics(
+            characterid.toString(),
+            bossid.toString(),
+            "claim",
+            "raidboss",
+            boss.bossname,
+            `Claimed rewards from raid boss: ${boss.bossname}`,
+            awardedRewards.length
+        );
+
+        if (analyticresponse === "failed") {
+            await session.abortTransaction();
+            return res.status(500).json({
+                message: "error",
+                data: "Failed to log analytics for raid boss reward claiming"
+            });
         }
 
         // Mark raid boss fight as done for this character
@@ -179,7 +236,7 @@ exports.awardRaidbossRewards = async (req, res) => {
             message: "success", 
             data: {
                 boss: boss.bossname,
-                results: results.filter(r => r.success)
+                rewards: awardedRewards,
             }
         });
 
