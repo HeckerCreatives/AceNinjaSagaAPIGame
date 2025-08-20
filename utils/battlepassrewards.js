@@ -613,9 +613,9 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                         index: badge.index 
                     }).session(session);
                     
-                if (!existingBadge) {    
-                    return { success: false, message: `Badge already owned`}                
-                } 
+                    if (existingBadge) {    
+                        return { success: false, message: `Badge already owned`}                
+                    } 
                     await Characterbadges.create([{
                         owner: characterid,
                         badge: badge._id,
