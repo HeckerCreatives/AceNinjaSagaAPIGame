@@ -701,9 +701,12 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                             isEquipped: false
                         });
                         await skillTree.save({ session });
+                        return { success: true, message: `Awarded skill` };
+                    } else {
+                        return { success: false, message: `Skill already owned` };
                     }
                 }
-                return { success: true, message: `Awarded skill` };
+                return { success: false, message: `Skilltree not found`}
 
             case 'chapter':
                 // Handle chapter rewards (store as inventory item for now)
