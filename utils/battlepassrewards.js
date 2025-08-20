@@ -473,6 +473,8 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                     case 'title':
                         // Add title to character's title collection
                         const title = await Title.findById(processedReward.id).session(session);
+                                console.log(`hi am at at loggin this title  #2`)
+
                         if (title) {
                             // Check if character already has this title
                             const existingTitle = await Charactertitles.findOne({ 
@@ -628,6 +630,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
             case 'title':
                 // Add title to character's title collection
                 const title = await Title.findOne({ index: Number(processedReward.id) }).session(session);
+                console.log(`hi am at at loggin this title  #1`)
                 if (title) {
                     // Check if character already has this title
                     const existingTitle = await Charactertitles.findOne({ 
