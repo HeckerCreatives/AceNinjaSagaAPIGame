@@ -177,9 +177,9 @@ exports.awardRaidbossRewards = async (req, res) => {
                             } else {
                                 filteredReward = {
                                     type: reward.type,
-                                    name: reward.name,
+                                    name: reward.fname,
                                     amount: reward.amount,
-                                    itemid: reward.id,
+                                    itemid: reward.fid,
                                     gender: "female",
                                     _id: reward._id
                                 };
