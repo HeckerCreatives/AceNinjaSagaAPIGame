@@ -11,30 +11,37 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
         return "failed";
     }
 
-    // let currentLevel = character.level;
-    // let currentXP = character.experience + xpToAdd;
-    // let levelsGained = 0;
-    // let xpNeeded = 80 * currentLevel;
-    // while (currentXP >= xpNeeded && xpNeeded > 0) {
-    //     const overflowXP = currentXP - xpNeeded;
-    //     currentLevel++;
-    //     levelsGained++;
-    //     currentXP = overflowXP;
-    //     xpNeeded = 80 * currentLevel;
-    // }
-
     let currentLevel = character.level;
     let currentXP = character.experience + xpToAdd;
     let levelsGained = 0;
     let baseXP = 100;
     let growth = 1.35;
+    const LEVEL_CAP = 40;
+
+    // If already at max level, don't gain any more XP or levels
+    if (currentLevel >= LEVEL_CAP) {
+        return {
+            newLevel: LEVEL_CAP,
+            levelsGained: 0,
+            currentXP: 0,
+            nextLevelXP: 0
+        };
+    }
         
     let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
 
-    while (currentXP >= xpNeeded && xpNeeded > 0) {
+    while (currentXP >= xpNeeded && xpNeeded > 0 && currentLevel < LEVEL_CAP) {
         currentXP -= xpNeeded; // instead of using overflowXP, just subtract
         currentLevel++;
         levelsGained++;
+        
+        // Stop if we reach the level cap
+        if (currentLevel >= LEVEL_CAP) {
+            currentLevel = LEVEL_CAP;
+            currentXP = 0; // Reset XP at max level
+            break;
+        }
+        
         xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
     }
 
@@ -56,11 +63,14 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
         return "failed";
     }
 
+    // Calculate next level XP (0 if at max level)
+    const nextLevelXP = currentLevel >= LEVEL_CAP ? 0 : Math.round(baseXP * Math.pow(currentLevel, growth));
+
     return {
         newLevel: currentLevel,
         levelsGained,
         currentXP,
-        nextLevelXP: 80 * currentLevel
+        nextLevelXP
     };
 };
 
