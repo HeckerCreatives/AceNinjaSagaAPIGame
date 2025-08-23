@@ -86,7 +86,9 @@ CharacterDataSchema.pre('save', async function(next) {
             }
         }
 
-        // Auto-increment logic with fallback mechanism        const MAX_RETRIES = 3;
+        // Auto-increment logic with fallback mechanism        
+        
+        const MAX_RETRIES = 3;
         
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
