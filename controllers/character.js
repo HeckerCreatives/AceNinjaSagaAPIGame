@@ -543,6 +543,7 @@ exports.getplayerdata = async (req, res) => {
                 badge: 1,
                 itemindex: 1,
                 createdAt: 1,
+                customid: 1,
                 stats: { $arrayElemAt: ["$stats", 0] },      // Flatten stats
                 mmr: { $arrayElemAt: ["$ranking.mmr", 0] },      // Flatten ranking.mmr
                 sp: { $arrayElemAt: ["$skilltree.skillPoints", 0]}
