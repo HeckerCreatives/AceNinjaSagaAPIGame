@@ -567,8 +567,9 @@ exports.getplayerdata = async (req, res) => {
     ]).allowDiskUse(true).exec();
 
     const equippedPassiveSkillsP = CharacterSkillTree.aggregate([
-        { $match: { owner: objectId, "skills.isEquipped": true } },
+        { $match: { owner: objectId } },
         { $unwind: "$skills" },
+        { $match: { "skills.isEquipped": true } },
         { $lookup: { from: "skills", localField: "skills.skill", foreignField: "_id", as: "skillDetails" } },
         { $unwind: "$skillDetails" },
         { $match: { "skillDetails.type": "Passive" } }
@@ -652,7 +653,6 @@ exports.getplayerdata = async (req, res) => {
         }
     }
 
-    console.log(equippedWeapons)
     // Apply equipped weapon stats
     for (const weapon of (equippedWeapons || [])) {
         const id = String(weapon.items.item);
