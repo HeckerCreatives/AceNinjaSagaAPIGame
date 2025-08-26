@@ -33,6 +33,26 @@ const weaponstatsdata = [
             critchance: 10,
         },
         type: "add" //  add or percentage
+    },
+        {
+        name: "Lightning Blade",
+        id: "6828695886cc0f2042749601",
+        stats: {
+            speed: 5,
+            magicdamage: 15
+        },
+        type: "add"
+    },
+    {
+        name: "Ancient Spear",
+        id: "6828695886cc0f2042749602",
+        stats: {
+            armor: 15,
+            magicresist: 15,
+            health: 300,
+            speed: -5
+        },
+        type: "add"
     }
 ]
 
@@ -73,11 +93,65 @@ const skillsstats = [
             magicdamage: 15
         },
         type: "add"
+    },
+    {
+        name: "Resilience",
+        id: "6828695886cc0f2042749652",
+        stats: {
+            healshieldpower: 15,
+        },
+        type: "add"
     }
 ]
+
+// Companion data — only unconditional passive effects (applied when companion is equipped)
+const companiondata = [
+    {
+        name: "Viper",
+        id: "682868aa3b00fa188878aa7e",
+        stats: {},
+        type: "add"
+    },
+    {
+        name: "Terra",
+        id: "682868aa3b00fa188878aa7f",
+        stats: {
+            armor: 20,
+            magicresist: 20
+        },
+        type: "add"
+    },
+    {
+        name: "Gale",
+        id: "682868aa3b00fa188878aa80",
+        stats: {
+            critchance: 10,
+            critdamage: 15
+        },
+        type: "add"
+    },
+    {
+        name: "Shade",
+        id: "682868aa3b00fa188878aa81",
+        stats: {},
+        type: "add"
+    },
+    {
+        name: "Blaze",
+        id: "682868aa3b00fa188878aa82",
+        stats: {
+            speed: 10,
+        },
+        type: "add"
+    }
+];
 
 exports.findweaponandskillbyid = (id) => {
     const weapon = weaponstatsdata.find(item => item.id === id);
     const skill = skillsstats.find(item => item.id === id);
-    return weapon || skill || null;
+    const companion = companiondata.find(item => item.id === id);
+    return weapon || skill || companion || null;
 }
+
+// Optionally export companiondata for other modules
+exports.companiondata = companiondata;

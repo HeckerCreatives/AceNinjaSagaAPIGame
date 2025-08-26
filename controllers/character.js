@@ -16,7 +16,7 @@ const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeekly
 const moment = require("moment")
 const { CharacterChapter, CharacterChapterHistory } = require("../models/Chapter")
 const PvP = require("../models/Pvp")
-const { Companion, CharacterCompanionUnlocked } = require("../models/Companion")
+const { Companion, CharacterCompanionUnlocked, CharacterCompanion } = require("../models/Companion")
 const { QuestDetails, QuestProgress } = require("../models/Quest")
 const { progressutil, multipleprogressutil } = require("../utils/progress")
 const { News, NewsRead, ItemNews } = require("../models/News")
@@ -582,14 +582,16 @@ exports.getplayerdata = async (req, res) => {
         // { $unwind: { path: "$weaponDetails", preserveNullAndEmptyArrays: true } }
     ]).allowDiskUse(true).exec();
 
-    
-    const [ totalWins, characterDataArr, highestmmrreached, characterSkills, equippedPassiveSkills, equippedWeapons ] = await Promise.all([
+    const equippedCompanionsP = CharacterCompanion.find({ owner: objectId, isEquipped: true }).lean();
+
+    const [ totalWins, characterDataArr, highestmmrreached, characterSkills, equippedPassiveSkills, equippedWeapons, equippedCompanions ] = await Promise.all([
         totalWinsP,
         characterDataP,
         highestmmrP,
         characterSkillsP,
         equippedPassiveSkillsP,
-        equippedWeaponsP
+        equippedWeaponsP,
+        equippedCompanionsP
     ]);
 
     const characterData = characterDataArr;
@@ -618,10 +620,12 @@ exports.getplayerdata = async (req, res) => {
         healshieldpower: base.healshieldpower || 0,
         critdamage: base.critdamage || 0 
     };
-    // Batch fetch unique skill/weapon details to avoid per-item DB calls
+    // Batch fetch unique skill/weapon/companion details to avoid per-item DB calls
     const passiveIds = (equippedPassiveSkills || []).map(s => String(s.skills.skill));
     const weaponIds = (equippedWeapons || []).map(w => String(w.items.item));
-    const uniqueIds = Array.from(new Set([...passiveIds, ...weaponIds]));
+    // equippedCompanions stores a `companion` ObjectId referencing Companion
+    const companionIds = (equippedCompanions || []).map(c => String(c.companion));
+    const uniqueIds = Array.from(new Set([...passiveIds, ...weaponIds, ...companionIds]));
 
     const detailsMap = {};
     if (uniqueIds.length > 0) {
@@ -648,9 +652,29 @@ exports.getplayerdata = async (req, res) => {
         }
     }
 
+    console.log(equippedWeapons)
     // Apply equipped weapon stats
     for (const weapon of (equippedWeapons || [])) {
         const id = String(weapon.items.item);
+        const result = detailsMap[id];
+        if (!result) continue;
+        if (result.type === "percentage"){
+            Object.entries(result.stats || {}).forEach(([stat, value]) => {
+                if (totalStats.hasOwnProperty(stat)) {
+                    const multiplier = 1 + ((Number(value) || 0) / 100);
+                    totalStats[stat] = Math.ceil(totalStats[stat] * multiplier);
+                }
+            });
+        } else if (result.type === "add"){
+            Object.entries(result.stats || {}).forEach(([stat, value]) => {
+                if (totalStats.hasOwnProperty(stat)) totalStats[stat] += value;
+            });
+        }
+    }
+
+    // Apply equipped companion stats (unconditional passive effects)
+    for (const comp of (equippedCompanions || [])) {
+        const id = String(comp.companion);
         const result = detailsMap[id];
         if (!result) continue;
         if (result.type === "percentage"){
