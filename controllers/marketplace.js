@@ -1048,22 +1048,18 @@ exports.listequippeditems = async (req, res) => {
                     type: '$item.type',
                     rarity: '$item.rarity',
                     price: '$item.price',
+                    isEquipped: '$items.isEquipped',
                     description: '$item.description',
                     stats: '$item.stats',
                     imageUrl: '$item.imageUrl'
                 }
             }
         ]);
-
-        // Format response by item type
+        // Format response by item type — accumulate arrays so multiple equipped items are preserved
         const formattedResponse = items.reduce((acc, item) => {
-            // Initialize category if it doesn't exist
-            if (!acc[item.type]) {
-                acc[item.type] = {}
-            }
-            
-            // Add item to its category
-            acc[item.type] = {
+            if (!acc[item.type]) acc[item.type] = [];
+
+            acc[item.type].push({
                 itemId: item.itemId,
                 name: item.name,
                 rarity: item.rarity,
@@ -1071,9 +1067,9 @@ exports.listequippeditems = async (req, res) => {
                 description: item.description,
                 stats: item.stats,
                 imageUrl: item.imageUrl
-            }
-            
-            return acc
+            });
+
+            return acc;
         }, {});
 
         return res.status(200).json({ 

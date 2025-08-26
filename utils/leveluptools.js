@@ -78,24 +78,24 @@ exports.levelupplayer = async (characterid, levelsGained, currentLevel, session 
     const updateOptions = session ? { session } : {};
 
     try {
-        await CharacterStats.findOneAndUpdate(
-            { owner: characterid },
-            {
-                $inc: {
-                    health: 50 * levelsGained,
-                    energy: 30 * levelsGained,
-                    armor: 3 * levelsGained,
-                    magicresist: 3 * levelsGained,
-                    speed: 3 * levelsGained,
-                    attackdamage: 1 * levelsGained,
-                    armorpen: 0,
-                    magicpen: 0,
-                    magicdamage: 1 * levelsGained,
-                    critdamage: 1 * levelsGained
-                }
-            },
-            updateOptions
-        );
+        // await CharacterStats.findOneAndUpdate(
+        //     { owner: characterid },
+        //     {
+        //         $inc: {
+        //             health: 50 * levelsGained,
+        //             energy: 30 * levelsGained,
+        //             armor: 3 * levelsGained,
+        //             magicresist: 3 * levelsGained,
+        //             speed: 3 * levelsGained,
+        //             attackdamage: 1 * levelsGained,
+        //             armorpen: 0,
+        //             magicpen: 0,
+        //             magicdamage: 1 * levelsGained,
+        //             critdamage: 1 * levelsGained
+        //         }
+        //     },
+        //     updateOptions
+        // );
 
         await CharacterSkillTree.findOneAndUpdate(
             { owner: characterid },
