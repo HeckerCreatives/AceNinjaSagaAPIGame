@@ -808,6 +808,11 @@ exports.getmonthlylogin = async (req, res) => {
 
     const canCheckin = !existingcheckin
 
+    let isMonthlyTrue = false;
+    if (cmlogin.currentDay < 28  && dayOfMonth < 28) {
+        isMonthlyTrue = true;
+    }
+
           // Get current time in UTC+8 (Philippines time)
     const now = new Date();
     const phTime = new Date(now.getTime() 
@@ -830,7 +835,7 @@ exports.getmonthlylogin = async (req, res) => {
             rewarddays,
             totalloggedin: cmlogin.totalLoggedIn,
             today: cmlogin.currentDay || dayOfMonth,
-            canCheckin,
+            canCheckin: isMonthlyTrue ? false : canCheckin,
             canClaim,
             resetin: {
                 hours: hoursRemaining,
