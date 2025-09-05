@@ -13,9 +13,19 @@ const RankingSchema = new mongoose.Schema(
             index: true,
             default: 0
         },
-         rank: {
+        seasonBestMMR: {
+            type: Number,
+            default: 0
+        },
+        rank: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "RankTier"
+            ref: "RankTier",
+            default: new mongoose.Types.ObjectId("684ce1f4c61e8f1dd3ba04fa")
+        },
+        seasonBestRank: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "RankTier",
+            default: new mongoose.Types.ObjectId("684ce1f4c61e8f1dd3ba04fa")
         },
         season: {
             type: mongoose.Schema.Types.ObjectId,
@@ -41,7 +51,8 @@ const RankingHistorySchema = new mongoose.Schema(
         },
         rank: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "RankTier"
+            ref: "RankTier",
+            default: new mongoose.Types.ObjectId("684ce1f4c61e8f1dd3ba04fa")
         },
         season: {
             type: mongoose.Schema.Types.ObjectId,

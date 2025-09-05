@@ -8,6 +8,7 @@ const PvpStatsSchema = new mongoose.Schema(
             index: true,
             required: true
         },
+        // Total stats (all matches)
         win: {
             type: Number,
             default: 0
@@ -24,6 +25,40 @@ const PvpStatsSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        // Ranked match stats
+        rankedWin: {
+            type: Number,
+            default: 0
+        },
+        rankedLose: {
+            type: Number,
+            default: 0
+        },
+        rankedTotalMatches: {
+            type: Number,
+            default: 0
+        },
+        rankedWinRate: {
+            type: Number,
+            default: 0
+        },
+        // Normal match stats
+        normalWin: {
+            type: Number,
+            default: 0
+        },
+        normalLose: {
+            type: Number,
+            default: 0
+        },
+        normalTotalMatches: {
+            type: Number,
+            default: 0
+        },
+        normalWinRate: {
+            type: Number,
+            default: 0
+        },
         rank: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Rankings"
@@ -33,8 +68,18 @@ const PvpStatsSchema = new mongoose.Schema(
 );
 
 PvpStatsSchema.pre("save", function (next) {
+    // Calculate total stats
     this.totalMatches = this.win + this.lose;
     this.winRate = this.totalMatches > 0 ? (this.win / this.totalMatches) * 100 : 0;
+    
+    // Calculate ranked stats
+    this.rankedTotalMatches = this.rankedWin + this.rankedLose;
+    this.rankedWinRate = this.rankedTotalMatches > 0 ? (this.rankedWin / this.rankedTotalMatches) * 100 : 0;
+    
+    // Calculate normal stats
+    this.normalTotalMatches = this.normalWin + this.normalLose;
+    this.normalWinRate = this.normalTotalMatches > 0 ? (this.normalWin / this.normalTotalMatches) * 100 : 0;
+    
     next();
 });
 

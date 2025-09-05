@@ -4,7 +4,7 @@ const PvPSchema = new mongoose.Schema(
     {
         owner: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
+            ref: "Characterdata", // Changed from "User" to "Characterdata" for consistency
             required: true
         },
         opponent: {
@@ -15,6 +15,12 @@ const PvPSchema = new mongoose.Schema(
         status: {
             type: Number, // 1 for Win, 0 for Lose
             enum: [0, 1],
+            required: true
+        },
+        type: {
+            type: String,
+            enum: ["ranked", "normal"],
+            default: "normal",
             required: true
         },
         season: {
