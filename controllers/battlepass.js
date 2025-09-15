@@ -702,14 +702,19 @@ exports.buypremiumbattlepass = async (req, res) => {
                     
                     if (processedReward.type !== 'invalid' && processedReward.type !== 'unknown') {
                         const awardResult = await awardBattlepassReward(characterid, processedReward, session);
-                        
-                        if (!awardResult.success) {
-                            console.error(`Failed to award grand reward:`, awardResult.message);
-                            throw new Error(`Failed to award grand reward: ${awardResult.message}`);
+
+                        // Treat 'already owned' (or similar) as non-fatal so users can still buy the battlepass
+                        const msg = (awardResult && awardResult.message) ? String(awardResult.message).toLowerCase() : '';
+                        const isAlreadyOwned = msg.includes('already') || msg.includes('owned');
+
+                        if (!awardResult.success && !isAlreadyOwned) {
+                            console.error(`Failed to award grand reward:`, awardResult && awardResult.message);
+                            throw new Error(`Failed to award grand reward: ${awardResult && awardResult.message}`);
                         }
-                        
+
+                        // Continue on success or when the item is already owned
                         awardedItems.push(searchgrandrewarditem);
-                        console.log(`Successfully awarded grand reward: ${awardResult.message}`);
+                        console.log(`Awarded grand reward (or already owned): ${awardResult && awardResult.message}`);
                     } else {
                         console.warn(`Invalid reward type for grand reward:`, searchgrandrewarditem);
                     }
