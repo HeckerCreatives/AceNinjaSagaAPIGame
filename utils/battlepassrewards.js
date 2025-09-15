@@ -119,6 +119,16 @@ exports.processBattlepassReward = (reward, userGender, outfitData = [], hairData
             result.description = `Crystals: ${reward.amount || 0}`;
             break;
 
+        case 'chest':
+            // Chest reward: reference to a Chest item in the Market
+            result.items.push({
+                type: 'chest',
+                itemId: reward.itemId || reward.id || reward._id,
+                amount: reward.amount || 1
+            });
+            result.description = `Chest: ${reward.name || 'Unknown Chest'}`;
+            break;
+
         case 'bundle':
             // Handle multiple items in a bundle
             if (reward.items && Array.isArray(reward.items)) {
@@ -176,7 +186,7 @@ exports.validateReward = (reward) => {
         return false;
     }
 
-    const validTypes = ['badge', 'title', 'weapon', 'skill', 'skin', 'exp', 'coins', 'crystal', 'bundle'];
+    const validTypes = ['badge', 'title', 'weapon', 'skill', 'skin', 'exp', 'coins', 'crystal', 'chest', 'bundle'];
     
     if (!validTypes.includes(reward.type)) {
         return false;
@@ -319,6 +329,15 @@ exports.determineRewardType = (reward, userGender = null) => {
         };
     }
 
+    // Handle chest rewards
+    if (reward.type === 'chest') {
+        return {
+            type: 'chest',
+            id: reward.id || reward._id || reward.itemId,
+            amount: reward.amount || 1
+        };
+    }
+
     // Handle title rewards
     if (reward.type === 'title') {
         return {
@@ -447,6 +466,27 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
             case 'item':
                 switch (processedReward.itemType) {
+                    case 'chest':
+                        // Award chest to character inventory (stackable)
+                        const chestId = processedReward.id;
+                        const existingChestQ = CharacterInventory.findOne({ owner: characterid, type: 'chests', 'items.item': chestId });
+                        if (session) existingChestQ.session(session);
+                        const existingChest = await existingChestQ;
+                        if (existingChest) {
+                            await CharacterInventory.updateOne(
+                                { owner: characterid, type: 'chests', 'items.item': chestId },
+                                { $inc: { 'items.$.quantity': processedReward.amount || 1 } },
+                                { session }
+                            );
+                            return { success: true, message: `Chest quantity incremented` };
+                        }
+                        await CharacterInventory.findOneAndUpdate(
+                            { owner: characterid, type: 'chests' },
+                            { $push: { items: { item: chestId, quantity: processedReward.amount || 1 } } },
+                            { upsert: true, session }
+                        );
+                        return { success: true, message: `Chest granted` };
+
                     case 'badge':
                         // Add badge to character's badge collection
                         const badge = await Badge.findById(processedReward.id).session(session);
@@ -473,7 +513,6 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                     case 'title':
                         // Add title to character's title collection
                         const title = await Title.findById(processedReward.id).session(session);
-                                console.log(`hi am at at loggin this title  #2`)
 
                         if (title) {
                             // Check if character already has this title

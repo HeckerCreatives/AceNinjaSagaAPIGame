@@ -292,7 +292,14 @@ exports.getMarketItems = async (req, res) => {
 
 exports.buyitem = async (req, res) => {
     const { id } = req.user
-    const { itemid, characterid } = req.body
+    const { itemid, characterid, quantity = 1 } = req.body
+
+    // Normalize quantity and enforce sensible cap
+    const qtyToBuy = Math.max(1, Math.floor(Number(quantity) || 1));
+    const MAX_QTY = 100; // protect from very large buys
+    if (qtyToBuy > MAX_QTY) {
+        return res.status(400).json({ message: 'failed', data: `Requested quantity exceeds maximum limit of ${MAX_QTY}` });
+    }
 
         const maintenance = await checkmaintenance("market")
         
@@ -365,9 +372,13 @@ exports.buyitem = async (req, res) => {
                 { 'items.$': 1 }
             ).session(session);
 
-            if (inventory?.items[0]) {
+            // Types that are stackable (we allow quantity for these)
+            const stackableTypes = new Set(['chests', 'crystalpacks', 'goldpacks', 'topupcredit']);
+
+            if (inventory?.items[0] && !stackableTypes.has(itemData.type)) {
+                // Non-stackable item already owned
                 return res.status(400).json({ message: "failed", data: "Item already exists in inventory" });
-            } 
+            }
             
             // Check wallet balance
             const wallet = await checkwallet(characterid, itemData.currency, session);
@@ -376,7 +387,8 @@ exports.buyitem = async (req, res) => {
                 return res.status(404).json({ message: "failed", data: "Wallet not found" });
             }
 
-            let totalprice = itemData.price;
+            // Calculate total price for requested quantity
+            let totalprice = (Number(itemData.price) || 0) * qtyToBuy;
 
             if (wallet < totalprice) {
                 await session.abortTransaction();
@@ -459,7 +471,9 @@ exports.buyitem = async (req, res) => {
                 await skillTree.save({ session });
 
             } else if (itemData.type === "crystalpacks") {
-                const crystalResult = await addwallet(characterid, 'crystal', itemData.crystals, session);
+                // Multiply crystals by quantity
+                const crystalAmount = (Number(itemData.crystals) || 0) * qtyToBuy;
+                const crystalResult = await addwallet(characterid, 'crystal', crystalAmount, session);
                 if (crystalResult === "failed") {
                     await session.abortTransaction();
                     return res.status(500).json({
@@ -468,7 +482,9 @@ exports.buyitem = async (req, res) => {
                     });
                 }   
             } else if (itemData.type === "goldpacks") {
-                const coinsResult = await addwallet(characterid, 'coins', itemData.coins, session);
+                // Multiply coins by quantity
+                const coinsAmount = (Number(itemData.coins) || 0) * qtyToBuy;
+                const coinsResult = await addwallet(characterid, 'coins', coinsAmount, session);
                 if (coinsResult === "failed") {
                     await session.abortTransaction();
                     return res.status(500).json({
@@ -477,27 +493,47 @@ exports.buyitem = async (req, res) => {
                     });
                 }
             } else {
-                await CharacterInventory.findOneAndUpdate(
-                    { owner: characterid, type: itemData.inventorytype },
-                    { $push: { items: { item: itemData._id } } },
-                { upsert: true, new: true, session }
+                // Add to inventory respecting quantity: if existing item (stackable) increment, else push with quantity
+                const invType = itemData.inventorytype;
+                const existingInv = await CharacterInventory.findOne({ owner: characterid, type: invType, 'items.item': itemData._id }).session(session);
+                if (existingInv) {
+                    await CharacterInventory.updateOne(
+                        { owner: characterid, type: invType, 'items.item': itemData._id },
+                        { $inc: { 'items.$.quantity': qtyToBuy } },
+                        { session }
+                    );
+                } else {
+                    await CharacterInventory.findOneAndUpdate(
+                        { owner: characterid, type: invType },
+                        { $push: { items: { item: itemData._id, quantity: qtyToBuy } } },
+                        { upsert: true, new: true, session }
+                    );
+                }
 
-            );
-            if (itemData1) {
-                await CharacterInventory.findOneAndUpdate(
-                    { owner: characterid, type: itemData1.inventorytype },
-                    { $push: { items: { item: itemData1._id } } },
-                    { upsert: true, new: true, session }
-                );
-            }
+                if (itemData1) {
+                    // Bundled item: add with same quantity or increment
+                    const bundledInvType = itemData1.inventorytype;
+                    const existingB = await CharacterInventory.findOne({ owner: characterid, type: bundledInvType, 'items.item': itemData1._id }).session(session);
+                    if (existingB) {
+                        await CharacterInventory.updateOne(
+                            { owner: characterid, type: bundledInvType, 'items.item': itemData1._id },
+                            { $inc: { 'items.$.quantity': qtyToBuy } },
+                            { session }
+                        );
+                    } else {
+                        await CharacterInventory.findOneAndUpdate(
+                            { owner: characterid, type: bundledInvType },
+                            { $push: { items: { item: itemData1._id, quantity: qtyToBuy } } },
+                            { upsert: true, new: true, session }
+                        );
+                    }
+                }
             }
 
-        // Log analytics for purchase
-        const rewardType = itemData.currency === 'crystal' ? 'crystal' :
-                   itemData.currency === 'coins' ? 'coins' :
-                   itemData.currency || null;
-        const rewardAmount = itemData.price || 0;
-        const description = `Bought item ${itemData.name} for ${itemData.price} ${itemData.currency}`;
+        // Log analytics for purchase (aggregate over quantity)
+        const rewardType = itemData.currency === 'crystal' ? 'crystal' : itemData.currency === 'coins' ? 'coins' : itemData.currency || null;
+        const rewardAmount = (Number(itemData.price) || 0) * qtyToBuy;
+        const description = `Bought ${qtyToBuy}x ${itemData.name} for ${rewardAmount} ${itemData.currency}`;
 
         const analyticresponse = await addanalytics(
             characterid.toString(),
@@ -519,28 +555,23 @@ exports.buyitem = async (req, res) => {
 
         // If purchase granted an additional bundled item, log that as well
         if (itemData1) {
-            const bundleRewardType = itemData1.currency === 'crystal' ? 'crystal' :
-                         itemData1.currency === 'coins' ? 'coins' :
-                         itemData1.currency || itemData1.type || null;
-            const bundleAmount = itemData1.price || 0;
-            const bundleDesc = `Granted bundle item ${itemData1.name} from purchase of ${itemData.name}`;
+            const bundleRewardType = itemData1.currency === 'crystal' ? 'crystal' : itemData1.currency === 'coins' ? 'coins' : itemData1.currency || itemData1.type || null;
+            const bundleAmount = (Number(itemData1.price) || 0) * qtyToBuy;
+            const bundleDesc = `Granted bundle item ${itemData1.name} x${qtyToBuy} from purchase of ${itemData.name}`;
 
             const analyticresponse2 = await addanalytics(
-            characterid.toString(),
-            itemData1._id.toString(),
-            "grant",
-            "market",
-            bundleRewardType,
-            bundleDesc,
-            bundleAmount
+                characterid.toString(),
+                itemData1._id.toString(),
+                "grant",
+                "market",
+                bundleRewardType,
+                bundleDesc,
+                bundleAmount
             );
 
             if (analyticresponse2 === "failed") {
-            await session.abortTransaction();
-            return res.status(500).json({
-                message: "failed",
-                data: "Failed to log analytics for bundle item"
-            });
+                await session.abortTransaction();
+                return res.status(500).json({ message: "failed", data: "Failed to log analytics for bundle item" });
             }
         }
 
@@ -1085,3 +1116,177 @@ exports.listequippeditems = async (req, res) => {
         });
     }
 }
+
+// Buy chests (supports purchasing multiple chests at once)
+exports.buychest = async (req, res) => {
+    const { id } = req.user;
+    const { itemid, characterid, quantity = 1 } = req.body;
+
+    // Basic validation
+    if (!itemid || !characterid) {
+        return res.status(400).json({ message: 'failed', data: 'Item ID and Character ID are required' });
+    }
+
+    const maintenance = await checkmaintenance('market');
+    if (maintenance === 'failed') {
+        return res.status(400).json({ message: 'failed', data: 'The market is currently under maintenance. Please try again later.' });
+    }
+
+    const smaintenance = await checkmaintenance('store');
+    if (smaintenance === 'failed') {
+        return res.status(400).json({ message: 'failed', data: 'The store is currently under maintenance. Please try again later.' });
+    }
+
+    const checker = await checkcharacter(id, characterid);
+    if (checker === 'failed') {
+        return res.status(400).json({ message: 'Unauthorized', data: 'You are not authorized to view this page. Please login the right account to view the page.' });
+    }
+
+    // Normalize quantity and enforce sensible cap
+    const qtyToBuy = Math.max(1, Math.floor(Number(quantity) || 1));
+    const MAX_QTY = 100; // protect from very large buys in a single request
+    if (qtyToBuy > MAX_QTY) {
+        return res.status(400).json({ message: 'failed', data: `Requested quantity exceeds maximum limit of ${MAX_QTY}` });
+    }
+
+    try {
+        const session = await mongoose.startSession();
+        await session.startTransaction();
+
+        try {
+            // Find chest item in market
+            const item = await Market.findOne({ 'items._id': itemid }, { 'items.$': 1 }).session(session);
+            if (!item?.items[0]) {
+                await session.abortTransaction();
+                return res.status(404).json({ message: 'failed', data: 'Item not found' });
+            }
+
+            const itemData = item.items[0];
+            if (itemData.type !== 'chests') {
+                await session.abortTransaction();
+                return res.status(400).json({ message: 'failed', data: 'This endpoint is only for chest purchases. Use /buyitem for other items.' });
+            }
+
+            // check character gender compatibility
+            if ((itemData.gender === 'male' && checker.gender !== 0) || (itemData.gender === 'female' && checker.gender !== 1)) {
+                await session.abortTransaction();
+                return res.status(400).json({ message: 'failed', data: 'This item is not available for your character. Please choose a different item.' });
+            }
+
+            // Check wallet balance
+            const wallet = await checkwallet(characterid, itemData.currency, session);
+            if (wallet === 'failed') {
+                await session.abortTransaction();
+                return res.status(404).json({ message: 'failed', data: 'Wallet not found' });
+            }
+
+            const totalprice = (Number(itemData.price) || 0) * qtyToBuy;
+            if (wallet < totalprice) {
+                await session.abortTransaction();
+                return res.status(400).json({ message: 'failed', data: 'Insufficient balance' });
+            }
+
+            // Deduct wallet amount
+            const walletReduce = await reducewallet(characterid, totalprice, itemData.currency, session);
+            if (walletReduce === 'failed') {
+                await session.abortTransaction();
+                return res.status(400).json({ message: 'failed', data: 'Failed to deduct wallet amount.' });
+            }
+
+            // Add chest(s) to inventory: increment quantity if exists otherwise push new item with quantity
+            const invType = itemData.inventorytype || 'chests';
+            const existing = await CharacterInventory.findOne({ owner: characterid, type: invType, 'items.item': itemData._id }).session(session);
+
+            if (existing) {
+                await CharacterInventory.updateOne(
+                    { owner: characterid, type: invType, 'items.item': itemData._id },
+                    { $inc: { 'items.$.quantity': qtyToBuy } },
+                    { session }
+                );
+            } else {
+                await CharacterInventory.findOneAndUpdate(
+                    { owner: characterid, type: invType },
+                    { $push: { items: { item: itemData._id, quantity: qtyToBuy } } },
+                    { upsert: true, new: true, session }
+                );
+            }
+
+            // If the market item grants an additional bundled item (hairbundle etc.), add that too in equal quantity
+            const hairbundle = await gethairbundle(itemid);
+            if (mongoose.Types.ObjectId.isValid(hairbundle)) {
+                const bundled = await Item.findOne({ _id: hairbundle }).session(session);
+                if (bundled) {
+                    const existingB = await CharacterInventory.findOne({ owner: characterid, type: bundled.inventorytype, 'items.item': bundled._id }).session(session);
+                    if (existingB) {
+                        await CharacterInventory.updateOne(
+                            { owner: characterid, type: bundled.inventorytype, 'items.item': bundled._id },
+                            { $inc: { 'items.$.quantity': qtyToBuy } },
+                            { session }
+                        );
+                    } else {
+                        await CharacterInventory.findOneAndUpdate(
+                            { owner: characterid, type: bundled.inventorytype },
+                            { $push: { items: { item: bundled._id, quantity: qtyToBuy } } },
+                            { upsert: true, new: true, session }
+                        );
+                    }
+                }
+            }
+
+            // Log analytics for purchase (aggregate amount)
+            const rewardType = itemData.currency === 'crystal' ? 'crystal' : itemData.currency === 'coins' ? 'coins' : itemData.currency || null;
+            const description = `Bought ${qtyToBuy}x ${itemData.name} for ${totalprice} ${itemData.currency}`;
+
+            const analyticresponse = await addanalytics(
+                characterid.toString(),
+                itemid.toString(),
+                'buy',
+                'market',
+                rewardType,
+                description,
+                totalprice
+            );
+
+            if (analyticresponse === 'failed') {
+                await session.abortTransaction();
+                return res.status(500).json({ message: 'failed', data: 'Failed to log analytics for purchase' });
+            }
+
+            // If bundled item exists, log that grant as well
+            if (mongoose.Types.ObjectId.isValid(hairbundle)) {
+                const bundleItem = await Item.findById(hairbundle).session(session);
+                if (bundleItem) {
+                    const bundleRewardType = bundleItem.currency === 'crystal' ? 'crystal' : bundleItem.currency === 'coins' ? 'coins' : bundleItem.currency || bundleItem.type || null;
+                    const bundleDesc = `Granted bundle item ${bundleItem.name} x${qtyToBuy} from purchase of ${itemData.name}`;
+                    const analyticresponse2 = await addanalytics(
+                        characterid.toString(),
+                        bundleItem._id.toString(),
+                        'grant',
+                        'market',
+                        bundleRewardType,
+                        bundleDesc,
+                        bundleItem.price || 0
+                    );
+
+                    if (analyticresponse2 === 'failed') {
+                        await session.abortTransaction();
+                        return res.status(500).json({ message: 'failed', data: 'Failed to log analytics for bundle item' });
+                    }
+                }
+            }
+
+            await session.commitTransaction();
+            return res.status(200).json({ message: 'success', data: { item: itemData.name, price: itemData.price, type: itemData.type, quantity: qtyToBuy } });
+
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+
+    } catch (err) {
+        console.log(`Error in buy chest transaction: ${err}`);
+        return res.status(500).json({ message: 'failed', data: 'Failed to complete chest purchase' });
+    }
+};
