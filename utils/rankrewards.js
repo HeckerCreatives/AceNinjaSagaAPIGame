@@ -7,6 +7,7 @@ const Title = require('../models/Title');
 const Characterbadge = require('../models/Characterbadges');
 const Charactertitle = require('../models/Charactertitles');
 const { gethairbundle } = require('./bundle');
+const { addXPAndLevel } = require('./leveluptools');
 
 /**
  * Award rank rewards to a player
@@ -41,15 +42,12 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                     }
 
                     case 'exp': {
-                        const q = Characterdata.findById(userId);
-                        if (session) q.session(session);
-                        const character = await q;
-                        if (character) {
-                            character.experience = (character.experience || 0) + reward.amount;
-                            await character.save({ session });
-                            results.push({ success: true, type: 'exp', amount: reward.amount });
+                        // Use centralized XP/level utility to handle level ups and caps
+                        const xpResult = await addXPAndLevel(userId, reward.amount, session);
+                        if (xpResult === 'failed') {
+                            results.push({ success: false, type: 'exp', message: 'Failed to add experience' });
                         } else {
-                            results.push({ success: false, type: 'exp', message: 'Character not found' });
+                            results.push({ success: true, type: 'exp', amount: reward.amount, details: xpResult });
                         }
                         break;
                     }
@@ -64,8 +62,10 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                             const exists = await q2;
                             if (!exists) {
                                 await Charactertitle.create([{ owner: userId, title: title._id, index: title.index, name: title.title }], { session });
+                                results.push({ success: true, type: 'title', name: title.title });
+                            } else {
+                                results.push({ success: false, type: 'title', message: 'Title already owned' });
                             }
-                            results.push({ success: true, type: 'title', name: title.title });
                         } else {
                             results.push({ success: false, type: 'title', message: 'Title not found' });
                         }
@@ -82,8 +82,10 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                             const exists = await q2;
                             if (!exists) {
                                 await Characterbadge.create([{ owner: userId, badge: badge._id, index: badge.index, name: badge.title }], { session });
+                                results.push({ success: true, type: 'badge', name: badge.title });
+                            } else {
+                                results.push({ success: false, type: 'badge', message: 'Badge already owned' });
                             }
-                            results.push({ success: true, type: 'badge', name: badge.title });
                         } else {
                             results.push({ success: false, type: 'badge', message: 'Badge not found' });
                         }

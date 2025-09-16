@@ -83,13 +83,13 @@ exports.openchest = async (req, res) => {
 
             // Award the reward using existing rank reward system
             const rewardResults = await awardChestReward(characterid, selectedReward, session);
-            if (!rewardResults || rewardResults.length === 0 || !rewardResults[0].success) {
-                await session.abortTransaction();
-                return res.status(500).json({
-                    message: "failed",
-                    data: `Failed to award reward: ${rewardResults?.[0]?.message || rewardResults?.[0]?.error || 'Unknown error'}`
-                });
-            }
+            // if (!rewardResults || rewardResults.length === 0 || !rewardResults[0].success) {
+            //     await session.abortTransaction();
+            //     return res.status(500).json({
+            //         message: "failed",
+            //         data: `Failed to award reward: ${rewardResults?.[0]?.message || rewardResults?.[0]?.error || 'Unknown error'}`
+            //     });
+            // }
 
             // Remove one chest per successful award (we'll remove after the loop in batch)
             results.push({

@@ -11,6 +11,8 @@ const { BattlepassProgress, BattlepassSeason, BattlepassMissionProgress } = requ
 const { checkcharacter, getCharacterGender, getdefaultstats, getLevelBasedStats } = require("../utils/character")
 const RaidbossFight = require("../models/Raidbossfight")
 
+const Analytics = require("../models/Analytics")
+
 const RankTier = require("../models/RankTier")
 const { MonthlyLogin, CharacterMonthlyLogin, CharacterDailySpin, CharacterWeeklyLogin } = require("../models/Rewards")
 const moment = require("moment")
@@ -30,6 +32,7 @@ const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
 const { addwallet } = require("../utils/wallettools")
 const { findweaponandskillbyid } = require("../utils/stats")
+const Users = require("../models/Users")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -74,10 +77,17 @@ exports.createcharacter = async (req, res) => {
         }
 
 
-        const characterCount = await Characterdata.countDocuments({ owner: id });
-        if (characterCount >= 4) {
-            return res.status(400).json({ message: "failed", data: "Character limit reached. You cannot create more than 4 characters." });
-        }   
+        // enforce per-user slot limits: default 1, maximum 4
+        const userDoc = await Users.findById(id).lean();
+        const maxSlots = userDoc && typeof userDoc.characterSlots === 'number' ? Math.min(Math.max(userDoc.characterSlots, 1), 4) : 1;
+        const characterCount = await Characterdata.countDocuments({ owner: id, status: { $ne: "deleted" } });
+        if (characterCount >= maxSlots) {
+            return res.status(400).json({
+                message: "failed",
+                data: `Character slots are full (${characterCount}/${maxSlots}). Unlock more slots to create additional characters.`,
+                slots: { used: characterCount, max: maxSlots }
+            });
+        }
 
         const exists = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
 
@@ -343,6 +353,53 @@ exports.createcharacter = async (req, res) => {
         session.endSession();
     }
 }
+
+// Delete a character and all associated data
+exports.deletecharacter = async (req, res) => {
+    const { id } = req.user;
+    const { characterid } = req.body;
+
+    if (!id) return res.status(401).json({ message: 'failed', data: 'Unauthorized' });
+    if (!characterid) return res.status(400).json({ message: 'failed', data: 'Character ID is required' });
+
+    const checker = await checkcharacter(id, characterid);
+    if (checker === 'failed') return res.status(403).json({ message: 'failed', data: 'You are not authorized to delete this character' });
+
+    const session = await mongoose.startSession();
+    try {
+        await session.startTransaction();
+
+        const objectId = new mongoose.Types.ObjectId(characterid);
+
+        // Delete main character document
+        await Characterdata.findOneAndUpdate({ _id: objectId }, { status: "deleted" }).session(session);
+
+        // delete friends where character is involved
+        await Friends.deleteMany({ 
+            $or: [
+                { character: objectId },
+                { friend: objectId }
+            ]
+        }).session(session);
+
+        // bring back to slot count
+        const userDoc = await Users.findById(id).session(session).lean();
+        const maxSlots = userDoc && typeof userDoc.characterSlots === 'number' ? Math.min(Math.max(userDoc.characterSlots, 1), 4) : 1;
+        const characterCount = await Characterdata.countDocuments({ owner: id, status: { $ne: "deleted" } }).session(session);
+        if (characterCount < maxSlots) {
+            await Users.findByIdAndUpdate(id, { $set: { characterSlots: characterCount } }).session(session);
+        }
+
+        await session.commitTransaction();
+        return res.status(200).json({ message: 'success' });
+    } catch (error) {
+        await session.abortTransaction();
+        console.error('Error deleting character:', error);
+        return res.status(500).json({ message: 'failed', data: 'Failed to delete character' });
+    } finally {
+        session.endSession();
+    }
+}
 // exports.createcharacter = async (req, res) => {
 
 //     const { id } = req.user
@@ -490,7 +547,8 @@ exports.getplayerdata = async (req, res) => {
     const matchCondition = [
         {
             $match: {
-                _id: new mongoose.Types.ObjectId(characterid) 
+                _id: new mongoose.Types.ObjectId(characterid),
+                status: { $ne: "deleted" }
             }
         },
         {
@@ -726,44 +784,79 @@ exports.getplayerdata = async (req, res) => {
 
 exports.getplayercharacters = async (req, res) => {
     const {id} = req.user
+    // load user's slot count (default 1, max 4)
+    const userDoc = await Users.findById(id).lean();
+    const maxSlots = userDoc && typeof userDoc.characterSlots === 'number' ? Math.min(Math.max(userDoc.characterSlots, 1), 4) : 1;
 
-    const tempdata = await Characterdata.find({owner: new mongoose.Types.ObjectId(id)})
-    .then(data => data)
-    .catch(err => {
-        console.log(`There's a problem while fetching character datas for user: ${id}. Error: ${err}`)
+    const tempdata = await Characterdata.find({ owner: new mongoose.Types.ObjectId(id), status: { $ne: "deleted" } }).sort({ createdAt: 1 })
+        .then(data => data)
+        .catch(err => {
+            console.log(`There's a problem while fetching character datas for user: ${id}. Error: ${err}`)
+            return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." })
+        })
 
-        return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later."})
-    })
-
-    const data = {}
-
-    let i = 1
-    tempdata.forEach(temp => {
-        const {_id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt} = temp;
-        const createdAtDate = new moment(createdAt);
-        const formattedDate = createdAtDate.format("YYYY-MM-DD");
-        
-        data[i] = {
-            UserID: _id,
-            Username: username,
-            CharacterCostume: {
-                Gender: gender,
-                OutfitId: outfit,
-                HairId: hair,
-                EyesId: eyes,
-                FaceDetailsId: facedetails,
-                ColorId: color,
-            },
-            Title: title,
-            Level: level,
-            CurrentXP: experience,
-            badge: badge,
-            creationdate: formattedDate,
+    // Build slot list: filled slots show character info, empty slots show locked/unlocked status
+    const data = {};
+    const GLOBAL_MAX_SLOTS = 4;
+    const userUnlockedSlots = maxSlots; // already derived from Users.characterSlots
+    for (let slot = 1; slot <= GLOBAL_MAX_SLOTS; slot++) {
+        const character = tempdata[slot - 1];
+        if (character) {
+            const { _id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt } = character;
+            const createdAtDate = new moment(createdAt);
+            const formattedDate = createdAtDate.format("YYYY-MM-DD");
+            data[slot] = {
+                locked: false,
+                used: true,
+                UserID: _id,
+                Username: username,
+                CharacterCostume: {
+                    Gender: gender,
+                    OutfitId: outfit,
+                    HairId: hair,
+                    EyesId: eyes,
+                    FaceDetailsId: facedetails,
+                    ColorId: color,
+                },
+                Title: title,
+                Level: level,
+                CurrentXP: experience,
+                badge: badge,
+                creationdate: formattedDate,
+            };
+        } else {
+            // empty slot
+            data[slot] = {
+                locked: slot > userUnlockedSlots, // true if user hasn't unlocked this slot yet
+                used: false,
+            };
         }
-        i++
-    })
+    }
 
-    return res.json({message: "success", data: data})
+    return res.json({ message: "success", data: data, slots: { max: maxSlots } })
+}
+
+// Unlock / increase character slot for authenticated user
+exports.unlockcharacterslot = async (req, res) => {
+    const { id } = req.user;
+    if (!id) return res.status(401).json({ message: "failed", data: "Unauthorized" });
+
+    try {
+        const user = await Users.findById(id);
+        if (!user) return res.status(404).json({ message: "failed", data: "User not found" });
+
+        const currentSlots = typeof user.characterSlots === 'number' ? user.characterSlots : 1;
+        if (currentSlots >= 4) return res.status(400).json({ message: "failed", data: "Maximum character slots reached" });
+
+        // Optionally: validate payment here (deduct crystals etc.) before unlocking
+        user.characterSlots = currentSlots + 1;
+        await user.save();
+
+        return res.status(200).json({ message: "success", data: { characterSlots: user.characterSlots } });
+    } catch (err) {
+        console.error("unlockcharacterslot error:", err);
+        return res.status(500).json({ message: "failed", data: "Could not unlock character slot" });
+    }
 }
 
 exports.getinventory = async (req, res) => {
@@ -928,7 +1021,7 @@ exports.updateplayerprofile = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "Please input username and character ID."})
     }
 
-    const existingcharacter = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
+    const existingcharacter = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')}, status: { $ne: "deleted" } })
 
     if (existingcharacter){
         return res.status(400).json({ message: "failed", data: "There's an existing character name! Please enter a different username."})

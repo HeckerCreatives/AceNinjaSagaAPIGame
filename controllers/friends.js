@@ -29,7 +29,7 @@ exports.addFriend = async (req, res) => {
 
         let friendId = ""
 
-        const sfriend = await Characterdata.findOne({ username: { $regex: new RegExp('^' + friendname + '$', 'i') } });
+        const sfriend = await Characterdata.findOne({ username: { $regex: new RegExp('^' + friendname + '$', 'i') }, status: 'active' });
         if(!sfriend){
             return res.status(400).json({
                 message: "failed",
@@ -349,7 +349,8 @@ exports.playerlist = async (req, res) => {
         };
 
         let query = {
-            _id: { $ne: characterId } // Exclude current character
+            _id: { $ne: characterId }, // Exclude current character
+            status: 'active' // Only active characters
         };
 
         if(search){

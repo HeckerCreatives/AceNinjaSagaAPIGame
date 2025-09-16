@@ -12,6 +12,7 @@ const { gethairbundle } = require("../utils/bundle")
 const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
 const { addwallet, checkwallet, reducewallet } = require("../utils/wallettools")
+const { getEnhancedChestData } = require('../utils/chesttools')
 
 exports.getMarketItems = async (req, res) => {
     const { page, limit, type, rarity, search, markettype, gender, characterid } = req.query
@@ -230,11 +231,29 @@ exports.getMarketItems = async (req, res) => {
             createdAt: { $gte: today }
         })
 
-        const formattedResponse = {
-            data: items.reduce((acc, item, index) => {
-            // If item type is freebie and there's an existing claim with matching transactionid, add timer
-            if (item.type === 'freebie') {
+        // Enhance chest items with reward previews where applicable
+        const enhancedItems = await Promise.all(items.map(async (item) => {
+            if (item.type === 'chests') {
+                try {
+                    const enhanced = await getEnhancedChestData(item);
+                    // Preserve original response shape and only add rewards + totalProbability
+                    return Object.assign({}, item, {
+                        rewards: enhanced.rewards || [],
+                        totalProbability: enhanced.totalProbability || 0
+                    });
+                } catch (error) {
+                    console.error('Failed to enhance chest item:', error);
+                    return Object.assign({}, item, { rewards: [], totalProbability: 0 });
+                }
+            }
+            // For non-chest items, preserve original item
+            return item;
+        }));
 
+        const formattedResponse = {
+            data: enhancedItems.reduce((acc, item, index) => {
+                // If item type is freebie and there's an existing claim with matching transactionid, add timer
+                if (item.type === 'freebie') {
                     const now = new Date();
                     const phTime = new Date(now.getTime()); 
                     const midnight = new Date(phTime);
@@ -249,29 +268,29 @@ exports.getMarketItems = async (req, res) => {
                     item.hoursLeft = hours;
                     item.minutesLeft = minutes;
 
-                        if (
-                    item.type === "freebie" &&
-                    Array.isArray(existingClaim) &&
-                    existingClaim.length > 0 &&
-                    existingClaim.some(claim => claim.transactionid?.toString() === item.itemId?.toString())
-                ) {
-                    item.timer = timer;
-                    item.hoursLeft = hours;
-                    item.minutesLeft = minutes;
-                } else {
-                    item.timer = 0;
-                    item.hoursLeft = 0;
-                    item.minutesLeft = 0;
+                    if (
+                        item.type === "freebie" &&
+                        Array.isArray(existingClaim) &&
+                        existingClaim.length > 0 &&
+                        existingClaim.some(claim => claim.transactionid?.toString() === item.itemId?.toString())
+                    ) {
+                        item.timer = timer;
+                        item.hoursLeft = hours;
+                        item.minutesLeft = minutes;
+                    } else {
+                        item.timer = 0;
+                        item.hoursLeft = 0;
+                        item.minutesLeft = 0;
+                    }
                 }
-            }
-            acc[index + 1] = item;
-            return acc;
+                acc[index + 1] = item;
+                return acc;
             }, {}),
             pagination: {
-            total: totalItems[0]?.total || 0,
-            page: pageOptions.page,
-            limit: pageOptions.limit,
-            pages: Math.ceil((totalItems[0]?.total || 0) / pageOptions.limit)
+                total: totalItems[0]?.total || 0,
+                page: pageOptions.page,
+                limit: pageOptions.limit,
+                pages: Math.ceil((totalItems[0]?.total || 0) / pageOptions.limit)
             }
         };
 

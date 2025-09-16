@@ -10,6 +10,7 @@ const Chapter = require('../models/Chapter');
 const Characterbadges = require('../models/Characterbadges');
 const Charactertitles = require('../models/Charactertitles');
 const { gethairbundle } = require('./bundle');
+const { addXPAndLevel } = require('./leveluptools');
 /**
  * Utility to process battlepass tier rewards and determine what to award the user
  * @param {Object} reward - The reward object from the tier
@@ -446,13 +447,10 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
         switch (processedReward.type) {
             case 'exp':
                 // Award experience points
-                const character = await Characterdata.findById(characterid).session(session);
-                if (character) {
-                    character.experience = (character.experience || 0) + processedReward.amount;
-                    // Calculate level up if needed
-                    await character.save({ session });
-                }
-                return { success: true, message: `Awarded ${processedReward.amount} experience` };
+                // Use centralized XP/level utility so level-ups and caps are consistent
+                const xpResult = await addXPAndLevel(characterid, processedReward.amount, session);
+                if (xpResult === 'failed') return { success: false, message: 'Failed to award experience' };
+                return { success: true, message: `Awarded ${processedReward.amount} experience`, details: xpResult };
 
             case 'coins':
             case 'crystal':

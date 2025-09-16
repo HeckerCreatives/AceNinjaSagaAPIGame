@@ -11,6 +11,7 @@ const { addanalytics } = require("../utils/analyticstools")
 const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
 const { addwallet, checkwallet, reducewallet } = require("../utils/wallettools")
+const { CharacterInventory } = require("../models/Market")
 
 // #region  USER
 
@@ -654,7 +655,7 @@ exports.claimweeklylogin = async (req, res) => {
                     data: "Failed to add experience points."
                 });
             }
-        } else {
+        } else if (weeklylogin.type === "coins" || weeklylogin.type === "crystal") {
            const walletResult = await addwallet(characterid, weeklylogin.type, weeklylogin.amount, session);
             if (walletResult === "failed") {
                 await session.abortTransaction();
@@ -663,34 +664,52 @@ exports.claimweeklylogin = async (req, res) => {
                     data: "Failed to add wallet amount."
                 });
             }
+        } else if (weeklylogin.type === "chest") {
+            const chestId = weeklylogin.amount; // Assuming amount holds the chest ID
+            let chestToAdd = chestId;
+            const existsChestQ = CharacterInventory.findOne({ owner: characterid, type: 'chests', 'items.item': chestToAdd });
+            if (session) existsChestQ.session(session);
+            const existsChest = await existsChestQ;
+            if (existsChest) {
+                await CharacterInventory.updateOne(
+                    { owner: characterid, type: 'chests', 'items.item': chestToAdd },
+                    { $inc: { 'items.$.quantity': 1 } },
+                    { session }
+                )
+            } else {
+                await CharacterInventory.findOneAndUpdate({ owner: characterid, type: 'chests' }, { $push: { items: { item: chestToAdd, quantity: 1 } } }, { upsert: true, session });
+            }
+        } else {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Invalid reward type." });
         }
 
-            const analyticresponse = await addanalytics(
-                characterid.toString(),
-                userweeklylogin._id.toString(),
-                "claim", 
-                "rewards",
-                'Weekly Login Rewards Claimed',
-                `Claimed reward: ${weeklylogin.amount} ${weeklylogin.type} for day ${userweeklylogin.currentDay}`,
-                weeklylogin.amount
-            );
-        
-                if (analyticresponse === "failed") {
-                    return res.status(500).json({
-                        message: "failed",
-                        data: "Failed to log analytics for weekly login claim"
-                    });
-                }
-            const addresetexist = await addreset(
+        const analyticresponse = await addanalytics(
             characterid.toString(),
-            "weeklylogin",
-            "claim"
-            );
+            userweeklylogin._id.toString(),
+            "claim", 
+            "rewards",
+            'Weekly Login Rewards Claimed',
+            `Claimed reward: ${weeklylogin.amount} ${weeklylogin.type} for day ${userweeklylogin.currentDay}`,
+            weeklylogin.amount
+        );
+        
+        if (analyticresponse === "failed") {
+            return res.status(500).json({
+                message: "failed",
+                data: "Failed to log analytics for weekly login claim"
+            });
+        }
+        const addresetexist = await addreset(
+        characterid.toString(),
+        "weeklylogin",
+        "claim"
+        );
 
-            if (addresetexist === "failed") {
-                await session.abortTransaction();
-                return res.status(400).json({ message: "failed", data: "Failed to add reset for weekly login claim." });
-            }
+        if (addresetexist === "failed") {
+            await session.abortTransaction();
+            return res.status(400).json({ message: "failed", data: "Failed to add reset for weekly login claim." });
+        }
         
         const progress = await progressutil('dailyloginclaimed', characterid, 1);
         if (progress.message !== "success") {
@@ -1024,7 +1043,7 @@ exports.claimmonthlylogin = async (req, res) => {
                         data: "Failed to add experience points."
                     });
                 }
-            } else {
+            } else if (reward.type === "coins" || reward.type === "crystal") {
                 const walletResult = await addwallet(characterid, reward.type, reward.amount, session);
                 if (walletResult === "failed") {
                     await session.abortTransaction();
@@ -1033,6 +1052,24 @@ exports.claimmonthlylogin = async (req, res) => {
                         data: "Failed to add wallet amount."
                     });
                 }
+            } else if (reward.type === "chest") {
+                const chestId = reward.amount; // Assuming amount holds the chest ID
+                let chestToAdd = chestId;
+                const existsChestQ = CharacterInventory.findOne({ owner: characterid, type: 'chests', 'items.item': chestToAdd });
+                if (session) existsChestQ.session(session);
+                const existsChest = await existsChestQ;
+                if (existsChest) {
+                    await CharacterInventory.updateOne(
+                        { owner: characterid, type: 'chests', 'items.item': chestToAdd },
+                        { $inc: { 'items.$.quantity': 1 } },
+                        { session }
+                    )
+                } else {
+                    await CharacterInventory.findOneAndUpdate({ owner: characterid, type: 'chests' }, { $push: { items: { item: chestToAdd, quantity: 1 } } }, { upsert: true, session });
+                }
+            }  else {
+                console.log(`Unknown reward type: ${reward.type} for day ${dayObj.day}`);
+                continue;
             }
             claimed[dayObj.day] = {
                 type: reward.type,

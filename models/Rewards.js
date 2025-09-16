@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose");
 
+const validateNumberOrString = v => (typeof v === 'number' || typeof v === 'string');
 
 const CharacterMonthlyLoginSchema = new mongoose.Schema({
     owner: {
@@ -109,11 +110,15 @@ const MonthlyLoginSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ["exp", "coins", "crystal"],
+            enum: ["exp", "coins", "crystal", "chest"],
         },
         amount: {
-            type: Number,
+            type: mongoose.Schema.Types.Mixed,
             required: true,
+            validate: {
+                validator: validateNumberOrString,
+                message: 'Amount must be a number or a string'
+            }
         }
     },
     {
@@ -129,11 +134,15 @@ const WeeklyLoginSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ["exp", "coins", "crystal"],
+            enum: ["exp", "coins", "crystal", "chest"],
         },
         amount: {
-            type: Number,
+            type: mongoose.Schema.Types.Mixed,
             required: true,
+            validate: {
+                validator: validateNumberOrString,
+                message: 'Amount must be a number or a string'
+            }
         }
     },
     {

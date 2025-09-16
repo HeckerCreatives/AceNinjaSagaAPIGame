@@ -60,6 +60,11 @@ const CharacterDataSchema = new mongoose.Schema(
         },
         itemindex: {
             type: Number
+        },
+        status: {
+            type: String,
+            index: true,
+            default: "active"
         }
     },
     {

@@ -186,7 +186,7 @@ exports.getlevelleaderboards = async (req, res) => {
 
     const leaderboards = await Characterdata.countDocuments({ level: { $gt: lbvalue.level } })
 
-    const topleaderboard = await Characterdata.find()
+    const topleaderboard = await Characterdata.find({ status: 'active' })
     .populate("owner" , "username")
     .sort({ level: -1 })
     .limit(parseInt(limit))
