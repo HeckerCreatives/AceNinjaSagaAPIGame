@@ -28,6 +28,7 @@ const routers = app => {
     app.use("/version", require("./version"))
     app.use("/raidboss", require("./raidboss"))
     app.use("/Addressables", require("./addressables"))
+    app.use("/patchnotes", require("./patchnotes"))
 }
 
 module.exports = routers
