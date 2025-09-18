@@ -30,7 +30,7 @@ const { gethairname } = require("../utils/bundle")
 const { challengeRewards } = require("../utils/gamerewards")
 const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
-const { addwallet } = require("../utils/wallettools")
+const { addwallet, reducewallet, checkwallet } = require("../utils/wallettools")
 const { findweaponandskillbyid } = require("../utils/stats")
 const Users = require("../models/Users")
 
@@ -933,21 +933,74 @@ exports.unlockcharacterslot = async (req, res) => {
             return res.status(400).json({ message: "failed", data: "All character slots are already unlocked" });
         }
 
-        // Optionally: validate payment here (deduct crystals etc.) before unlocking
+        // If the client requested unlocking slot 1, do not charge (slot 1 is always free / default)
+        if (Number(index) === 1) {
+            // Ensure slot 1 is present and save
+            if (!user.slotsunlocked.includes(1)) {
+                user.slotsunlocked.push(1);
+                user.slotsunlocked.sort();
+                user.characterSlots = user.slotsunlocked.length;
+                await user.save();
+            }
+
+            return res.status(200).json({
+                message: "success",
+                data: {
+                    characterSlots: user.characterSlots,
+                    slotsunlocked: user.slotsunlocked,
+                    unlockedSlot: 1,
+                    chargedFromSlot1: null,
+                    chargedAmount: 0,
+                    remainingOnSlot1: null
+                }
+            });
+        }
+
+        // Charge 1000 crystals from the user's slot 1 character before unlocking other slots
+        const CHARGE_AMOUNT = 1000;
+        const slotOneChar = await Characterdata.findOne({ owner: id, slotIndex: 1, status: { $ne: "deleted" } }).lean();
+
+        if (!slotOneChar) {
+            return res.status(400).json({ message: "failed", data: "No active character in slot 1 to charge for unlocking. Please create or top-up your first account (slot 1)." });
+        }
+
+        const currentBalance = await checkwallet(slotOneChar._id, "crystal");
+        if (currentBalance === "failed") {
+            console.error(`checkwallet failed for character ${slotOneChar._id}`);
+            return res.status(500).json({ message: "failed", data: "Could not read wallet balance. Please try again later." });
+        }
+
+        const numericBalance = Number(currentBalance) || 0;
+        if (numericBalance < CHARGE_AMOUNT) {
+            const needed = CHARGE_AMOUNT - numericBalance;
+            return res.status(400).json({ message: "failed", data: `Not enough crystals on slot 1. Add ${needed} more crystals to your first account to unlock this slot.` });
+        }
+
+        const deductionResult = await reducewallet(slotOneChar._id, CHARGE_AMOUNT, "crystal");
+        if (deductionResult === "failed") {
+            console.error(`reducewallet failed for character ${slotOneChar._id}`);
+            return res.status(500).json({ message: "failed", data: "Failed to deduct crystals. Please try again later." });
+        }
+
+        // Proceed to unlock slot after successful charge
         user.slotsunlocked.push(index);
         user.slotsunlocked.sort(); // Keep array sorted for consistency
-        
         // Update characterSlots for backward compatibility
         user.characterSlots = user.slotsunlocked.length;
-        
         await user.save();
+
+        // Return remaining balance for the charged character
+        const remaining = await checkwallet(slotOneChar._id, "crystal");
 
         return res.status(200).json({ 
             message: "success", 
             data: { 
                 characterSlots: user.characterSlots,
                 slotsunlocked: user.slotsunlocked,
-                unlockedSlot: index
+                unlockedSlot: index,
+                chargedFromSlot1: slotOneChar._id,
+                chargedAmount: CHARGE_AMOUNT,
+                remainingOnSlot1: Number(remaining) || 0
             } 
         });
     } catch (err) {
@@ -955,6 +1008,7 @@ exports.unlockcharacterslot = async (req, res) => {
         return res.status(500).json({ message: "failed", data: "Could not unlock character slot" });
     }
 }
+
 
 exports.getinventory = async (req, res) => {
     const { characterid } = req.query

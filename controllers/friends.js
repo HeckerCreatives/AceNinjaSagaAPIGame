@@ -3,6 +3,7 @@ const Characterdata = require('../models/Characterdata');
 const { default: mongoose } = require('mongoose');
 const { checkcharacter } = require('../utils/character');
 const { progressutil } = require('../utils/progress');
+const { checkfriendlistcount } = require('../utils/friendstools');
 
 // Add friend request
 exports.addFriend = async (req, res) => {
@@ -60,6 +61,24 @@ exports.addFriend = async (req, res) => {
             return res.status(400).json({
                 message: "failed",
                 data: 'You already sent a friend request to this player'
+            });
+        }
+
+        const currentCharacterFriendCount = await checkfriendlistcount(characterId);
+        const currentFriendFriendCount = await checkfriendlistcount(friendId);
+        const FRIEND_LIST_LIMIT = 50; // 
+
+        if (currentCharacterFriendCount >= FRIEND_LIST_LIMIT) {
+            return res.status(400).json({
+                message: "failed",
+                data: "You have reached the maximum number of friends allowed. Please remove some friends before adding new ones."
+            });
+        }
+
+        if (currentFriendFriendCount >= FRIEND_LIST_LIMIT) {
+            return res.status(400).json({
+                message: "failed",
+                data: "The player you are trying to add has reached the maximum number of friends allowed."
             });
         }
 
@@ -283,6 +302,26 @@ exports.acceptrejectFriendRequest = async (req, res) => {
             data: "You are not authorized to view this page. Please login the right account to view the page."
         });
     }
+
+    
+    const currentCharacterFriendCount = await checkfriendlistcount(characterId);
+    const currentFriendFriendCount = await checkfriendlistcount(friendId);
+    const FRIEND_LIST_LIMIT = 50; // 
+
+    if (currentCharacterFriendCount >= FRIEND_LIST_LIMIT && status === 'accepted') {
+        return res.status(400).json({
+            message: "failed",
+            data: "You have reached the maximum number of friends allowed. Please remove some friends before adding new ones."
+        });
+    }
+
+    if (currentFriendFriendCount >= FRIEND_LIST_LIMIT && status === 'accepted') {
+        return res.status(400).json({
+            message: "failed",
+            data: "The player you are trying to add has reached the maximum number of friends allowed."
+        });
+    }
+
 
     
     // Check if friendship exists
