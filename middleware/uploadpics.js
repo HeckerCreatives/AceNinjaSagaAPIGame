@@ -60,12 +60,13 @@ var upload = multer({
                 '.bytes',
                 '.txt',
                 // for testing purposes only
-                "image/png",
-                "image/jpg",
-                "image/jpeg",
-                "video/mp4",
-                "video/quicktime", // for .mov files
-                "video/x-msvideo"  // for .avi files
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".mp4",
+                ".mov", // for .mov files
+                ".avi", // for .avi files
+                ".zip" // for .zip files
             ];
             
             const fileExt = path.extname(file.originalname).toLowerCase();

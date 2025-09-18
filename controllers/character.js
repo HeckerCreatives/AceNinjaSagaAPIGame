@@ -40,7 +40,7 @@ exports.createcharacter = async (req, res) => {
         await session.startTransaction();
 
         const { id } = req.user;
-        const { username, gender, outfit, hair, eyes, facedetails, color, itemindex } = req.body;
+        const { username, gender, outfit, hair, eyes, facedetails, color, itemindex, index } = req.body;
 
         if(!id) {
             return res.status(401).json({ 
@@ -77,24 +77,60 @@ exports.createcharacter = async (req, res) => {
         }
 
 
-        // enforce per-user slot limits: default 1, maximum 4
-        const userDoc = await Users.findById(id).lean();
-        const maxSlots = userDoc && typeof userDoc.characterSlots === 'number' ? Math.min(Math.max(userDoc.characterSlots, 1), 4) : 1;
-        const characterCount = await Characterdata.countDocuments({ owner: id, status: { $ne: "deleted" } });
-        if (characterCount >= maxSlots) {
+        // Validate index parameter
+        if (!index || index < 1 || index > 4) {
             return res.status(400).json({
                 message: "failed",
-                data: `Character slots are full (${characterCount}/${maxSlots}). Unlock more slots to create additional characters.`,
-                slots: { used: characterCount, max: maxSlots }
+                data: "Invalid slot index. Must be 1-4."
             });
         }
 
-        const exists = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')} })
+        // Check user's unlocked slots and validate the requested index
+        const userDoc = await Users.findById(id).lean();
+        
+        // Initialize slotsunlocked array if it doesn't exist, ensuring slot 1 is always unlocked
+        let userUnlockedSlots = [];
+        if (Array.isArray(userDoc?.slotsunlocked) && userDoc.slotsunlocked.length > 0) {
+            userUnlockedSlots = userDoc.slotsunlocked;
+        } else {
+            userUnlockedSlots = [1]; // Default: only slot 1 is unlocked
+        }
+        
+        // Ensure slot 1 is always included (backward compatibility)
+        if (!userUnlockedSlots.includes(1)) {
+            userUnlockedSlots.push(1);
+        }
+
+        // Check if the requested slot index is unlocked
+        if (!userUnlockedSlots.includes(index)) {
+            return res.status(400).json({
+                message: "failed",
+                data: `Slot ${index} is locked. Please unlock it first.`,
+                slots: { unlocked: userUnlockedSlots.sort() }
+            });
+        }
+
+        // Check if the requested slot is already occupied by checking slotIndex field
+        const existingCharacterInSlot = await Characterdata.findOne({ 
+            owner: id, 
+            slotIndex: index,
+            status: { $ne: "deleted" } 
+        }).lean();
+
+        // Check if slot is already occupied
+        if (existingCharacterInSlot) {
+            return res.status(400).json({
+                message: "failed",
+                data: `Slot ${index} is already occupied by character '${existingCharacterInSlot.username}'.`
+            });
+        }
+
+        const exists = await Characterdata.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i')}, status: { $ne: "deleted" } }).session(session);
 
         if(exists){
             return res.status(400).json({ message: "failed", data: "Username already used." });
         }
-        // Create character data
+        // Create character data with slot index
         const data = await Characterdata.create([{ 
             owner: new mongoose.Types.ObjectId(id), 
             username,
@@ -108,7 +144,8 @@ exports.createcharacter = async (req, res) => {
             experience: 0,
             level: 1,
             badge: 0,
-            itemindex
+            itemindex,
+            slotIndex: index // Store which slot this character occupies
         }], { session });
 
         const characterId = data[0]._id;
@@ -340,7 +377,14 @@ exports.createcharacter = async (req, res) => {
         }], {session})
         
         await session.commitTransaction();
-        return res.status(200).json({ message: "success" });
+        return res.status(200).json({ 
+            message: "success", 
+            data: {
+                characterId: characterId,
+                slotIndex: index,
+                username: username
+            }
+        });
 
     } catch (error) {
         await session.abortTransaction();
@@ -382,13 +426,6 @@ exports.deletecharacter = async (req, res) => {
             ]
         }).session(session);
 
-        // bring back to slot count
-        const userDoc = await Users.findById(id).session(session).lean();
-        const maxSlots = userDoc && typeof userDoc.characterSlots === 'number' ? Math.min(Math.max(userDoc.characterSlots, 1), 4) : 1;
-        const characterCount = await Characterdata.countDocuments({ owner: id, status: { $ne: "deleted" } }).session(session);
-        if (characterCount < maxSlots) {
-            await Users.findByIdAndUpdate(id, { $set: { characterSlots: characterCount } }).session(session);
-        }
 
         await session.commitTransaction();
         return res.status(200).json({ message: 'success' });
@@ -784,29 +821,53 @@ exports.getplayerdata = async (req, res) => {
 
 exports.getplayercharacters = async (req, res) => {
     const {id} = req.user
-    // load user's slot count (default 1, max 4)
+    // load user's slot unlock status
     const userDoc = await Users.findById(id).lean();
-    const maxSlots = userDoc && typeof userDoc.characterSlots === 'number' ? Math.min(Math.max(userDoc.characterSlots, 1), 4) : 1;
+    
+    // Initialize slotsunlocked array if it doesn't exist, ensuring slot 1 is always unlocked
+    let userUnlockedSlots = [];
+    if (Array.isArray(userDoc?.slotsunlocked) && userDoc.slotsunlocked.length > 0) {
+        userUnlockedSlots = userDoc.slotsunlocked;
+    } else {
+        userUnlockedSlots = [1]; // Default: only slot 1 is unlocked
+    }
+    
+    // Ensure slot 1 is always included (backward compatibility)
+    if (!userUnlockedSlots.includes(1)) {
+        userUnlockedSlots.push(1);
+    }
 
-    const tempdata = await Characterdata.find({ owner: new mongoose.Types.ObjectId(id), status: { $ne: "deleted" } }).sort({ createdAt: 1 })
+    const maxSlots = userUnlockedSlots.length;
+
+    const tempdata = await Characterdata.find({ owner: new mongoose.Types.ObjectId(id), status: { $ne: "deleted" } })
         .then(data => data)
         .catch(err => {
             console.log(`There's a problem while fetching character datas for user: ${id}. Error: ${err}`)
             return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please try again later." })
         })
 
+    // Create a map of characters by their slotIndex for easy lookup
+    const charactersBySlot = {};
+    tempdata.forEach(character => {
+        if (character.slotIndex >= 1 && character.slotIndex <= 4) {
+            charactersBySlot[character.slotIndex] = character;
+        }
+    });
+
     // Build slot list: filled slots show character info, empty slots show locked/unlocked status
     const data = {};
     const GLOBAL_MAX_SLOTS = 4;
-    const userUnlockedSlots = maxSlots; // already derived from Users.characterSlots
+    
     for (let slot = 1; slot <= GLOBAL_MAX_SLOTS; slot++) {
-        const character = tempdata[slot - 1];
+        const character = charactersBySlot[slot];
+        const isSlotUnlocked = userUnlockedSlots.includes(slot);
+        
         if (character) {
-            const { _id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt } = character;
+            const { _id, username, gender, outfit, hair, eyes, facedetails, level, color, title, experience, badge, itemindex, createdAt, slotIndex } = character;
             const createdAtDate = new moment(createdAt);
             const formattedDate = createdAtDate.format("YYYY-MM-DD");
             data[slot] = {
-                locked: false,
+                locked: !isSlotUnlocked,
                 used: true,
                 UserID: _id,
                 Username: username,
@@ -823,36 +884,72 @@ exports.getplayercharacters = async (req, res) => {
                 CurrentXP: experience,
                 badge: badge,
                 creationdate: formattedDate,
+                slotIndex: slotIndex || slot, // Include slotIndex for reference, fallback to slot number
             };
         } else {
             // empty slot
             data[slot] = {
-                locked: slot > userUnlockedSlots, // true if user hasn't unlocked this slot yet
+                locked: !isSlotUnlocked, // true if this slot index is not in slotsunlocked array
                 used: false,
             };
         }
     }
 
-    return res.json({ message: "success", data: data, slots: { max: maxSlots } })
+    return res.json({ 
+        message: "success", 
+        data: data, 
+        slots: { 
+            max: maxSlots,
+            unlocked: userUnlockedSlots.sort() // Show which specific slots are unlocked
+        } 
+    })
 }
 
 // Unlock / increase character slot for authenticated user
 exports.unlockcharacterslot = async (req, res) => {
     const { id } = req.user;
+    const { index } = req.body; // slot index to unlock (1-4)
     if (!id) return res.status(401).json({ message: "failed", data: "Unauthorized" });
+    if (!index || index < 1 || index > 4) return res.status(400).json({ message: "failed", data: "Invalid slot index. Must be 1-4." });
 
     try {
         const user = await Users.findById(id);
         if (!user) return res.status(404).json({ message: "failed", data: "User not found" });
 
-        const currentSlots = typeof user.characterSlots === 'number' ? user.characterSlots : 1;
-        if (currentSlots >= 4) return res.status(400).json({ message: "failed", data: "Maximum character slots reached" });
+        // Initialize slotsunlocked array if it doesn't exist and ensure slot 1 is always unlocked
+        if (!Array.isArray(user.slotsunlocked)) {
+            user.slotsunlocked = [1]; // Slot 1 is always unlocked by default
+        } else if (!user.slotsunlocked.includes(1)) {
+            user.slotsunlocked.push(1);
+        }
+
+        // Check if slot is already unlocked
+        if (user.slotsunlocked.includes(index)) {
+            return res.status(400).json({ message: "failed", data: "Slot is already unlocked" });
+        }
+
+        // Check if all slots are unlocked
+        if (user.slotsunlocked.length >= 4) {
+            return res.status(400).json({ message: "failed", data: "All character slots are already unlocked" });
+        }
 
         // Optionally: validate payment here (deduct crystals etc.) before unlocking
-        user.characterSlots = currentSlots + 1;
+        user.slotsunlocked.push(index);
+        user.slotsunlocked.sort(); // Keep array sorted for consistency
+        
+        // Update characterSlots for backward compatibility
+        user.characterSlots = user.slotsunlocked.length;
+        
         await user.save();
 
-        return res.status(200).json({ message: "success", data: { characterSlots: user.characterSlots } });
+        return res.status(200).json({ 
+            message: "success", 
+            data: { 
+                characterSlots: user.characterSlots,
+                slotsunlocked: user.slotsunlocked,
+                unlockedSlot: index
+            } 
+        });
     } catch (err) {
         console.error("unlockcharacterslot error:", err);
         return res.status(500).json({ message: "failed", data: "Could not unlock character slot" });

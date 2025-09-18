@@ -38,7 +38,8 @@ const UsersSchema = new mongoose.Schema(
         characterSlots: {
             type: Number,
             default: 1
-        }
+        },
+        slotsunlocked: [Number] // Array to track which slots are unlocked (e.g., [1, 2] means slots 1 and 2 are unlocked)
     },
     {
         timestamps: true

@@ -61,6 +61,12 @@ const CharacterDataSchema = new mongoose.Schema(
         itemindex: {
             type: Number
         },
+        slotIndex: {
+            type: Number,
+            min: 1,
+            max: 4,
+            index: true
+        },
         status: {
             type: String,
             index: true,
