@@ -59,7 +59,7 @@ exports.register = async (req, res) => {
         return res.status(400).json({ message: "failed", data: "Username/Email has already been used."})
     }
 
-    await Users.create({ username: username, password: password, email: email, status: "active", webtoken: "", gametoken: "", bandate: "", banreason: "", auth: "player"})
+    await Users.create({ username: username, password: password, email: email, status: "active", webtoken: "", gametoken: "", bandate: "", banreason: "", auth: "player", slotsunlocked: [1]})
     .then(data => data)
     .catch(err => {
         console.log(`There's a problem encountered while creating user account. Error: ${err}`)

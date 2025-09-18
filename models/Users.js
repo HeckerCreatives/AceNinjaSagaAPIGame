@@ -47,13 +47,18 @@ const UsersSchema = new mongoose.Schema(
 )
 
 UsersSchema.pre("save", async function (next) {
-    if (!this.isModified){
-        next();
+    try {
+        // Only hash when password field is modified
+        if (!this.isModified('password')) {
+            return next();
+        }
+        const saltRounds = 10;
+        this.password = await bcrypt.hash(this.password, saltRounds);
+        return next();
+    } catch (err) {
+        return next(err);
     }
-
-    this.password = await bcrypt.hashSync(this.password, 10)
 })
-
 UsersSchema.methods.matchPassword = async function(password){
     return await bcrypt.compare(password, this.password)
 }

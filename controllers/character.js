@@ -102,7 +102,7 @@ exports.createcharacter = async (req, res) => {
         }
 
         // Check if the requested slot index is unlocked
-        if (!userUnlockedSlots.includes(index)) {
+        if (!userUnlockedSlots.includes(Number(index))) {
             return res.status(400).json({
                 message: "failed",
                 data: `Slot ${index} is locked. Please unlock it first.`,
@@ -113,7 +113,7 @@ exports.createcharacter = async (req, res) => {
         // Check if the requested slot is already occupied by checking slotIndex field
         const existingCharacterInSlot = await Characterdata.findOne({ 
             owner: id, 
-            slotIndex: index,
+            slotIndex: Number(index),
             status: { $ne: "deleted" } 
         }).lean();
 
@@ -145,7 +145,7 @@ exports.createcharacter = async (req, res) => {
             level: 1,
             badge: 0,
             itemindex,
-            slotIndex: index // Store which slot this character occupies
+            slotIndex: Number(index) // Store which slot this character occupies
         }], { session });
 
         const characterId = data[0]._id;
