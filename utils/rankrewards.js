@@ -8,6 +8,7 @@ const Characterbadge = require('../models/Characterbadges');
 const Charactertitle = require('../models/Charactertitles');
 const { gethairbundle } = require('./bundle');
 const { addXPAndLevel } = require('./leveluptools');
+const { CharacterSkillTree } = require('../models/Skills');
 
 /**
  * Award rank rewards to a player
@@ -62,7 +63,7 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                             const exists = await q2;
                             if (!exists) {
                                 await Charactertitle.create([{ owner: userId, title: title._id, index: title.index, name: title.title }], { session });
-                                results.push({ success: true, type: 'title', name: title.title });
+                                results.push({ success: true, type: 'title', id: title.index, name: title.title });
                             } else {
                                 results.push({ success: false, type: 'title', message: 'Title already owned' });
                             }
@@ -82,7 +83,7 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                             const exists = await q2;
                             if (!exists) {
                                 await Characterbadge.create([{ owner: userId, badge: badge._id, index: badge.index, name: badge.title }], { session });
-                                results.push({ success: true, type: 'badge', name: badge.title });
+                                results.push({ success: true, type: 'badge', id: badge.index, name: badge.title });
                             } else {
                                 results.push({ success: false, type: 'badge', message: 'Badge already owned' });
                             }
@@ -158,6 +159,33 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                         }
                         await CharacterInventory.findOneAndUpdate({ owner: userId, type: 'weapon' }, { $push: { items: { item: reward.reward.id, quantity: 1 } } }, { upsert: true, session });
                         results.push({ success: true, type: 'weapon', id: reward.reward.id });
+                        break;
+                    }
+
+                    case 'skill': {
+                        // Award a skill to the character's skill tree
+                        try {
+                            const skillId = reward.reward.id;
+                            const skillTreeQ = CharacterSkillTree.findOne({ owner: userId });
+                            if (session) skillTreeQ.session(session);
+                            const skillTree = await skillTreeQ;
+                            if (!skillTree) {
+                                // Create a new skill tree if it doesn't exist
+                                await CharacterSkillTree.create([{ owner: userId, skills: [{ skill: skillId, level: 1, isEquipped: false }], skillPoints: 0, unlockedSkills: [] }], { session });
+                                results.push({ success: true, type: 'skill', id: skillId, message: 'Skill awarded (new skilltree created)' });
+                            } else {
+                                const exists = skillTree.skills.some(s => String(s.skill) === String(skillId));
+                                if (exists) {
+                                    results.push({ success: false, type: 'skill', message: 'Skill already owned' });
+                                } else {
+                                    skillTree.skills.push({ skill: skillId, level: 1, isEquipped: false });
+                                    await skillTree.save({ session });
+                                    results.push({ success: true, type: 'skill', id: skillId });
+                                }
+                            }
+                        } catch (err) {
+                            results.push({ success: false, type: 'skill', error: err.message });
+                        }
                         break;
                     }
 
