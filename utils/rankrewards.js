@@ -9,6 +9,14 @@ const Charactertitle = require('../models/Charactertitles');
 const { gethairbundle } = require('./bundle');
 const { addXPAndLevel } = require('./leveluptools');
 const { CharacterSkillTree } = require('../models/Skills');
+const { 
+    awardCurrency, 
+    awardExperience, 
+    awardBadge, 
+    awardTitle, 
+    awardSkill, 
+    awardInventoryItem 
+} = require('./rewardtools');
 
 /**
  * Award rank rewards to a player
@@ -33,18 +41,19 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                 switch (reward.rewardtype) {
                     case 'coins':
                     case 'crystal': {
-                        await Characterwallet.findOneAndUpdate(
-                            { owner: userId, type: reward.rewardtype },
-                            { $inc: { amount: reward.amount } },
-                            { upsert: true, session }
-                        );
-                        results.push({ success: true, type: reward.rewardtype, amount: reward.amount });
+                        // Use centralized currency utility
+                        const currencyResult = await awardCurrency(userId, reward.rewardtype, reward.amount, session);
+                        if (currencyResult === 'success') {
+                            results.push({ success: true, type: reward.rewardtype, amount: reward.amount });
+                        } else {
+                            results.push({ success: false, type: reward.rewardtype, message: 'Failed to award currency' });
+                        }
                         break;
                     }
 
                     case 'exp': {
                         // Use centralized XP/level utility to handle level ups and caps
-                        const xpResult = await addXPAndLevel(userId, reward.amount, session);
+                        const xpResult = await awardExperience(userId, reward.amount, session);
                         if (xpResult === 'failed') {
                             results.push({ success: false, type: 'exp', message: 'Failed to add experience' });
                         } else {
@@ -54,137 +63,97 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                     }
 
                     case 'title': {
-                        const q = Title.findOne({ index: reward.reward.id });
-                        if (session) q.session(session);
-                        const title = await q;
-                        if (title) {
-                            const q2 = Charactertitle.findOne({ owner: userId, index: title.index });
-                            if (session) q2.session(session);
-                            const exists = await q2;
-                            if (!exists) {
-                                await Charactertitle.create([{ owner: userId, title: title._id, index: title.index, name: title.title }], { session });
-                                results.push({ success: true, type: 'title', id: title.index, name: title.title });
-                            } else {
-                                results.push({ success: false, type: 'title', message: 'Title already owned' });
-                            }
-                        } else {
+                        // Use centralized title utility
+                        const titleResult = await awardTitle(userId, reward.reward.id, session);
+                        if (titleResult === 'failed') {
                             results.push({ success: false, type: 'title', message: 'Title not found' });
+                        } else if (titleResult === 'already_owned') {
+                            results.push({ success: false, type: 'title', message: 'Title already owned' });
+                        } else {
+                            // titleResult is the title object
+                            results.push({ success: true, type: 'title', id: titleResult.index, name: titleResult.title });
                         }
                         break;
                     }
 
                     case 'badge': {
-                        const q = Badge.findOne({ index: reward.reward.id });
-                        if (session) q.session(session);
-                        const badge = await q;
-                        if (badge) {
-                            const q2 = Characterbadge.findOne({ owner: userId, index: badge.index });
-                            if (session) q2.session(session);
-                            const exists = await q2;
-                            if (!exists) {
-                                await Characterbadge.create([{ owner: userId, badge: badge._id, index: badge.index, name: badge.title }], { session });
-                                results.push({ success: true, type: 'badge', id: badge.index, name: badge.title });
-                            } else {
-                                results.push({ success: false, type: 'badge', message: 'Badge already owned' });
-                            }
-                        } else {
+                        // Use centralized badge utility
+                        const badgeResult = await awardBadge(userId, reward.reward.id, session);
+                        if (badgeResult === 'failed') {
                             results.push({ success: false, type: 'badge', message: 'Badge not found' });
+                        } else if (badgeResult === 'already_owned') {
+                            results.push({ success: false, type: 'badge', message: 'Badge already owned' });
+                        } else {
+                            // badgeResult is the badge object
+                            results.push({ success: true, type: 'badge', id: badgeResult.index, name: badgeResult.title });
                         }
                         break;
                     }
 
                     case 'outfit': {
-                        // Handle gendered outfits and prevent duplicates
+                        // Handle gendered outfits using centralized utility
                         let outfitId = reward.reward.id;
                         if (userGender === 'female' && reward.reward.fid) outfitId = reward.reward.fid;
-
-                        const existsOutfitQ = CharacterInventory.findOne({ owner: userId, type: 'outfit', 'items.item': outfitId });
-                        if (session) existsOutfitQ.session(session);
-                        const existsOutfit = await existsOutfitQ;
-                        if (existsOutfit) {
+                        
+                        const outfitResult = await awardInventoryItem(userId, 'outfit', reward.reward.id, 1, userGender, reward.reward, session);
+                        if (outfitResult === 'already_owned') {
                             results.push({ success: false, type: 'outfit', message: 'Outfit already owned' });
-                            break;
-                        }
-
-                        await CharacterInventory.findOneAndUpdate({ owner: userId, type: 'outfit' }, { $push: { items: { item: outfitId, quantity: 1 } } }, { upsert: true, session });
-                        results.push({ success: true, type: 'outfit', id: outfitId });
-
-                        const hairId = gethairbundle(outfitId);
-                        if (hairId) {
-                            const existsHairQ = CharacterInventory.findOne({ owner: userId, type: 'hair', 'items.item': hairId });
-                            if (session) existsHairQ.session(session);
-                            const existsHair = await existsHairQ;
-                            if (!existsHair) {
-                                await CharacterInventory.findOneAndUpdate({ owner: userId, type: 'hair' }, { $push: { items: { item: hairId, quantity: 1 } } }, { upsert: true, session });
-                                results.push({ success: true, type: 'hair', id: hairId });
-                            } else {
+                        } else if (outfitResult === 'failed') {
+                            results.push({ success: false, type: 'outfit', message: 'Failed to award outfit' });
+                        } else if (typeof outfitResult === 'object' && outfitResult.awarded) {
+                            // Handle hair bundle logic
+                            results.push({ success: true, type: 'outfit', id: outfitResult.awarded });
+                            if (outfitResult.hairAwarded) {
+                                results.push({ success: true, type: 'hair', id: outfitResult.hairAwarded });
+                            } else if (outfitResult.hairAlreadyOwned) {
                                 results.push({ success: true, type: 'hair', message: 'Hair already owned' });
                             }
+                        } else {
+                            results.push({ success: true, type: 'outfit', id: outfitId });
                         }
                         break;
                     }
 
                     case 'chest': {
-                        // Reward is a chest item (stackable). Add to character chests inventory.
-                        const chestId = reward.reward.id;
-                        // If gender-specific chest variants exist, honor fid
-                        let chestToAdd = chestId;
+                        // Handle gendered chests using centralized utility
+                        let chestToAdd = reward.reward.id;
                         if (userGender === 'female' && reward.reward.fid) chestToAdd = reward.reward.fid;
-
-                        const existsChestQ = CharacterInventory.findOne({ owner: userId, type: 'chests', 'items.item': chestToAdd });
-                        if (session) existsChestQ.session(session);
-                        const existsChest = await existsChestQ;
-                        if (existsChest) {
-                            // increment quantity
-                            await CharacterInventory.updateOne(
-                                { owner: userId, type: 'chests', 'items.item': chestToAdd },
-                                { $inc: { 'items.$.quantity': 1 } },
-                                { session }
-                            );
+                        
+                        const chestResult = await awardInventoryItem(userId, 'chest', reward.reward.id, 1, userGender, reward.reward, session);
+                        if (chestResult === 'incremented') {
                             results.push({ success: true, type: 'chest', id: chestToAdd, message: 'Chest quantity incremented' });
+                        } else if (chestResult === 'failed') {
+                            results.push({ success: false, type: 'chest', message: 'Failed to award chest' });
                         } else {
-                            await CharacterInventory.findOneAndUpdate({ owner: userId, type: 'chests' }, { $push: { items: { item: chestToAdd, quantity: 1 } } }, { upsert: true, session });
                             results.push({ success: true, type: 'chest', id: chestToAdd, message: 'Chest granted' });
                         }
                         break;
                     }
 
                     case 'weapon': {
-                        const existsWeaponQ = CharacterInventory.findOne({ owner: userId, type: 'weapon', 'items.item': reward.reward.id });
-                        if (session) existsWeaponQ.session(session);
-                        const existsWeapon = await existsWeaponQ;
-                        if (existsWeapon) {
+                        // Use centralized inventory utility
+                        const weaponResult = await awardInventoryItem(userId, 'weapon', reward.reward.id, 1, userGender, null, session);
+                        if (weaponResult === 'already_owned') {
                             results.push({ success: false, type: 'weapon', message: 'Weapon already owned' });
-                            break;
+                        } else if (weaponResult === 'failed') {
+                            results.push({ success: false, type: 'weapon', message: 'Failed to award weapon' });
+                        } else {
+                            results.push({ success: true, type: 'weapon', id: reward.reward.id });
                         }
-                        await CharacterInventory.findOneAndUpdate({ owner: userId, type: 'weapon' }, { $push: { items: { item: reward.reward.id, quantity: 1 } } }, { upsert: true, session });
-                        results.push({ success: true, type: 'weapon', id: reward.reward.id });
                         break;
                     }
 
                     case 'skill': {
-                        // Award a skill to the character's skill tree
-                        try {
-                            const skillId = reward.reward.id;
-                            const skillTreeQ = CharacterSkillTree.findOne({ owner: userId });
-                            if (session) skillTreeQ.session(session);
-                            const skillTree = await skillTreeQ;
-                            if (!skillTree) {
-                                // Create a new skill tree if it doesn't exist
-                                await CharacterSkillTree.create([{ owner: userId, skills: [{ skill: skillId, level: 1, isEquipped: false }], skillPoints: 0, unlockedSkills: [] }], { session });
-                                results.push({ success: true, type: 'skill', id: skillId, message: 'Skill awarded (new skilltree created)' });
-                            } else {
-                                const exists = skillTree.skills.some(s => String(s.skill) === String(skillId));
-                                if (exists) {
-                                    results.push({ success: false, type: 'skill', message: 'Skill already owned' });
-                                } else {
-                                    skillTree.skills.push({ skill: skillId, level: 1, isEquipped: false });
-                                    await skillTree.save({ session });
-                                    results.push({ success: true, type: 'skill', id: skillId });
-                                }
-                            }
-                        } catch (err) {
-                            results.push({ success: false, type: 'skill', error: err.message });
+                        // Use centralized skill utility
+                        const skillResult = await awardSkill(userId, reward.reward.id, session);
+                        if (skillResult === 'failed') {
+                            results.push({ success: false, type: 'skill', message: 'Failed to award skill' });
+                        } else if (skillResult === 'already_owned') {
+                            results.push({ success: false, type: 'skill', message: 'Skill already owned' });
+                        } else if (skillResult === 'new_skilltree') {
+                            results.push({ success: true, type: 'skill', id: reward.reward.id, message: 'Skill awarded (new skilltree created)' });
+                        } else {
+                            results.push({ success: true, type: 'skill', id: reward.reward.id });
                         }
                         break;
                     }
