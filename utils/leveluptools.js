@@ -17,6 +17,7 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
     let baseXP = 100;
     let growth = 1.35;
     const LEVEL_CAP = 40;
+    let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
 
     // If already at max level, don't gain any more XP or levels
     if (currentLevel >= LEVEL_CAP) {
@@ -28,7 +29,6 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
         };
     }
         
-    let xpNeeded = Math.round(baseXP * Math.pow(currentLevel, growth));
 
     while (currentXP >= xpNeeded && xpNeeded > 0 && currentLevel < LEVEL_CAP) {
         currentXP -= xpNeeded; // instead of using overflowXP, just subtract
