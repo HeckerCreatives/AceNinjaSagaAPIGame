@@ -95,7 +95,7 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                         let outfitId = reward.reward.id;
                         if (userGender === 'female' && reward.reward.fid) outfitId = reward.reward.fid;
                         
-                        const outfitResult = await awardInventoryItem(userId, 'outfit', reward.reward.id, 1, userGender, reward.reward, session);
+                        const outfitResult = await awardInventoryItem(userId, 'outfit', outfitId, 1, null, reward.reward, session);
                         if (outfitResult === 'already_owned') {
                             results.push({ success: false, type: 'outfit', message: 'Outfit already owned' });
                         } else if (outfitResult === 'failed') {
@@ -119,7 +119,7 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
                         let chestToAdd = reward.reward.id;
                         if (userGender === 'female' && reward.reward.fid) chestToAdd = reward.reward.fid;
                         
-                        const chestResult = await awardInventoryItem(userId, 'chest', reward.reward.id, 1, userGender, reward.reward, session);
+                        const chestResult = await awardInventoryItem(userId, 'chest', chestToAdd, 1, null, reward.reward, session);
                         if (chestResult === 'incremented') {
                             results.push({ success: true, type: 'chest', id: chestToAdd, message: 'Chest quantity incremented' });
                         } else if (chestResult === 'failed') {
@@ -132,7 +132,7 @@ exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
 
                     case 'weapon': {
                         // Use centralized inventory utility
-                        const weaponResult = await awardInventoryItem(userId, 'weapon', reward.reward.id, 1, userGender, null, session);
+                        const weaponResult = await awardInventoryItem(userId, 'weapon', reward.reward.id, 1, null, null, session);
                         if (weaponResult === 'already_owned') {
                             results.push({ success: false, type: 'weapon', message: 'Weapon already owned' });
                         } else if (weaponResult === 'failed') {

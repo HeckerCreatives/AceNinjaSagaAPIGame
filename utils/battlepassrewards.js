@@ -150,6 +150,10 @@ exports.processBattlepassReward = (reward, userGender, outfitData = [], hairData
             }
             break;
 
+
+        case 'item':
+        
+
         default:
             result.type = 'unknown';
             result.description = 'Unknown reward type';
@@ -474,7 +478,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                 switch (processedReward.itemType) {
                     case 'chest':
                         // Award chest to character inventory (stackable)
-                        const chestResult = await awardInventoryItem(characterid, 'chest', processedReward.id, processedReward.amount || 1, 'male', null, session);
+                        const chestResult = await awardInventoryItem(characterid, 'chest', processedReward.id, processedReward.amount || 1, null, null, session);
                         if (chestResult === 'incremented') {
                             return { success: true, message: `Chest quantity incremented` };
                         } else if (chestResult === 'failed') {
@@ -507,7 +511,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
                     case 'weapon':
                         // Award weapon to inventory
-                        const weaponResult = await awardInventoryItem(characterid, 'weapon', processedReward.id, processedReward.amount || 1, 'male', null, session);
+                        const weaponResult = await awardInventoryItem(characterid, 'weapon', processedReward.id, processedReward.amount || 1, null, null, session);
                         if (weaponResult === 'already_owned') {
                             return { success: false, message: `Weapon already owned` };
                         } else if (weaponResult === 'failed') {
@@ -519,7 +523,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                     case 'skin':
                     case 'outfit':
                         // Award skin/outfit to inventory (includes hair bundle logic)
-                        const outfitResult = await awardInventoryItem(characterid, processedReward.itemType, processedReward.id, processedReward.amount || 1, 'male', null, session);
+                        const outfitResult = await awardInventoryItem(characterid, processedReward.itemType, processedReward.id, processedReward.amount || 1, null, null, session);
                         if (outfitResult === 'already_owned') {
                             return { success: false, message: `Outfit already owned` };
                         } else if (outfitResult === 'failed') {
@@ -537,7 +541,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
                     case 'hair':
                         // Award hair to inventory
-                        const hairResult = await awardInventoryItem(characterid, 'hair', processedReward.id, processedReward.amount || 1, 'male', null, session);
+                        const hairResult = await awardInventoryItem(characterid, 'hair', processedReward.id, processedReward.amount || 1, null, null, session);
                         if (hairResult === 'already_owned') {
                             return { success: false, message: `Hair already owned` };
                         } else if (hairResult === 'failed') {
@@ -548,7 +552,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
                         
                     case 'generic':
                         // Award generic item to inventory
-                        const genericResult = await awardInventoryItem(characterid, 'generic', processedReward.id, processedReward.amount || 1, 'male', null, session);
+                        const genericResult = await awardInventoryItem(characterid, 'generic', processedReward.id, processedReward.amount || 1, null, null, session);
                         if (genericResult === 'failed') {
                             return { success: false, message: `Failed to award item` };
                         } else {
@@ -557,6 +561,17 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
                     default:
                         return { success: false, message: `Unknown item type: ${processedReward.itemType}` };
+                }
+
+            case 'chest':
+                // Award chest to character inventory (stackable)
+                const chestResult = await awardInventoryItem(characterid, 'chest', processedReward.id, processedReward.amount || 1, null, null, session);
+                if (chestResult === 'incremented') {
+                    return { success: true, message: `Chest quantity incremented` };
+                } else if (chestResult === 'failed') {
+                    return { success: false, message: `Failed to award chest` };
+                } else {
+                    return { success: true, message: `Chest granted` };
                 }
 
             case 'badge':
@@ -596,7 +611,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
             case 'freebie':
                 // Award freebie to inventory
-                const freebieResult = await awardInventoryItem(characterid, 'freebie', processedReward.id, processedReward.amount || 1, 'male', null, session);
+                const freebieResult = await awardInventoryItem(characterid, 'freebie', processedReward.id, processedReward.amount || 1, null, null, session);
                 if (freebieResult === 'failed') {
                     return { success: false, message: `Failed to award freebie` };
                 } else {
@@ -616,7 +631,7 @@ exports.awardBattlepassReward = async (characterid, processedReward, session = n
 
             case 'chapter':
                 // Award chapter to inventory
-                const chapterResult = await awardInventoryItem(characterid, 'chapter', processedReward.id, processedReward.amount || 1, 'male', null, session);
+                const chapterResult = await awardInventoryItem(characterid, 'chapter', processedReward.id, processedReward.amount || 1, null, null, session);
                 if (chapterResult === 'failed') {
                     return { success: false, message: `Failed to award chapter` };
                 } else {
