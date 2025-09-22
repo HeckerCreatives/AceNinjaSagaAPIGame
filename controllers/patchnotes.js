@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { checkmaintenance } = require("../utils/maintenance");
 const { addanalytics } = require("../utils/analyticstools");
+const { emitStatus } = require("../utils/sockettools");
 const socket = require("../socket/config");
 
 // Get folder structure (like GitHub file explorer)
@@ -129,35 +130,6 @@ exports.uploadFiles = async (req, res) => {
     const session = await mongoose.startSession();
     // Try to obtain server io if this process is running the Socket.IO server
     const io = req.app && req.app.get && req.app.get('io');
-
-    // Helper to emit status updates. For the Game API we want to emit to the
-    // Web API socket server so it can forward to frontend rooms. If this process
-    // happens to also host the server (io present) we still emit directly.
-    const emitStatus = (payload) => {
-        if (!payload || !payload.socketId) return;
-        try {
-            if (io) {
-                io.to(payload.socketId).emit('fileUploadStatus', {
-                    file: payload.file,
-                    status: payload.status,
-                    progress: payload.progress
-                });
-                return;
-            }
-
-            // Use the socket client to send events to the Web API server
-            if (socket && typeof socket.emit === 'function') {
-                socket.emit('game:patchstatus', {
-                    socketId: payload.socketId,
-                    file: payload.file,
-                    status: payload.status,
-                    progress: payload.progress
-                });
-            }
-        } catch (err) {
-            console.warn('emitStatus error', err && err.message ? err.message : err);
-        }
-    };
     try {
         await session.startTransaction();
 
@@ -168,15 +140,25 @@ exports.uploadFiles = async (req, res) => {
         // or as a game client event to the web API which will forward it)
         if (socketId) {
             for (const file of files) {
-                emitStatus({ socketId, file: file.originalname, status: 'pending' });
+                emitStatus({ socketId, file: file.originalname, status: 'pending', progress: 0 }, io, socket);
             }
         }
 
         for (const file of files) {
             try {
+                // Emit uploading status at the start of processing
+                if (socketId) {
+                    emitStatus({ socketId, file: file.originalname, status: 'uploading', progress: 25 }, io, socket);
+                }
+
                 const fileExtension = path.extname(file.originalname).toLowerCase();
                 const relativePath = file.path.replace(process.cwd(), '').replace(/\\/g, '/');
                 const folderPath = path.dirname(relativePath).replace(/\\/g, '/');
+
+                // Emit progress during file processing
+                if (socketId) {
+                    emitStatus({ socketId, file: file.originalname, status: 'uploading', progress: 50 }, io, socket);
+                }
 
                 // Check if file already exists and remove old record
                 const existingFile = await PatchNotesFileManager.findOne({
@@ -198,6 +180,11 @@ exports.uploadFiles = async (req, res) => {
                     await PatchNotesFileManager.deleteOne({ _id: existingFile._id }).session(session);
                 }
 
+                // Emit progress during database operations
+                if (socketId) {
+                    emitStatus({ socketId, file: file.originalname, status: 'uploading', progress: 75 }, io, socket);
+                }
+
                 // Create new file record
                 const newFileRecord = new PatchNotesFileManager({
                     filename: file.originalname,
@@ -217,7 +204,7 @@ exports.uploadFiles = async (req, res) => {
 
                 // Emit completed status for this file
                 if (socketId) {
-                    emitStatus({ socketId, file: file.originalname, status: 'completed' });
+                    emitStatus({ socketId, file: file.originalname, status: 'completed', progress: 100 }, io, socket);
                 }
 
                 // Log analytics
@@ -247,7 +234,7 @@ exports.uploadFiles = async (req, res) => {
                 
                 // Emit error status for this file
                 if (socketId) {
-                    emitStatus({ socketId, file: file.originalname, status: 'error' });
+                    emitStatus({ socketId, file: file.originalname, status: 'error', progress: 0 }, io, socket);
                 }
 
                 errors.push({
@@ -268,86 +255,6 @@ exports.uploadFiles = async (req, res) => {
         }
 
         await session.commitTransaction();
-
-        // After successful local commit, optionally forward files to Game API
-        const gameApiUrl = process.env.GAME_API_URL;
-        const patchnotesApiKey = process.env.PATCHNOTES_API_KEY;
-        let gameResponseSummary = null;
-
-        if (gameApiUrl && patchnotesApiKey && files && files.length > 0) {
-            try {
-                // Build form with files and metadata
-                const forwardForm = new FormData();
-                if (platform) forwardForm.append('platform', platform);
-                if (version) forwardForm.append('version', version);
-                if (description) forwardForm.append('description', description);
-                if (socketId) forwardForm.append('socketId', socketId);
-
-                for (const file of files) {
-                    // Attach the actual file on disk
-                    if (file && file.path) {
-                        forwardForm.append('addressableFile', fs.createReadStream(file.path), { filename: file.originalname });
-                    } else if (file && file.buffer) {
-                        forwardForm.append('addressableFile', file.buffer, { filename: file.originalname, contentType: file.mimetype });
-                    }
-                }
-
-                // Wrap form.getLength in a Promise
-                const length = await new Promise((resolve, reject) => {
-                    forwardForm.getLength((err, len) => {
-                        if (err) return reject(err);
-                        resolve(len);
-                    });
-                });
-
-                const pass = new stream.PassThrough();
-                let sent = 0;
-
-                pass.on('data', (chunk) => {
-                    sent += chunk.length;
-                    if (socketId) {
-                        const percent = Math.round((sent / length) * 100);
-                        for (const file of files) {
-                            emitStatus({ socketId, file: file.originalname, status: 'uploading', progress: percent });
-                        }
-                    }
-                });
-
-                forwardForm.pipe(pass);
-
-                const headers = {
-                    ...forwardForm.getHeaders(),
-                    'content-length': length,
-                    'x-api-key': patchnotesApiKey
-                };
-
-                const resp = await axios.post(`${gameApiUrl}/patchnotes/upload`, pass, {
-                    headers,
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 0
-                });
-
-                // Emit completed for each file based on game API response
-                if (socketId && resp.status >= 200 && resp.status < 300) {
-                    for (const file of files) {
-                        emitStatus({ socketId, file: file.originalname, status: 'completed' });
-                    }
-                }
-
-                gameResponseSummary = { status: resp.status, data: resp.data };
-            } catch (forwardErr) {
-                console.error('Error forwarding uploads to Game API:', forwardErr.message || forwardErr);
-                if (socketId) {
-                    for (const file of files) {
-                        emitStatus({ socketId, file: file.originalname, status: 'error' });
-                    }
-                }
-                // Keep local success but include forwarding error info
-                gameResponseSummary = { error: forwardErr.message || String(forwardErr) };
-            }
-        }
-
         return res.status(200).json({
             message: "success",
             data: {
@@ -355,12 +262,11 @@ exports.uploadFiles = async (req, res) => {
                 errors: errors,
                 totalUploaded: uploadResults.length,
                 totalErrors: errors.length,
-                gameForward: gameResponseSummary
             }
         });
 
     } catch (error) {
-        await session.abortTransaction();
+        // await session.abortTransaction();
         console.error('Error uploading files:', error);
         return res.status(500).json({
             message: "failed",
