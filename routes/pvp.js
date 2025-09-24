@@ -12,7 +12,7 @@ const router = require('express').Router();
 router
  .get("/getpvphistory", protectplayer, getpvphistory )
  .get("/getpvphistorybyseason", protectplayer, getpvphistorybyseason )
- .post("/pvpmatchresult", protectplayer, pvpmatchresult )
+ .post("/pvpmatchresult", pvpmatchresult)
  .get("/getcharacterpvpstats", protectplayer, getcharacterpvpstats )
  .get("/getpvpleaderboard", protectplayer, getpvpleaderboard )
  

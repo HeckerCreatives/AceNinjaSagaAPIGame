@@ -65,8 +65,8 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         playerRanking = await Rankings.create([{
             owner: playerId,
             season: seasonId,
-            mmr: 1000, // Starting MMR
-            seasonBestMMR: 1000
+            mmr: 0, // Starting MMR
+            seasonBestMMR: 0
         }], { session });
         playerRanking = playerRanking[0];
     }
@@ -75,8 +75,8 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         opponentRanking = await Rankings.create([{
             owner: opponentId,
             season: seasonId,
-            mmr: 1000, // Starting MMR
-            seasonBestMMR: 1000
+            mmr: 0, // Starting MMR
+            seasonBestMMR: 0
         }], { session });
         opponentRanking = opponentRanking[0];
     }
@@ -87,29 +87,92 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         PvpStats.findOne({ owner: opponentId }).session(session)
     ]);
 
-    // Calculate MMR changes using ELO system
-    const BASE_K_FACTOR = 32;
-    const PLACEMENT_K_FACTOR = 64;
-    const kFactor = (
-        (playerStats?.rankedTotalMatches || 0) < 10 || 
-        (opponentStats?.rankedTotalMatches || 0) < 10
-    ) ? PLACEMENT_K_FACTOR : BASE_K_FACTOR;
+    // Get rank tiers for MMR scaling calculation
+    const rankTiersForScaling = await RankTier.find({})
+        .sort({ requiredmmr: -1 }) // Sort descending 
+        .session(session);
 
+    // Function to get rank-based MMR scaling
+    const getRankScaling = (mmr) => {
+        // Find the current rank tier
+        const currentRank = rankTiersForScaling.find(tier => mmr >= tier.requiredmmr);
+        
+        if (!currentRank) return { gainMultiplier: 1.0, lossMultiplier: 1.0, minLoss: 1 };
+        
+        const rankName = currentRank.name.toLowerCase();
+        
+        switch (rankName) {
+            case 'ace':
+                return { gainMultiplier: 0.3, lossMultiplier: 2.0, minLoss: 5 }; // Hardest rank
+            case 'shogun':
+                return { gainMultiplier: 0.4, lossMultiplier: 1.8, minLoss: 4 }; 
+            case 'ronin':
+                return { gainMultiplier: 0.5, lossMultiplier: 1.6, minLoss: 3 };
+            case 'elder':
+                return { gainMultiplier: 0.7, lossMultiplier: 1.4, minLoss: 2 };
+            case 'veteran':
+                return { gainMultiplier: 0.8, lossMultiplier: 1.2, minLoss: 2 };
+            case 'rookie':
+            default:
+                return { gainMultiplier: 1.0, lossMultiplier: 1.0, minLoss: 1 }; // Normal gains/losses
+        }
+    };
+
+    const kFactor = 32
+
+    // Calculate expected scores for both players
     const mmrGap = playerRanking.mmr - opponentRanking.mmr;
-    const expectedScore = 1 / (1 + Math.pow(10, mmrGap / 400));
-    const actualScore = matchStatus; // 1 for win, 0 for loss
-    const mmrChange = Math.round(kFactor * (actualScore - expectedScore));
-    const minMMRChange = 1;
+    const playerExpectedScore = 1 / (1 + Math.pow(10, -mmrGap / 400)); // Player's expected win probability
+    const opponentExpectedScore = 1 / (1 + Math.pow(10, mmrGap / 400)); // Opponent's expected win probability
+    
+    const playerActualScore = matchStatus; // 1 for win, 0 for loss
+    const opponentActualScore = 1 - matchStatus; // Opposite of player's result
+    
+    // Calculate base MMR changes for both players
+    const basePlayerMMRChange = Math.round(kFactor * (playerActualScore - playerExpectedScore));
+    const baseOpponentMMRChange = Math.round(kFactor * (opponentActualScore - opponentExpectedScore));
+    
+    // Get rank-based scaling for both players
+    const playerScaling = getRankScaling(playerRanking.mmr);
+    const opponentScaling = getRankScaling(opponentRanking.mmr);
 
-    // Apply MMR changes
+    // Apply MMR changes with rank-based scaling and upset bonuses
     if (matchStatus === 1) {
         // Player won
-        playerRanking.mmr = Math.max(0, playerRanking.mmr + Math.max(mmrChange, minMMRChange));
-        opponentRanking.mmr = Math.max(0, opponentRanking.mmr - Math.max(mmrChange, minMMRChange));
+        let playerGain = Math.round(Math.max(basePlayerMMRChange, 1) * playerScaling.gainMultiplier);
+        let opponentLoss = Math.round(Math.max(Math.abs(baseOpponentMMRChange), opponentScaling.minLoss) * opponentScaling.lossMultiplier);
+        
+        // Apply upset bonus if lower MMR player wins
+        if (playerRanking.mmr < opponentRanking.mmr) {
+            const mmrGapBonus = Math.min((opponentRanking.mmr - playerRanking.mmr) / 400, 1.5); // Max 1.5x bonus
+            playerGain = Math.round(playerGain * (1 + mmrGapBonus * 0.5)); // Up to 75% bonus for huge upsets
+        }
+        
+        // Ensure minimum values
+        playerGain = Math.max(playerGain, 1);
+        opponentLoss = Math.max(opponentLoss, opponentScaling.minLoss);
+        opponentLoss = Math.min(opponentLoss, 100); // Cap maximum loss at 100
+        
+        playerRanking.mmr = Math.max(0, playerRanking.mmr + playerGain);
+        opponentRanking.mmr = Math.max(0, opponentRanking.mmr - opponentLoss);
     } else {
         // Player lost
-        playerRanking.mmr = Math.max(0, playerRanking.mmr - Math.max(Math.abs(mmrChange), minMMRChange));
-        opponentRanking.mmr = Math.max(0, opponentRanking.mmr + Math.max(Math.abs(mmrChange), minMMRChange));
+        let playerLoss = Math.round(Math.max(Math.abs(basePlayerMMRChange), playerScaling.minLoss) * playerScaling.lossMultiplier);
+        let opponentGain = Math.round(Math.max(baseOpponentMMRChange, 1) * opponentScaling.gainMultiplier);
+        
+        // Apply upset bonus if lower MMR player (opponent) wins
+        if (opponentRanking.mmr < playerRanking.mmr) {
+            const mmrGapBonus = Math.min((playerRanking.mmr - opponentRanking.mmr) / 400, 1.5); // Max 1.5x bonus
+            opponentGain = Math.round(opponentGain * (1 + mmrGapBonus * 0.5)); // Up to 75% bonus for huge upsets
+        }
+        
+        // Ensure minimum values and caps
+        playerLoss = Math.max(playerLoss, playerScaling.minLoss);
+        playerLoss = Math.min(playerLoss, 100); // Cap maximum loss at 100
+        opponentGain = Math.max(opponentGain, 1);
+        
+        playerRanking.mmr = Math.max(0, playerRanking.mmr - playerLoss);
+        opponentRanking.mmr = Math.max(0, opponentRanking.mmr + opponentGain);
     }
 
     // Update season best MMR
@@ -125,7 +188,9 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         .sort({ requiredmmr: -1 }) // Sort descending to find highest eligible rank
         .session(session);
 
-    // Update current ranks based on MMR
+    // Update current ranks based on MMR (always find the highest eligible rank)
+    playerRanking.rank = null;
+    opponentRanking.rank = null;
     for (const tier of rankTiers) {
         if (playerRanking.mmr >= tier.requiredmmr && !playerRanking.rank) {
             playerRanking.rank = tier._id;
@@ -135,11 +200,13 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         }
     }
 
-    // Update season best ranks
+    // Update season best ranks for both players
     for (const tier of rankTiers) {
-        if (playerRanking.seasonBestMMR >= tier.requiredmmr && 
-            (!playerRanking.seasonBestRank || playerRanking.seasonBestMMR > playerRanking.mmr)) {
+        if (playerRanking.seasonBestMMR >= tier.requiredmmr && !playerRanking.seasonBestRank) {
             playerRanking.seasonBestRank = tier._id;
+        }
+        if (opponentRanking.seasonBestMMR >= tier.requiredmmr && !opponentRanking.seasonBestRank) {
+            opponentRanking.seasonBestRank = tier._id;
         }
     }
 
@@ -149,7 +216,8 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         opponentRanking.save({ session })
     ]);
 
-    return Math.abs(mmrChange);
+    // Return the actual MMR change applied to the player
+    return Math.abs(basePlayerMMRChange);
 }
 
 exports.getpvpleaderboard = async (req, res) => {
@@ -621,14 +689,8 @@ exports.pvpmatchresult = async (req, res) => {
     try {
         await session.startTransaction();
 
-        const { id } = req.user;
         const { 
-            opponent, 
-            status, 
-            characterid, 
-            totaldamage, 
-            selfheal, 
-            skillsused, 
+            pvpstats,
             type = "normal" // Default to normal match
         } = req.body;
 
@@ -642,19 +704,46 @@ exports.pvpmatchresult = async (req, res) => {
             });
         }
 
-        if (opponent === characterid) {
+        // Validate pvpstats array
+        if (!pvpstats || !Array.isArray(pvpstats) || pvpstats.length !== 2) {
             await session.abortTransaction();
             return res.status(400).json({
                 message: "failed",
-                data: "You cannot play against yourself."
+                data: "pvpstats must be an array with exactly 2 players."
             });
         }
-                
-        if (!opponent || status === undefined) {
+
+        // Extract player data
+        const [player1, player2] = pvpstats;
+        
+        // Validate player data
+        for (const player of pvpstats) {
+            if (!player.characterid || player.status === undefined || 
+                player.totaldamage === undefined || player.selfheal === undefined || 
+                player.skillsused === undefined) {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Each player must have characterid, status, totaldamage, selfheal, and skillsused."
+                });
+            }
+        }
+
+        // Validate that players are different
+        if (player1.characterid === player2.characterid) {
             await session.abortTransaction();
-            return res.status(400).json({ 
-                message: "failed", 
-                data: "Opponent character ID and match status are required." 
+            return res.status(400).json({
+                message: "failed",
+                data: "Players cannot have the same character ID."
+            });
+        }
+
+        // Validate that one player won and one lost
+        if (player1.status === player2.status) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                message: "failed",
+                data: "One player must win (status: 1) and one must lose (status: 0)."
             });
         }
 
@@ -676,12 +765,12 @@ exports.pvpmatchresult = async (req, res) => {
         }
 
         // Verify both characters exist
-        const [playerChar, opponentChar] = await Promise.all([
-            Characterdata.findById(characterid).session(session),
-            Characterdata.findById(opponent).session(session)
+        const [playerChar1, playerChar2] = await Promise.all([
+            Characterdata.findById(player1.characterid).session(session),
+            Characterdata.findById(player2.characterid).session(session)
         ]);
 
-        if (!playerChar || !opponentChar) {
+        if (!playerChar1 || !playerChar2) {
             await session.abortTransaction();
             return res.status(400).json({
                 message: "failed",
@@ -689,60 +778,113 @@ exports.pvpmatchresult = async (req, res) => {
             });
         }
 
-        // Create match records
+        // Create match records for both players
         await Pvp.create([{
-            owner: characterid,
-            opponent,
-            status,
+            owner: player1.characterid,
+            opponent: player2.characterid,
+            status: player1.status,
             type,
             season: activeSeason._id
         }], { session });
         
         await Pvp.create([{
-            owner: opponent,
-            opponent: characterid,
-            status: status === 1 ? 0 : 1,
+            owner: player2.characterid,
+            opponent: player1.characterid,
+            status: player2.status,
             type,
             season: activeSeason._id
         }], { session });
 
         // Update PvP stats for both players
-        await updatePlayerStats(characterid, status, type, session);
-        await updatePlayerStats(opponent, status === 1 ? 0 : 1, type, session);
+        await updatePlayerStats(player1.characterid, player1.status, type, session);
+        await updatePlayerStats(player2.characterid, player2.status, type, session);
 
-        // Update MMR and rankings only for ranked matches
-        let mmrChange = 0;
+        // Get current MMR before updates for both players
+        let player1MMRData = { previousMMR: 0, newMMR: 0, mmrChange: 0 };
+        let player2MMRData = { previousMMR: 0, newMMR: 0, mmrChange: 0 };
+
         if (type === "ranked") {
-            mmrChange = await updateMMRAndRankings(characterid, opponent, status, activeSeason._id, session);
+            // Get current rankings to capture previous MMR
+            const [player1Ranking, player2Ranking] = await Promise.all([
+                Rankings.findOne({ owner: player1.characterid, season: activeSeason._id }).session(session),
+                Rankings.findOne({ owner: player2.characterid, season: activeSeason._id }).session(session)
+            ]);
+
+            player1MMRData.previousMMR = player1Ranking?.mmr || 0;
+            player2MMRData.previousMMR = player2Ranking?.mmr || 0;
+
+            // Update MMR and rankings for ranked matches
+            const mmrChangeAmount = await updateMMRAndRankings(player1.characterid, player2.characterid, player1.status, activeSeason._id, session);
+
+            // Get updated rankings to capture new MMR
+            const [updatedPlayer1Ranking, updatedPlayer2Ranking] = await Promise.all([
+                Rankings.findOne({ owner: player1.characterid, season: activeSeason._id }).session(session),
+                Rankings.findOne({ owner: player2.characterid, season: activeSeason._id }).session(session)
+            ]);
+
+            player1MMRData.newMMR = updatedPlayer1Ranking?.mmr || player1MMRData.previousMMR;
+            player2MMRData.newMMR = updatedPlayer2Ranking?.mmr || player2MMRData.previousMMR;
+
+            // Calculate actual MMR changes
+            player1MMRData.mmrChange = player1MMRData.newMMR - player1MMRData.previousMMR;
+            player2MMRData.mmrChange = player2MMRData.newMMR - player2MMRData.previousMMR;
         }
 
-        // Update quest/battlepass progress
-        const enemydefeated = status === 1 ? 1 : 0;
-        const multipleProgress = await multipleprogressutil(characterid, [
-            { requirementtype: 'totaldamage', amount: totaldamage },
-            { requirementtype: 'skillsused', amount: skillsused },
-            { requirementtype: 'selfheal', amount: selfheal },
-            { requirementtype: 'enemiesdefeated', amount: enemydefeated },
-            { requirementtype: 'pvpwins', amount: status === 1 ? 1 : 0 },
-            { requirementtype: 'pvpparticipated', amount: 1 }
-        ]);
+        // Update quest/battlepass progress for both players
+        for (const player of pvpstats) {
+            const enemydefeated = player.status === 1 ? 1 : 0;
+            const multipleProgress = await multipleprogressutil(player.characterid, [
+                { requirementtype: 'totaldamage', amount: player.totaldamage },
+                { requirementtype: 'skillsused', amount: player.skillsused },
+                { requirementtype: 'selfheal', amount: player.selfheal },
+                { requirementtype: 'enemiesdefeated', amount: enemydefeated },
+                { requirementtype: 'pvpwins', amount: player.status === 1 ? 1 : 0 },
+                { requirementtype: 'pvpparticipated', amount: 1 }
+            ]);
 
-        if (multipleProgress.message !== "success") {
-            await session.abortTransaction();
-            return res.status(400).json({ 
-                message: "failed", 
-                data: "Failed to update multiple progress."
-            });
+            if (multipleProgress.message !== "success") {
+                await session.abortTransaction();
+                return res.status(400).json({ 
+                    message: "failed", 
+                    data: `Failed to update multiple progress for character ${player.characterid}.`
+                });
+            }
         }
 
         await session.commitTransaction();
 
+        // Determine winner
+        const winner = player1.status === 1 ? player1.characterid : player2.characterid;
+
         return res.status(200).json({
             message: "success",
             data: {
-                winner: status === 1 ? characterid : opponent,
-                mmrChange: type === "ranked" ? mmrChange : 0,
-                matchType: type
+                winner: winner,
+                matchType: type,
+                players: {
+                    [player1.characterid]: {
+                        result: player1.status === 1 ? "win" : "loss",
+                        // previousMMR: player1MMRData.previousMMR,
+                        // newMMR: player1MMRData.newMMR,
+                        mmrChange: player1MMRData.mmrChange,
+                        stats: {
+                            totaldamage: player1.totaldamage,
+                            selfheal: player1.selfheal,
+                            skillsused: player1.skillsused
+                        }
+                    },
+                    [player2.characterid]: {
+                        result: player2.status === 1 ? "win" : "loss",
+                        // previousMMR: player2MMRData.previousMMR,
+                        // newMMR: player2MMRData.newMMR,
+                        mmrChange: player2MMRData.mmrChange,
+                        stats: {
+                            totaldamage: player2.totaldamage,
+                            selfheal: player2.selfheal,
+                            skillsused: player2.skillsused
+                        }
+                    }
+                }
             }
         });
 
