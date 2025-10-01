@@ -1964,6 +1964,7 @@ exports.getnotification = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+
         const [expexist, coinsexist, crystalexists, weeklyHasLoggedToday, monthlyHasLoggedToday] = await Promise.all([
             existsreset(characterid, "freebieexp", "claim").then(reset => !reset),
             existsreset(characterid, "freebiecoins", "claim").then(reset => !reset),
@@ -1973,9 +1974,12 @@ exports.getnotification = async (req, res) => {
         ]);
 
         let isMonthlyTrue = false;
-        if (monthlyLogin.currentDay < 28  && dayOfMonth < 28) {
+        if (dayOfMonth < 28) {
             isMonthlyTrue = true;
         }
+        
+        const finalMonthlyLoginValue = isMonthlyTrue ? monthlyHasLoggedToday : false;
+        // console.log(`Day of month: ${dayOfMonth}, isMonthlyTrue: ${isMonthlyTrue}, monthlyHasLoggedToday: ${monthlyHasLoggedToday}`);
 
         const response = {
             data: {
@@ -1993,7 +1997,7 @@ exports.getnotification = async (req, res) => {
                     dailyspin: dailySpin.spin,
                     dailyexpspin: dailySpin.expspin,
                     weeklylogin: weeklyHasLoggedToday,
-                    monthlylogin: isMonthlyTrue ? false : monthlyHasLoggedToday,
+                    monthlylogin: finalMonthlyLoginValue,
                     freebieexp: expexist,
                     freebiecoins: coinsexist,
                     freebiecrystal: crystalexists
@@ -2001,6 +2005,8 @@ exports.getnotification = async (req, res) => {
             }
         };
 
+        // console.log(`Final monthly login decision: ${isMonthlyTrue ? 'Using monthlyHasLoggedToday' : 'Forcing false'} = ${finalMonthlyLoginValue}`);
+        
         return res.status(200).json({
             message: "success",
             data: response.data
