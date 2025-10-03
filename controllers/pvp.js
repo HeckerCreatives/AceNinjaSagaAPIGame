@@ -826,8 +826,31 @@ exports.pvpmatchresult = async (req, res) => {
             player2MMRData.newMMR = updatedPlayer2Ranking?.mmr || player2MMRData.previousMMR;
 
             // Calculate actual MMR changes
-            player1MMRData.mmrChange = player1MMRData.newMMR - player1MMRData.previousMMR;
-            player2MMRData.mmrChange = player2MMRData.newMMR - player2MMRData.previousMMR;
+            const actualPlayer1Change = player1MMRData.newMMR - player1MMRData.previousMMR;
+            const actualPlayer2Change = player2MMRData.newMMR - player2MMRData.previousMMR;
+
+            // For players who lost and were at 0 MMR, show theoretical loss but keep actual MMR at 0
+            if (player1MMRData.previousMMR === 0 && player1.status === 0) {
+                // Player 1 lost and was at 0 MMR - calculate what they would have lost
+                const theoreticalNewMMR = Math.max(0, player1MMRData.previousMMR + actualPlayer1Change);
+                player1MMRData.mmrChange = theoreticalNewMMR - player1MMRData.previousMMR; // This will be the theoretical loss
+                if (player1MMRData.mmrChange === 0 && actualPlayer1Change < 0) {
+                    player1MMRData.mmrChange = actualPlayer1Change; // Show the theoretical negative change
+                }
+            } else {
+                player1MMRData.mmrChange = actualPlayer1Change;
+            }
+
+            if (player2MMRData.previousMMR === 0 && player2.status === 0) {
+                // Player 2 lost and was at 0 MMR - calculate what they would have lost
+                const theoreticalNewMMR = Math.max(0, player2MMRData.previousMMR + actualPlayer2Change);
+                player2MMRData.mmrChange = theoreticalNewMMR - player2MMRData.previousMMR; // This will be the theoretical loss
+                if (player2MMRData.mmrChange === 0 && actualPlayer2Change < 0) {
+                    player2MMRData.mmrChange = actualPlayer2Change; // Show the theoretical negative change
+                }
+            } else {
+                player2MMRData.mmrChange = actualPlayer2Change;
+            }
         }
 
         // Update quest/battlepass progress for both players
@@ -866,7 +889,7 @@ exports.pvpmatchresult = async (req, res) => {
                         result: player1.status === 1 ? "win" : "loss",
                         // previousMMR: player1MMRData.previousMMR,
                         // newMMR: player1MMRData.newMMR,
-                        mmrChange: player1MMRData.mmrChange,
+                        mmrChange: Math.abs(player1MMRData.mmrChange),
                         stats: {
                             totaldamage: player1.totaldamage,
                             selfheal: player1.selfheal,
@@ -877,7 +900,7 @@ exports.pvpmatchresult = async (req, res) => {
                         result: player2.status === 1 ? "win" : "loss",
                         // previousMMR: player2MMRData.previousMMR,
                         // newMMR: player2MMRData.newMMR,
-                        mmrChange: player2MMRData.mmrChange,
+                        mmrChange: Math.abs(player2MMRData.mmrChange),
                         stats: {
                             totaldamage: player2.totaldamage,
                             selfheal: player2.selfheal,
