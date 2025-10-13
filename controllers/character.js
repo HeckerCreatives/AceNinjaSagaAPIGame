@@ -1974,12 +1974,12 @@ exports.getnotification = async (req, res) => {
         ]);
 
         let isMonthlyTrue = false;
-        if (dayOfMonth < 28) {
+        if (dayOfMonth < 29) {
             isMonthlyTrue = true;
         }
         
         const finalMonthlyLoginValue = isMonthlyTrue ? monthlyHasLoggedToday : false;
-        // console.log(`Day of month: ${dayOfMonth}, isMonthlyTrue: ${isMonthlyTrue}, monthlyHasLoggedToday: ${monthlyHasLoggedToday}`);
+29         // console.log(`Day of month: ${dayOfMonth}, isMonthlyTrue: ${isMonthlyTrue}, monthlyHasLoggedToday: ${monthlyHasLoggedToday}`);
 
         const response = {
             data: {

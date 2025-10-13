@@ -19,16 +19,22 @@ async function updatePlayerStats(playerId, matchStatus, matchType, session) {
             owner: playerId,
             win: 0,
             lose: 0,
+            draw: 0,
             rankedWin: 0,
             rankedLose: 0,
+            rankedDraw: 0,
             normalWin: 0,
-            normalLose: 0
+            normalLose: 0,
+            normalDraw: 0
         }], { session });
         stats = stats[0];
     }
 
     // Update overall stats
-    if (matchStatus === 1) {
+    // Support 'draw' as a special matchStatus (string) to indicate no win/lose increment
+    if (matchStatus === 'draw') {
+        stats.draw += 1;
+    } else if (matchStatus === 1) {
         stats.win += 1;
     } else {
         stats.lose += 1;
@@ -36,13 +42,17 @@ async function updatePlayerStats(playerId, matchStatus, matchType, session) {
 
     // Update type-specific stats
     if (matchType === "ranked") {
-        if (matchStatus === 1) {
+        if (matchStatus === 'draw') {
+            stats.rankedDraw += 1;
+        } else if (matchStatus === 1) {
             stats.rankedWin += 1;
         } else {
             stats.rankedLose += 1;
         }
     } else {
-        if (matchStatus === 1) {
+        if (matchStatus === 'draw') {
+            stats.normalDraw += 1;
+        } else if (matchStatus === 1) {
             stats.normalWin += 1;
         } else {
             stats.normalLose += 1;
@@ -739,11 +749,12 @@ exports.pvpmatchresult = async (req, res) => {
         }
 
         // Validate that one player won and one lost
-        if (player1.status === player2.status) {
+        // Special case: if both players quit (both status === 0) treat as a draw
+        if (player1.status === player2.status && !(player1.status === 0 && player2.status === 0)) {
             await session.abortTransaction();
             return res.status(400).json({
                 message: "failed",
-                data: "One player must win (status: 1) and one must lose (status: 0)."
+                data: "One player must win (status: 1) and one must lose (status: 0), unless both players quit which is a draw."
             });
         }
 
@@ -779,10 +790,13 @@ exports.pvpmatchresult = async (req, res) => {
         }
 
         // Create match records for both players
+        // If both players quit (draw), store status as 'draw' string for clarity in DB entries
+        const isDraw = (player1.status === 0 && player2.status === 0);
+
         await Pvp.create([{
             owner: player1.characterid,
             opponent: player2.characterid,
-            status: player1.status,
+            status: isDraw ? 'draw' : player1.status,
             type,
             season: activeSeason._id
         }], { session });
@@ -790,21 +804,27 @@ exports.pvpmatchresult = async (req, res) => {
         await Pvp.create([{
             owner: player2.characterid,
             opponent: player1.characterid,
-            status: player2.status,
+            status: isDraw ? 'draw' : player2.status,
             type,
             season: activeSeason._id
         }], { session });
 
         // Update PvP stats for both players
-        await updatePlayerStats(player1.characterid, player1.status, type, session);
-        await updatePlayerStats(player2.characterid, player2.status, type, session);
+        // If draw, pass 'draw' as matchStatus so stats won't increment wins/losses
+        if (isDraw) {
+            await updatePlayerStats(player1.characterid, 'draw', type, session);
+            await updatePlayerStats(player2.characterid, 'draw', type, session);
+        } else {
+            await updatePlayerStats(player1.characterid, player1.status, type, session);
+            await updatePlayerStats(player2.characterid, player2.status, type, session);
+        }
 
         // Get current MMR before updates for both players
         let player1MMRData = { previousMMR: 0, newMMR: 0, mmrChange: 0 };
         let player2MMRData = { previousMMR: 0, newMMR: 0, mmrChange: 0 };
 
         if (type === "ranked") {
-            // Get current rankings to capture previous MMR
+            // Get current rankings to capture previous MMR (do this even on draw so we can report previousMMR)
             const [player1Ranking, player2Ranking] = await Promise.all([
                 Rankings.findOne({ owner: player1.characterid, season: activeSeason._id }).session(session),
                 Rankings.findOne({ owner: player2.characterid, season: activeSeason._id }).session(session)
@@ -813,17 +833,23 @@ exports.pvpmatchresult = async (req, res) => {
             player1MMRData.previousMMR = player1Ranking?.mmr || 0;
             player2MMRData.previousMMR = player2Ranking?.mmr || 0;
 
-            // Update MMR and rankings for ranked matches
-            const mmrChangeAmount = await updateMMRAndRankings(player1.characterid, player2.characterid, player1.status, activeSeason._id, session);
+            if (!isDraw) {
+                // Update MMR and rankings for ranked matches
+                await updateMMRAndRankings(player1.characterid, player2.characterid, player1.status, activeSeason._id, session);
 
-            // Get updated rankings to capture new MMR
-            const [updatedPlayer1Ranking, updatedPlayer2Ranking] = await Promise.all([
-                Rankings.findOne({ owner: player1.characterid, season: activeSeason._id }).session(session),
-                Rankings.findOne({ owner: player2.characterid, season: activeSeason._id }).session(session)
-            ]);
+                // Get updated rankings to capture new MMR
+                const [updatedPlayer1Ranking, updatedPlayer2Ranking] = await Promise.all([
+                    Rankings.findOne({ owner: player1.characterid, season: activeSeason._id }).session(session),
+                    Rankings.findOne({ owner: player2.characterid, season: activeSeason._id }).session(session)
+                ]);
 
-            player1MMRData.newMMR = updatedPlayer1Ranking?.mmr || player1MMRData.previousMMR;
-            player2MMRData.newMMR = updatedPlayer2Ranking?.mmr || player2MMRData.previousMMR;
+                player1MMRData.newMMR = updatedPlayer1Ranking?.mmr || player1MMRData.previousMMR;
+                player2MMRData.newMMR = updatedPlayer2Ranking?.mmr || player2MMRData.previousMMR;
+            } else {
+                // For draws, no MMR change
+                player1MMRData.newMMR = player1MMRData.previousMMR;
+                player2MMRData.newMMR = player2MMRData.previousMMR;
+            }
 
             // Calculate actual MMR changes - always show the real change
             player1MMRData.mmrChange = player1MMRData.newMMR - player1MMRData.previousMMR;
@@ -853,8 +879,8 @@ exports.pvpmatchresult = async (req, res) => {
 
         await session.commitTransaction();
 
-        // Determine winner
-        const winner = player1.status === 1 ? player1.characterid : player2.characterid;
+        // Determine winner or draw
+        const winner = isDraw ? null : (player1.status === 1 ? player1.characterid : player2.characterid);
 
         return res.status(200).json({
             message: "success",
@@ -863,7 +889,7 @@ exports.pvpmatchresult = async (req, res) => {
                 matchType: type,
                 players: {
                     [player1.characterid]: {
-                        result: player1.status === 1 ? "win" : "loss",
+                        result: isDraw ? "draw" : (player1.status === 1 ? "win" : "loss"),
                         previousMMR: player1MMRData.previousMMR,
                         newMMR: player1MMRData.newMMR,
                         mmrChange: Math.abs(player1MMRData.mmrChange),
@@ -874,7 +900,7 @@ exports.pvpmatchresult = async (req, res) => {
                         }
                     },
                     [player2.characterid]: {
-                        result: player2.status === 1 ? "win" : "loss",
+                        result: isDraw ? "draw" : (player2.status === 1 ? "win" : "loss"),
                         previousMMR: player2MMRData.previousMMR,
                         newMMR: player2MMRData.newMMR,
                         mmrChange: Math.abs(player2MMRData.mmrChange),

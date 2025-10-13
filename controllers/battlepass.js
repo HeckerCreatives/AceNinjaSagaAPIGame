@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const { BattlepassSeason, BattlepassProgress, BattlepassMissionProgress, BattlepassHistory } = require("../models/Battlepass");
+const Season = require("../models/Season");
 const Characterdata = require("../models/Characterdata");
 const CharacterStats = require("../models/Characterstats");
 const Characterwallet = require("../models/Characterwallet");
@@ -30,18 +31,21 @@ exports.getbattlepass = async (req, res) => {
             data: "You are not authorized to view this page. Please login the right account to view the page."
         });
     }
-    
-    // get current battle pass season 
-    const currentdate = new Date();
+
+    // Check real season status first
+    const realSeason = await Season.findOne({ isActive: "active" });
+    if (!realSeason) {
+        return res.status(404).json({ message: "failed", data: "No active season found." });
+    }
 
     const currentSeason = await BattlepassSeason.findOne({
-        startDate: { $lte: currentdate },
-        endDate: { $gte: currentdate }
-    })        
+        status: "active",
+    })
+    .sort({ startDate: -1 })        
     .populate('grandreward', 'type name rarity description gender');
 
     if (!currentSeason) {
-        return res.status(404).json({ message: "failed", data: "No active battle pass season found." });
+        return res.status(404).json({ message: "failed", data: "No battle pass season found." });
     }
 
     // get battle pass data for the character
@@ -369,14 +373,20 @@ exports.claimbattlepassreward = async (req, res) => {
             throw new Error("The Battlepass is currently under maintenance. Please try again later.");
         }
 
-        const currentdate = new Date();
+        // Check real season status first
+        const realSeason = await Season.findOne({ isActive: "active" }).session(session);
+        if (!realSeason) {
+            throw new Error("No active season found.");
+        }
+
         const currentSeason = await BattlepassSeason.findOne({
-            startDate: { $lte: currentdate },
-            endDate: { $gte: currentdate }
-        }).session(session);
+            status: "active",
+        })
+        .sort({ startDate: -1 })
+        .session(session);
 
         if (!currentSeason) {
-            throw new Error("No active battle pass season found.");
+            throw new Error("No battle pass season found.");
         }
 
         let battlepassData = await BattlepassProgress.findOne({
@@ -629,14 +639,20 @@ exports.buypremiumbattlepass = async (req, res) => {
             throw new Error("You are not authorized to view this page. Please login the right account to view the page.");
         }
 
-        const currentdate = new Date();
+        // Check real season status first
+        const realSeason = await Season.findOne({ isActive: "active" }).session(session);
+        if (!realSeason) {
+            throw new Error("No active season found.");
+        }
+
         const currentSeason = await BattlepassSeason.findOne({
-            startDate: { $lte: currentdate },
-            endDate: { $gte: currentdate }
-        }).session(session);
+            status: "active",
+        })
+        .sort({ startDate: -1 })
+        .session(session);
 
         if (!currentSeason) {
-            throw new Error("No active battle pass season found.");
+            throw new Error("No battle pass season found.");
         }
 
         let battlepassData = await BattlepassProgress.findOne({
