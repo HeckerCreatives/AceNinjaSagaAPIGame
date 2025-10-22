@@ -108,12 +108,12 @@ const skillsstats = [
         name: "Energy Reserves",
         id: "6828695886cc0f2042749681",
         stats: {
-            // maxenergy: 35,
+            energy: 35,
             // energycostreduce: 20,
-            magicdamage: 20,
+            // magicdamage: 20,
             // energythreshold: 25
         },
-        type: "add"
+        type: "percentage"
     },
     {
         name: "Essence of Fire",
@@ -164,17 +164,20 @@ const skillsstats = [
     //     },
     //     type: "add"
     // },
-    // {
-    //     name: "Gene Therapy",
-    //     id: "6828695886cc0f2042749703",
-    //     stats: {
-    //         healthrecover: 150,
-    //         damagebonus: 15,
-    //         shield: 250,
-    //         shieldturns: 5
-    //     },
-    //     type: "add"
-    // },
+    {
+        name: "Gene Therapy",
+        id: "6828695886cc0f2042749703",
+        stats: {
+            // healthrecover: 150,
+            // damagebonus: 15,
+            // shield: 250,
+            // shieldturns: 5
+            attackdamage: 15,
+            magicdamage: 15,
+            critdamage: 15
+        },
+        type: "add"
+    },
     // {
     //     name: "Mind's Eye",
     //     id: "6828695886cc0f2042749706",

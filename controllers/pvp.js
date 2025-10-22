@@ -147,6 +147,8 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
     const opponentScaling = getRankScaling(opponentRanking.mmr);
 
     // Apply MMR changes with rank-based scaling and upset bonuses
+    let playerMMRChange, opponentMMRChange;
+    
     if (matchStatus === 1) {
         // Player won
         let playerGain = Math.round(Math.max(basePlayerMMRChange, 1) * playerScaling.gainMultiplier);
@@ -162,6 +164,10 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         playerGain = Math.max(playerGain, 1);
         opponentLoss = Math.max(opponentLoss, opponentScaling.minLoss);
         opponentLoss = Math.min(opponentLoss, 100); // Cap maximum loss at 100
+        
+        // Store the theoretical MMR changes before capping
+        playerMMRChange = playerGain;
+        opponentMMRChange = -opponentLoss; // Negative for loss
         
         playerRanking.mmr = Math.max(0, playerRanking.mmr + playerGain);
         opponentRanking.mmr = Math.max(0, opponentRanking.mmr - opponentLoss);
@@ -180,6 +186,10 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         playerLoss = Math.max(playerLoss, playerScaling.minLoss);
         playerLoss = Math.min(playerLoss, 100); // Cap maximum loss at 100
         opponentGain = Math.max(opponentGain, 1);
+        
+        // Store the theoretical MMR changes before capping
+        playerMMRChange = -playerLoss; // Negative for loss
+        opponentMMRChange = opponentGain;
         
         playerRanking.mmr = Math.max(0, playerRanking.mmr - playerLoss);
         opponentRanking.mmr = Math.max(0, opponentRanking.mmr + opponentGain);
@@ -226,8 +236,11 @@ async function updateMMRAndRankings(playerId, opponentId, matchStatus, seasonId,
         opponentRanking.save({ session })
     ]);
 
-    // Return the actual MMR change applied to the player
-    return Math.abs(basePlayerMMRChange);
+    // Return the theoretical MMR changes for both players (shows what would be lost even if MMR is 0)
+    return {
+        playerMMRChange,
+        opponentMMRChange
+    };
 }
 
 exports.getpvpleaderboard = async (req, res) => {
@@ -835,7 +848,7 @@ exports.pvpmatchresult = async (req, res) => {
 
             if (!isDraw) {
                 // Update MMR and rankings for ranked matches
-                await updateMMRAndRankings(player1.characterid, player2.characterid, player1.status, activeSeason._id, session);
+                const mmrChanges = await updateMMRAndRankings(player1.characterid, player2.characterid, player1.status, activeSeason._id, session);
 
                 // Get updated rankings to capture new MMR
                 const [updatedPlayer1Ranking, updatedPlayer2Ranking] = await Promise.all([
@@ -845,15 +858,17 @@ exports.pvpmatchresult = async (req, res) => {
 
                 player1MMRData.newMMR = updatedPlayer1Ranking?.mmr || player1MMRData.previousMMR;
                 player2MMRData.newMMR = updatedPlayer2Ranking?.mmr || player2MMRData.previousMMR;
+                
+                // Use the theoretical MMR changes (shows true loss even if capped at 0)
+                player1MMRData.mmrChange = mmrChanges.playerMMRChange;
+                player2MMRData.mmrChange = mmrChanges.opponentMMRChange;
             } else {
                 // For draws, no MMR change
                 player1MMRData.newMMR = player1MMRData.previousMMR;
                 player2MMRData.newMMR = player2MMRData.previousMMR;
+                player1MMRData.mmrChange = 0;
+                player2MMRData.mmrChange = 0;
             }
-
-            // Calculate actual MMR changes - always show the real change
-            player1MMRData.mmrChange = player1MMRData.newMMR - player1MMRData.previousMMR;
-            player2MMRData.mmrChange = player2MMRData.newMMR - player2MMRData.previousMMR;
         }
 
         // Update quest/battlepass progress for both players
