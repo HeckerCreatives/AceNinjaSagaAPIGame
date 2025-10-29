@@ -713,7 +713,7 @@ exports.pvpmatchresult = async (req, res) => {
         await session.startTransaction();
 
         const { 
-            pvpstats,
+            pvpstats: pvpstatsdata,
             type = "normal" // Default to normal match
         } = req.body;
 
@@ -726,9 +726,17 @@ exports.pvpmatchresult = async (req, res) => {
                 data: "The PvP is currently under maintenance. Please try again later."
             });
         }
+        let pvpstats;
 
+        if (Array.isArray(pvpstatsdata)) {
+            pvpstats = (typeof structuredClone === 'function') ? structuredClone(pvpstatsdata) : JSON.parse(JSON.stringify(pvpstatsdata));
+        } else if (typeof pvpstatsdata === 'string') {
+            pvpstats = JSON.parse(pvpstatsdata);
+        } else if (Array.isArray(req.body?.pvpstats)) {
+            pvpstats = (typeof structuredClone === 'function') ? structuredClone(req.body.pvpstats) : JSON.parse(JSON.stringify(req.body.pvpstats));
+        }
         // Validate pvpstats array
-        if (!pvpstats || !Array.isArray(pvpstats) || pvpstats.length !== 2) {
+        if (!pvpstats || !Array.isArray(pvpstats) || pvpstats.length !== 2) {        
             await session.abortTransaction();
             return res.status(400).json({
                 message: "failed",
