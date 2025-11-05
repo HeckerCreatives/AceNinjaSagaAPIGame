@@ -129,12 +129,12 @@ exports.getLevelBasedStats = (level) => {
         attackdamage: 0,
         armorpen: 0,
         magicpen: 0,
-        critchance: 5,
+        critchance: 0,
         magicdamage: 0,
         lifesteal: 0,
         omnivamp: 0,
         healshieldpower: 0,
-        critdamage: 70,
+        critdamage: 0,
     }
 };
 

@@ -150,6 +150,7 @@ const skillsstats = [
         name: "Warrior's Honor",
         id: "6828695886cc0f2042749695",
         stats: {
+            armor: 20,
             healshieldpower: 20,
         },
         type: "add"
@@ -254,9 +255,9 @@ const skillsstats = [
         id: "6828695886cc0f20427496c3",
         stats: {
             omnivamp: 30,
-            fearturns: 5,
-            fear: 100,
-            fearduration: 1
+            // fearturns: 5,
+            // fear: 100,
+            // fearduration: 1
         },
         type: "add"
     }
