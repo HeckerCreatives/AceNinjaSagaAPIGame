@@ -12,7 +12,7 @@ const weaponstatsdata = [
         name: "Moonstone",
         id: "6828695886cc0f20427495c5",
         stats: {
-            health: 300,
+            health: 500,
             energy: 500
         },
         type: "add" //  add or percentage
