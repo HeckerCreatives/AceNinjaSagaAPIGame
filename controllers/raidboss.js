@@ -6,6 +6,7 @@ const { awardBattlepassReward, determineRewardType } = require("../utils/battlep
 const { gethairbundle } = require("../utils/bundle");
 const { getCharacterGenderString } = require("../utils/character");
 const { addanalytics } = require("../utils/analyticstools");
+const { multipleprogressutil } = require("../utils/progress");
 
 exports.getraidboss = async (req, res) => {
     const { id } = req.user;
@@ -108,7 +109,7 @@ exports.getraidboss = async (req, res) => {
 
 
 exports.awardRaidbossRewards = async (req, res) => {
-    const { characterid, bossid } = req.body;
+    const { characterid, bossid, totaldamage, skillsused, selfheal } = req.body;
 
     if (!characterid || !bossid) {
         return res.status(400).json({ 
@@ -148,11 +149,9 @@ exports.awardRaidbossRewards = async (req, res) => {
         const awardedRewards = [];
         const charactergender = await getCharacterGenderString(characterid);
 
-        console.log(`Awarding rewards for boss: ${boss.bossname}, character: ${characterid}`);
 
         // Award all rewards from boss.rewards array using determineRewardType
         if (boss.rewards && boss.rewards.length > 0) {
-            console.log(`Processing ${boss.rewards.length} rewards:`, boss.rewards);
             for (const reward of boss.rewards) {
                 // Use the determineRewardType function to properly process the reward
                 const processedReward = determineRewardType(reward, character.gender);
@@ -204,8 +203,21 @@ exports.awardRaidbossRewards = async (req, res) => {
             console.log('No rewards found for this boss');
         }
 
-        console.log(results)
+        const multipleProgress = await multipleprogressutil(characterid, [
+            { requirementtype: 'totaldamage', amount: totaldamage },
+            { requirementtype: 'skillsused', amount: skillsused },
+            { requirementtype: 'selfheal', amount: selfheal },
+            { requirementtype: 'enemiesdefeated', amount: 1 },
+            { requirementtype: 'raidparticipated', amount: 1 }
+        ]);
 
+        if (multipleProgress.message !== "success") {
+            await session.abortTransaction();
+            return res.status(400).json({ 
+                message: "failed", 
+                data: `Failed to update multiple progress for character ${player.characterid}.`
+            });
+        }
         // Add analytics for raid boss reward claiming
         const analyticresponse = await addanalytics(
             characterid.toString(),
