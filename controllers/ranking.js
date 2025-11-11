@@ -111,7 +111,7 @@ exports.getleaderboards = async (req, res) => {
                 mmr: lbvalue.mmr,
                 level: lbvalue.owner.level,
                 isEligible: false,
-                message: "Reach level 20 to participate in ranked matches"
+                message: "Reach level 10 to participate in ranked matches"
             };
         }
 
@@ -126,7 +126,7 @@ exports.getleaderboards = async (req, res) => {
             },
             {
                 $match: {
-                    "characterData.level": { $gte: 20 } 
+                    "characterData.level": { $gte: 10 } 
                 }
             },
             {
