@@ -66,7 +66,7 @@ exports.getleaderboards = async (req, res) => {
             });
         }
 
-        const isEligibleForRanking = lbvalue.owner && lbvalue.owner.level >= 20;
+        const isEligibleForRanking = lbvalue.owner && lbvalue.owner.level >= 10;
         let playerRank;
 
         if (isEligibleForRanking) {
