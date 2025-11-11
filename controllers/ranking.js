@@ -81,7 +81,7 @@ exports.getleaderboards = async (req, res) => {
                 },
                 {
                     $match: {
-                        "characterData.level": { $gte: 20 }, 
+                        "characterData.level": { $gte: 10 }, 
                         $or: [
                             { mmr: { $gt: lbvalue.mmr } }, 
                             { 
