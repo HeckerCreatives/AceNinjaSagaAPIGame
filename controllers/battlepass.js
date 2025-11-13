@@ -14,6 +14,7 @@ const Badge = require("../models/Badge");
 const Title = require("../models/Title");
 const { addXPAndLevel } = require("../utils/leveluptools");
 const { addwallet } = require("../utils/wallettools");
+const { filterRewardByGender } = require("../utils/rewardfilter");
 
 
 exports.getbattlepass = async (req, res) => {
@@ -174,81 +175,6 @@ exports.getbattlepass = async (req, res) => {
     // Get character gender for reward filtering
     const characterGender = await getCharacterGenderString(characterid);
     
-    const filterRewardByGender = async (reward) => {
-        if (!reward || !characterGender) return reward;
-        
-        // Handle badge rewards - lookup index from Badge model
-        if (reward.type === 'badge') {
-            try {
-                const badge = await Badge.findById(reward.id);
-                if (badge) {
-                    return {
-                        type: reward.type,
-                        amount: reward.amount || 1,
-                        id: badge.index // Use badge index instead of ObjectId
-                    };
-                }
-            } catch (error) {
-                console.error('Error looking up badge:', error);
-            }
-            return {
-                type: reward.type,
-                amount: reward.amount || 1,
-                id: reward.id // Fallback to original id
-            };
-        }
-        
-        // Handle title rewards - lookup index from Title model
-        if (reward.type === 'title') {
-            try {
-                const title = await Title.findById(reward.id);
-                if (title) {
-                    return {
-                        type: reward.type,
-                        amount: reward.amount || 1,
-                        id: title.index // Use title index instead of ObjectId
-                    };
-                }
-            } catch (error) {
-                console.error('Error looking up title:', error);
-            }
-            return {
-                type: reward.type,
-                amount: reward.amount || 1,
-                id: reward.id // Fallback to original id
-            };
-        }
-        
-        // Only filter outfit/skin type rewards for gender
-        if (!['outfit', 'skin'].includes(reward.type)) {
-            return reward;
-        }
-        
-        // If reward has both id and fid (male/female variants)
-        if (reward.id && reward.fid) {
-            return {
-                type: reward.type,
-                amount: reward.amount || 1,
-                id: characterGender === 'male' ? reward.id : reward.fid
-            };
-        }
-        
-        // If reward has gender-specific variants
-        if (reward.variants && Array.isArray(reward.variants)) {
-            const appropriateVariant = reward.variants.find(v => v.gender === characterGender);
-            if (appropriateVariant) {
-                return {
-                    type: reward.type,
-                    amount: reward.amount || 1,
-                    id: appropriateVariant.itemId
-                };
-            }
-        }
-        
-        // Return original reward if no gender filtering needed
-        return reward;
-    };
-    
     const formattedResponse = {
         battlepass: {
             id: currentSeason._id,
@@ -263,8 +189,8 @@ exports.getbattlepass = async (req, res) => {
                 const premiumClaimed = battlepassData.claimedRewards.some(r => r.tier === tierNumber && r.rewardType === "premium");
                 
                 // Apply gender filtering to rewards (now async)
-                const filteredFreeReward = await filterRewardByGender(tier.freeReward);
-                const filteredPremiumReward = await filterRewardByGender(tier.premiumReward);
+                const filteredFreeReward = await filterRewardByGender(tier.freeReward, characterGender);
+                const filteredPremiumReward = await filterRewardByGender(tier.premiumReward, characterGender);
                 
                 return [tierNumber, {
                     tierNumber: tier.tierNumber,
@@ -407,82 +333,6 @@ exports.claimbattlepassreward = async (req, res) => {
         // Get character gender for response filtering
         const characterGender = await getCharacterGenderString(characterid);
         
-        // Same filtering function as in getbattlepass
-        const filterRewardByGender = async (reward) => {
-            if (!reward || !characterGender) return reward;
-            
-            // Handle badge rewards - lookup index from Badge model
-            if (reward.type === 'badge') {
-                try {
-                    const badge = await Badge.findById(reward.id);
-                    if (badge) {
-                        return {
-                            type: reward.type,
-                            amount: reward.amount || 1,
-                            id: badge.index // Use badge index instead of ObjectId
-                        };
-                    }
-                } catch (error) {
-                    console.error('Error looking up badge:', error);
-                }
-                return {
-                    type: reward.type,
-                    amount: reward.amount || 1,
-                    id: reward.id // Fallback to original id
-                };
-            }
-            
-            // Handle title rewards - lookup index from Title model
-            if (reward.type === 'title') {
-                try {
-                    const title = await Title.findById(reward.id);
-                    if (title) {
-                        return {
-                            type: reward.type,
-                            amount: reward.amount || 1,
-                            id: title.index // Use title index instead of ObjectId
-                        };
-                    }
-                } catch (error) {
-                    console.error('Error looking up title:', error);
-                }
-                return {
-                    type: reward.type,
-                    amount: reward.amount || 1,
-                    id: reward.id // Fallback to original id
-                };
-            }
-            
-            // Only filter outfit/skin type rewards for gender
-            if (!['outfit', 'skin'].includes(reward.type)) {
-                return reward;
-            }
-            
-            // If reward has both id and fid (male/female variants)
-            if (reward.id && reward.fid) {
-                return {
-                    type: reward.type,
-                    amount: reward.amount || 1,
-                    id: characterGender === 'male' ? reward.id : reward.fid
-                };
-            }
-            
-            // If reward has gender-specific variants
-            if (reward.variants && Array.isArray(reward.variants)) {
-                const appropriateVariant = reward.variants.find(v => v.gender === characterGender);
-                if (appropriateVariant) {
-                    return {
-                        type: reward.type,
-                        amount: reward.amount || 1,
-                        id: appropriateVariant.itemId
-                    };
-                }
-            }
-            
-            // Return original reward if no gender filtering needed
-            return reward;
-        };
-
         const claimedRewards = battlepassData.claimedRewards || [];
         const hasPremium = battlepassData.hasPremium;
         const maxTier = battlepassData.currentTier;
@@ -527,7 +377,7 @@ exports.claimbattlepassreward = async (req, res) => {
                 }
 
                 // Filter the reward for response (same as getbattlepass)
-                const filteredReward = await filterRewardByGender(reward);
+                const filteredReward = await filterRewardByGender(reward, characterGender);
 
                 // Create history entry
                 historyEntries.push({
@@ -944,13 +794,13 @@ exports.claimbattlepassquest = async (req, res) => {
             const maxTiers = battlepassseason.tiers.length;
 
             // Block at tier 1: XP can go up to 1999, but tier stays at 1
-            if (battlepassProgress.currentTier === 1 && battlepassProgress.currentXP < 2000) {
-                // Do not level up, just accumulate XP up to 1999
-                if (battlepassProgress.currentXP > 1999) {
-                    battlepassProgress.currentXP = 1999;
-                }
-                break;
-            }
+            // if (battlepassProgress.currentTier === 1 && battlepassProgress.currentXP < 2000) {
+            //     // Do not level up, just accumulate XP up to 1999
+            //     if (battlepassProgress.currentXP > 1999) {
+            //         battlepassProgress.currentXP = 1999;
+            //     }
+            //     break;
+            // }
 
             // After 2000 XP, normal leveling resumes
             const calculatedTier = Math.min(

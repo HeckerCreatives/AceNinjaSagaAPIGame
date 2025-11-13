@@ -26,6 +26,7 @@ const Announcement = require("../models/Announcement")
 const Friends = require("../models/Friends")
 const { chapterlistdata } = require("../data/datainitialization")
 const PvpStats = require("../models/PvpStats")
+const Chest = require("../models/Chests")
 const { gethairname } = require("../utils/bundle")
 const { challengeRewards } = require("../utils/gamerewards")
 const { addreset, existsreset } = require("../utils/reset")
@@ -1949,11 +1950,13 @@ exports.getnotification = async (req, res) => {
             Friends.countDocuments({ friend: characterid, status: 'pending' })
         ]);
 
-        // Get daily/weekly/monthly login status
-        const [dailySpin, weeklyLogin, monthlyLogin] = await Promise.all([
+        // Get daily/weekly/monthly login status and chest inventory
+        const [dailySpin, weeklyLogin, monthlyLogin, characterChestInventory, allChestTypes] = await Promise.all([
             CharacterDailySpin.findOne({ owner: characterid }).select('spin expspin').lean(),
             CharacterWeeklyLogin.findOne({ owner: characterid }).select('daily currentDay').lean(),
-            CharacterMonthlyLogin.findOne({ owner: characterid }).select('days').lean()
+            CharacterMonthlyLogin.findOne({ owner: characterid }).select('days').lean(),
+            CharacterInventory.findOne({ owner: characterid, type: 'chests' }).lean(),
+            Chest.find({}).select('_id name').lean()
         ]);
 
         if (!dailySpin || !weeklyLogin || !monthlyLogin) {
@@ -1979,7 +1982,40 @@ exports.getnotification = async (req, res) => {
         }
         
         const finalMonthlyLoginValue = isMonthlyTrue ? monthlyHasLoggedToday : false;
-29         // console.log(`Day of month: ${dayOfMonth}, isMonthlyTrue: ${isMonthlyTrue}, monthlyHasLoggedToday: ${monthlyHasLoggedToday}`);
+
+        // Count chests by chest type (_id from Chest model)
+        // Create a map of chest IDs to their names
+        const chestTypeMap = {};
+        allChestTypes.forEach(chest => {
+            chestTypeMap[chest._id.toString()] = {
+                name: chest.name,
+                count: 0
+            };
+        });
+
+        let hasChests = false;
+        let totalChests = 0;
+
+        // Count the chests in inventory by their chest type ID
+        if (characterChestInventory && characterChestInventory.items && characterChestInventory.items.length > 0) {
+            characterChestInventory.items.forEach(inventoryItem => {
+                if (inventoryItem.item && inventoryItem.quantity > 0) {
+                    const chestId = inventoryItem.item.toString();
+                    if (chestTypeMap[chestId]) {
+                        chestTypeMap[chestId].count += inventoryItem.quantity;
+                        totalChests += inventoryItem.quantity;
+                    }
+                }
+            });
+
+            hasChests = totalChests > 0;
+        }
+
+        // Format chest data for response (use boolean: true if count > 0, false if 0)
+        const chestsData = {};
+        Object.entries(chestTypeMap).forEach(([chestId, data]) => {
+            chestsData[data.name] = data.count > 0;
+        });
 
         const response = {
             data: {
@@ -2001,11 +2037,14 @@ exports.getnotification = async (req, res) => {
                     freebieexp: expexist,
                     freebiecoins: coinsexist,
                     freebiecrystal: crystalexists
+                },
+                chests: {
+                    hasChests: hasChests,
+                    total: totalChests,
+                    types: chestsData
                 }
             }
         };
-
-        // console.log(`Final monthly login decision: ${isMonthlyTrue ? 'Using monthlyHasLoggedToday' : 'Forcing false'} = ${finalMonthlyLoginValue}`);
         
         return res.status(200).json({
             message: "success",

@@ -117,12 +117,6 @@ exports.addFriend = async (req, res) => {
             friend: friendId
         });
 
-        const progress = await progressutil('friendsadded', characterId, 1)
-        
-        if(progress.message !== "success") {
-            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
-        }
-
         res.status(200).json({
             message: "success"
         });
@@ -356,6 +350,18 @@ exports.acceptrejectFriendRequest = async (req, res) => {
             console.log(`There's a problem encountered while accepting friend request. Error: ${err}`)
             return res.status(400).json({ message: "bad-request", data: "There's a problem with the server. Please contact support for more details."})
         })
+
+        const progress = await progressutil('friendsadded', characterId, 1)
+        
+        if(progress.message !== "success") {
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
+        
+        const progress1 = await progressutil('friendsadded', friendId, 1)
+        
+        if(progress1.message !== "success") {
+            return res.status(400).json({ message: "failed", data: "Failed to update progress." });
+        }
     } else if (status === 'rejected'){
         await Friends.findOneAndDelete(
             { character: friendId, friend: characterId }
