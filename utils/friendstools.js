@@ -7,7 +7,7 @@ exports.checkfriendlistcount = async (characterid) => {
     // try to cast to ObjectId when valid
     let id = characterid;
     if (typeof characterid === "string" && mongoose.Types.ObjectId.isValid(characterid)) {
-        id = mongoose.Types.ObjectId(characterid);
+        id = new mongoose.Types.ObjectId(characterid);
     }
 
     try {

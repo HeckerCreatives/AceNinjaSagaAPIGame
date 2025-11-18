@@ -127,7 +127,6 @@ exports.addFriend = async (req, res) => {
         res.status(400).json({
             message: "bad-request",
             data: "There's a problem with the server! Please contact support for more details.",
-            error: error.message
         });
     }
 };
