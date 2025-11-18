@@ -67,6 +67,10 @@ const CharacterDataSchema = new mongoose.Schema(
             max: 4,
             index: true
         },
+        path: {
+            type: String,
+            index: true
+        },
         status: {
             type: String,
             index: true,

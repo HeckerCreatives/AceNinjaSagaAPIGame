@@ -318,6 +318,15 @@ exports.acquirespbasedskills = async (req, res) => {
             });
         }
 
+        // Validate Path skill acquisition
+        if (skill.category === 'Path') {
+            if (character.path && character.path !== skill.path) {
+                return res.status(400).json({
+                    message: "failed",
+                    data: `You cannot acquire skills from the ${skill.path} path. Your character is already on the ${character.path} path.`
+                });
+            }
+        }
 
         // Update or add skill
         if (existingSkill) {
@@ -329,6 +338,23 @@ exports.acquirespbasedskills = async (req, res) => {
                 skill: skillid,
                 level: 1
             });
+            
+            // If this is a Path skill and character.path is not set
+            if (skill.category === 'Path' && !character.path) {
+                // Migration: Check if player already has any Path skills
+                const existingPathSkill = skillTree.skills.find(s => 
+                    s.skill && s.skill.category === 'Path'
+                );
+                
+                if (existingPathSkill) {
+                    // Use existing Path skill's path value
+                    character.path = existingPathSkill.skill.path;
+                } else {
+                    // Use the newly acquired skill's path value
+                    character.path = skill.path;
+                }
+                await character.save();
+            }
         }
 
         // Deduct skill points
@@ -502,6 +528,16 @@ exports.acquirebuybasedskills = async (req, res) => {
             });
         }
 
+        // Validate Path skill acquisition
+        if (skill.category === 'Path') {
+            if (character.path && character.path !== skill.path) {
+                return res.status(400).json({
+                    message: "failed",
+                    data: `You cannot acquire skills from the ${skill.path} path. Your character is already on the ${character.path} path.`
+                });
+            }
+        }
+
         // Update skill tree
         if (existingSkill) {
             existingSkill.level += 1;
@@ -510,6 +546,23 @@ exports.acquirebuybasedskills = async (req, res) => {
                 skill: skillid,
                 level: 1
             });
+            
+            // If this is a Path skill and character.path is not set
+            if (skill.category === 'Path' && !character.path) {
+                // Migration: Check if player already has any Path skills
+                const existingPathSkill = skillTree.skills.find(s => 
+                    s.skill && s.skill.category === 'Path'
+                );
+                
+                if (existingPathSkill) {
+                    // Use existing Path skill's path value
+                    character.path = existingPathSkill.skill.path;
+                } else {
+                    // Use the newly acquired skill's path value
+                    character.path = skill.path;
+                }
+                await character.save();
+            }
         }
 
         // Deduct currency
@@ -982,6 +1035,142 @@ exports.getSkillPoints = async (req, res) => {
 
     } catch (err) {
         console.log(`Error in skill points retrieval: ${err}`);
+        return res.status(500).json({
+            message: "failed",
+            data: "There's a problem with the server! Please try again later."
+        });
+    }
+};
+
+exports.resetpathskills = async (req, res) => {
+    const { id } = req.user;
+    const { characterid } = req.body;
+
+    try {
+        // Verify ownership
+        const tempchardata = await checkcharacter(id, characterid);
+        if (tempchardata === "failed") {
+            return res.status(400).json({
+                message: "Unauthorized",
+                data: "You are not authorized to perform this action."
+            });
+        }
+
+        // Check if character has enough crystals
+        const checkcharacterwallet = await checkwallet(characterid, "crystal");
+        if (checkcharacterwallet === "failed") {
+            return res.status(404).json({
+                message: "failed",
+                data: "Character wallet not found or invalid currency"
+            });
+        }
+        if (parseInt(checkcharacterwallet) < 5000) {
+            return res.status(400).json({
+                message: "failed",
+                data: "You don't have enough crystals to reset your path! You need 5000 crystals."
+            });
+        }
+
+        // Get skill tree
+        const skillTree = await CharacterSkillTree.findOne({ owner: new mongoose.Types.ObjectId(characterid) })
+            .populate('skills.skill');
+        
+        if (!skillTree) {
+            return res.status(400).json({
+                message: "failed",
+                data: "Selected character doesn't have a valid skill tree!"
+            });
+        }
+
+        // Get character
+        const character = await Characterdata.findById(characterid);
+        if (!character) {
+            return res.status(404).json({
+                message: "failed",
+                data: "Character not found"
+            });
+        }
+
+        // Check if character has a path set
+        if (!character.path) {
+            return res.status(400).json({
+                message: "failed",
+                data: "Character has no path to reset"
+            });
+        }
+
+        const session = await mongoose.startSession();
+
+        try {
+            await session.startTransaction();
+
+            // Calculate SP refund from Path skills
+            let spRefund = 0;
+            const pathSkills = skillTree.skills.filter(
+                skillEntry => skillEntry?.skill?.category === 'Path'
+            );
+
+            pathSkills.forEach(skillEntry => {
+                if (skillEntry.skill.currency === 'skillpoints') {
+                    spRefund += skillEntry.skill.spCost * skillEntry.level;
+                }
+            });
+
+            // Remove all Path category skills
+            skillTree.skills = skillTree.skills.filter(
+                skillEntry => skillEntry?.skill?.category !== 'Path'
+            );
+
+            // Refund skill points
+            skillTree.skillPoints += spRefund;
+
+            // Clear character's path
+            character.path = null;
+
+            // Save changes
+            await skillTree.save({ session });
+            await character.save({ session });
+
+            // Deduct crystals
+            const walletReduce = await reducewallet(characterid, 5000, "crystal", session);
+            if (walletReduce === "failed") {
+                throw new Error("Failed to deduct crystals from wallet");
+            }
+
+            // Log analytics
+            const analyticresponse = await addanalytics(
+                id,
+                characterid,
+                "reset",
+                "skill",
+                "Path",
+                `Reset path skills for 5000 crystals. Refunded ${spRefund} skill points.`,
+                5000
+            );
+
+            if (analyticresponse === "failed") {
+                throw new Error("Failed to log analytics");
+            }
+
+            await session.commitTransaction();
+            
+            return res.json({
+                message: "success",
+                data: {
+                    refundedSP: spRefund,
+                    removedSkills: pathSkills.length
+                }
+            });
+
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+
+    } catch (error) {
+        console.log(`Error in path skills reset: ${error}`);
         return res.status(500).json({
             message: "failed",
             data: "There's a problem with the server! Please try again later."
