@@ -30,7 +30,8 @@ exports.addFriend = async (req, res) => {
 
         let friendId = ""
 
-        const sfriend = await Characterdata.findOne({ username: { $regex: new RegExp('^' + friendname + '$', 'i') }, status: 'active' });
+        const cleanName = (friendname || "").trim();
+        const sfriend = await Characterdata.findOne({ username: { $regex: new RegExp('^' + cleanName + '$', 'i') }, status: 'active' });
         if(!sfriend){
             return res.status(400).json({
                 message: "failed",

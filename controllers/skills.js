@@ -1091,8 +1091,11 @@ exports.resetpathskills = async (req, res) => {
             });
         }
 
-        // Check if character has a path set
-        if (!character.path) {
+        const existingPathSkills = skillTree.skills.filter(
+            skillEntry => skillEntry?.skill?.category === 'Path'
+        );
+
+        if (!character.path && existingPathSkills.length === 0) {
             return res.status(400).json({
                 message: "failed",
                 data: "Character has no path to reset"
