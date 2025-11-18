@@ -158,7 +158,6 @@ exports.claimdailyquest = async (req, res) => {
     
     const maintenance = await checkmaintenance("quest")
 
-    console.log(maintenance)
     
     if (maintenance === "failed") {
         return res.status(400).json({
