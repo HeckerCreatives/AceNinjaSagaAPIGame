@@ -123,9 +123,11 @@ exports.addFriend = async (req, res) => {
         });
 
     } catch (error) {
+        console.log(`There's a problem encountered while adding friend. Error: ${error}`);
         res.status(400).json({
             message: "bad-request",
-            data: "There's a problem with the server! Please contact support for more details."
+            data: "There's a problem with the server! Please contact support for more details.",
+            error: error.message
         });
     }
 };
