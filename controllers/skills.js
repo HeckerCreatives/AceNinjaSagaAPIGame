@@ -834,8 +834,10 @@ exports.getequippedskills = async (req, res) => {
             // Add to appropriate category and allskills
             const categorySkillCount = Object.keys(acc[category][type]).length + 1;
             const allSkillsCount = Object.keys(acc.allskills[type]).length + 1;
+
             const skillData = {
                 ...skill.skill.toObject(),
+                effects: Object.fromEntries(skill.skill.effects),
                 level: skill.level,
                 slot: categorySkillCount
             };

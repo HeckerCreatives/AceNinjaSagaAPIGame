@@ -225,7 +225,7 @@ const skillsstats = [
             // healthrecover: 20,
             // energyrecover: 20,
             // cooldownreduct: 3,
-            // critchance: 15,
+            // critchance: 15, 
             // dodgechance: 15
         },
         type: "add"
