@@ -38,7 +38,7 @@ exports.addXPAndLevel = async (characterid, xpToAdd, session = null) => {
         // Stop if we reach the level cap
         if (currentLevel >= LEVEL_CAP) {
             currentLevel = LEVEL_CAP;
-            currentXP = xpNeeded; // Reset XP at max level
+            currentXP = Math.round(baseXP * Math.pow(currentLevel, growth));; // Reset XP at max level
             break;
         }
         
