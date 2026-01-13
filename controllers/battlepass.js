@@ -324,7 +324,7 @@ exports.claimbattlepassreward = async (req, res) => {
             throw new Error("Battle pass progress not found for this character.");
         }
 
-        if (battlepassData.currentXP >= 999) {
+        if (battlepassData.currentXP <= 999) {
             throw new Error("Please accumulate more experience to level up your battlepass tier before claiming rewards.");
         }
 
