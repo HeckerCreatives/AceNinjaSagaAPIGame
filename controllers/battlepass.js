@@ -324,6 +324,10 @@ exports.claimbattlepassreward = async (req, res) => {
             throw new Error("Battle pass progress not found for this character.");
         }
 
+        if (battlepassData.currentXP >= 999) {
+            throw new Error("Please accumulate more experience to level up your battlepass tier before claiming rewards.");
+        }
+
         // Get character data for gender information
         const character = await Characterdata.findById(characterid).session(session);
         if (!character) {
@@ -794,13 +798,13 @@ exports.claimbattlepassquest = async (req, res) => {
             const maxTiers = battlepassseason.tiers.length;
 
             // Block at tier 1: XP can go up to 1999, but tier stays at 1
-            // if (battlepassProgress.currentTier === 1 && battlepassProgress.currentXP < 2000) {
-            //     // Do not level up, just accumulate XP up to 1999
-            //     if (battlepassProgress.currentXP > 1999) {
-            //         battlepassProgress.currentXP = 1999;
-            //     }
-            //     break;
-            // }
+            if (battlepassProgress.currentTier === 1 && battlepassProgress.currentXP < 2000) {
+                // Do not level up, just accumulate XP up to 1999
+                if (battlepassProgress.currentXP > 1999) {
+                    battlepassProgress.currentXP = 1999;
+                }
+                break;
+            }
 
             // After 2000 XP, normal leveling resumes
             const calculatedTier = Math.min(
