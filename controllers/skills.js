@@ -220,7 +220,7 @@ exports.getcharacterSkills = async (req, res) => {
 };
 
 exports.acquirespbasedskills = async (req, res) => {
-    const { characterid, skillid } = req.body;
+    const { characterid, skillid, quantity = 1 } = req.body;
 
     try {
         // Validate required parameters
@@ -228,6 +228,16 @@ exports.acquirespbasedskills = async (req, res) => {
             return res.status(400).json({
                 message: "failed",
                 data: "Missing required parameters"
+            });
+        }
+
+        // Normalize and validate quantity
+        const levelsToUpgrade = Math.max(1, Math.floor(Number(quantity) || 1));
+        const MAX_LEVELS = 50; // Cap to prevent abuse
+        if (levelsToUpgrade > MAX_LEVELS) {
+            return res.status(400).json({
+                message: "failed",
+                data: `Quantity exceeds maximum limit of ${MAX_LEVELS}`
             });
         }
 
@@ -265,15 +275,16 @@ exports.acquirespbasedskills = async (req, res) => {
             s.skill?._id.toString() === skillid
         );
 
+        // Calculate how many levels can actually be upgraded
+        const currentLevel = existingSkill ? existingSkill.level : 0;
+        const maxPossibleLevels = skill.maxLevel - currentLevel;
+        const actualLevelsToUpgrade = Math.min(levelsToUpgrade, maxPossibleLevels);
 
-        if (existingSkill) {
-            // Check if skill can be upgraded
-            if (existingSkill.level >= skill.maxLevel) {
-                return res.status(400).json({
-                    message: "failed",
-                    data: "Skill already at maximum level"
-                });
-            }
+        if (actualLevelsToUpgrade <= 0) {
+            return res.status(400).json({
+                message: "failed",
+                data: "Skill already at maximum level"
+            });
         }
 
         // Check prerequisites
@@ -310,11 +321,14 @@ exports.acquirespbasedskills = async (req, res) => {
             });
         }
 
+        // Calculate total skill points needed
+        const totalSpCost = skill.spCost * actualLevelsToUpgrade;
+
         // Check skill points
-        if (skillTree.skillPoints < skill.spCost) {
+        if (skillTree.skillPoints < totalSpCost) {
             return res.status(400).json({
                 message: "failed",
-                data: "Not enough skill points"
+                data: `Not enough skill points. Need ${totalSpCost}, have ${skillTree.skillPoints}`
             });
         }
 
@@ -328,15 +342,17 @@ exports.acquirespbasedskills = async (req, res) => {
             }
         }
 
+        const newLevel = currentLevel + actualLevelsToUpgrade;
+
         // Update or add skill
         if (existingSkill) {
             // Upgrade existing skill
-            existingSkill.level += 1;
+            existingSkill.level = newLevel;
         } else {
             // Add new skill
             skillTree.skills.push({
                 skill: skillid,
-                level: 1
+                level: actualLevelsToUpgrade
             });
             
             // If this is a Path skill and character.path is not set
@@ -358,7 +374,7 @@ exports.acquirespbasedskills = async (req, res) => {
         }
 
         // Deduct skill points
-        skillTree.skillPoints -= skill.spCost;
+        skillTree.skillPoints -= totalSpCost;
 
         // Save changes
         await Promise.all([
@@ -381,6 +397,9 @@ exports.acquirespbasedskills = async (req, res) => {
 
         const skillTreeEntryId = skillEntry._id; // This is the id you can use for future deletion
 
+        const levelDescription = actualLevelsToUpgrade === 1 
+            ? `Leveled up skill ${skill.name} to level ${newLevel} using ${totalSpCost} skill points`
+            : `Leveled up skill ${skill.name} by ${actualLevelsToUpgrade} levels to level ${newLevel} using ${totalSpCost} skill points`;
 
     const analyticresponse = await addanalytics(
         character.owner.toString(),
@@ -388,8 +407,8 @@ exports.acquirespbasedskills = async (req, res) => {
         "level",
         "skill",
         skill.category,
-        `Leveled up skill ${skill.name} to level ${existingSkill ? existingSkill.level + 1 : 1} using ${skill.spCost} skill points`,
-        skill.spCost
+        levelDescription,
+        totalSpCost
     );
 
     
@@ -403,6 +422,11 @@ exports.acquirespbasedskills = async (req, res) => {
 
         return res.status(200).json({
             message: "success",
+            data: {
+                levelsUpgraded: actualLevelsToUpgrade,
+                newLevel: newLevel,
+                spCost: totalSpCost
+            }
         });
 
     } catch (err) {

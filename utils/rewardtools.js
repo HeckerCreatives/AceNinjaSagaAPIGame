@@ -10,6 +10,9 @@ const Chapter = require('../models/Chapter');
 const { gethairbundle } = require('./bundle');
 const { addXPAndLevel } = require('./leveluptools');
 const { addwallet } = require('./wallettools');
+const { validatePackReward } = require('./packtools');
+const { awardChestReward } = require('./chesttools');
+const Characterdata = require('../models/Characterdata');
 
 /**
  * Award currency (coins/crystals) to character wallet
@@ -322,6 +325,239 @@ exports.awardCompanion = async (characterid, companionId, session = null) => {
         return companion; // Return companion object for original processing
     } catch (error) {
         return 'failed';
+    }
+};
+
+/**
+ * Apply all rewards from a pack purchase
+ * @param {String} characterId - Character ID
+ * @param {Array} packRewards - Array of reward objects from Packs.rewards
+ * @param {Number} quantity - Quantity of packs purchased (multiplier for stackable rewards)
+ * @param {Object} session - Mongoose session for transaction
+ * @returns {Object} - { success: boolean, results: Array, failedReward?: Object }
+ */
+exports.applyPackRewards = async (characterId, packRewards, quantity = 1, session = null) => {
+    try {
+        // Get character data for gender
+        const character = await Characterdata.findById(characterId).session(session);
+        if (!character) {
+            return { 
+                success: false, 
+                results: [], 
+                failedReward: { error: 'Character not found' } 
+            };
+        }
+        
+        const characterGender = character.gender === 0 ? 'male' : 'female';
+        const results = [];
+
+        // Process each reward
+        for (const reward of packRewards) {
+            // Validate reward structure
+            if (!validatePackReward(reward)) {
+                return {
+                    success: false,
+                    results,
+                    failedReward: { reward, error: 'Invalid reward structure' }
+                };
+            }
+
+            let rewardResult = {
+                rewardtype: reward.rewardtype,
+                success: false,
+                message: '',
+                details: null
+            };
+
+            try {
+                // Handle different reward types
+                switch (reward.rewardtype.toLowerCase()) {
+                    case 'crystal':
+                    case 'coins': {
+                        const amount = (reward.amount || 0) * quantity;
+                        const currencyType = reward.rewardtype === 'crystal' ? 'crystal' : 'coins';
+                        const result = await exports.awardCurrency(characterId, currencyType, amount, session);
+                        rewardResult.success = result === 'success';
+                        rewardResult.message = result === 'success' ? `Awarded ${amount} ${currencyType}` : 'Failed to award currency';
+                        rewardResult.details = { amount, type: currencyType };
+                        break;
+                    }
+
+                    case 'exp': {
+                        const amount = (reward.amount || 0) * quantity;
+                        const result = await exports.awardExperience(characterId, amount, session);
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result !== 'failed' ? `Awarded ${amount} EXP` : 'Failed to award EXP';
+                        rewardResult.details = { amount, levelUpInfo: result !== 'failed' ? result : null };
+                        break;
+                    }
+
+                    case 'badge': {
+                        // Badges are not stackable - award once regardless of quantity
+                        const badgeId = reward.reward?.id;
+                        if (!badgeId && badgeId !== 0) {
+                            rewardResult.message = 'Invalid badge ID';
+                            break;
+                        }
+                        const result = await exports.awardBadge(characterId, badgeId, session);
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result === 'already_owned' 
+                            ? 'Badge already owned' 
+                            : result !== 'failed' ? 'Badge awarded' : 'Failed to award badge';
+                        rewardResult.details = { badgeId, status: typeof result === 'object' ? 'awarded' : result };
+                        break;
+                    }
+
+                    case 'title': {
+                        // Titles are not stackable - award once regardless of quantity
+                        const titleId = reward.reward?.id;
+                        if (!titleId && titleId !== 0) {
+                            rewardResult.message = 'Invalid title ID';
+                            break;
+                        }
+                        const result = await exports.awardTitle(characterId, titleId, session);
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result === 'already_owned' 
+                            ? 'Title already owned' 
+                            : result !== 'failed' ? 'Title awarded' : 'Failed to award title';
+                        rewardResult.details = { titleId, status: typeof result === 'object' ? 'awarded' : result };
+                        break;
+                    }
+
+                    case 'skill': {
+                        // Skills are not stackable - award once regardless of quantity
+                        const skillId = reward.reward?.id;
+                        if (!skillId) {
+                            rewardResult.message = 'Invalid skill ID';
+                            break;
+                        }
+                        const result = await exports.awardSkill(characterId, skillId, session);
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result === 'already_owned' 
+                            ? 'Skill already owned' 
+                            : result === 'new_skilltree' ? 'Skill tree created with skill' 
+                            : result === 'success' ? 'Skill awarded' : 'Failed to award skill';
+                        rewardResult.details = { skillId, status: result };
+                        break;
+                    }
+
+                    case 'companion': {
+                        // Companions are not stackable - award once regardless of quantity
+                        const companionId = reward.reward?.id;
+                        if (!companionId) {
+                            rewardResult.message = 'Invalid companion ID';
+                            break;
+                        }
+                        const result = await exports.awardCompanion(characterId, companionId, session);
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result === 'already_owned' 
+                            ? 'Companion already owned' 
+                            : result !== 'failed' ? 'Companion awarded' : 'Failed to award companion';
+                        rewardResult.details = { companionId, status: typeof result === 'object' ? 'awarded' : result };
+                        break;
+                    }
+
+                    case 'weapon':
+                    case 'outfit':
+                    case 'hair':
+                    case 'face':
+                    case 'eyes':
+                    case 'skincolor':
+                    case 'skins': {
+                        // Non-stackable items - award once regardless of quantity
+                        // Use quantity=1 for these items regardless of pack quantity
+                        const itemId = reward.reward?.id;
+                        if (!itemId) {
+                            rewardResult.message = `Invalid ${reward.rewardtype} ID`;
+                            break;
+                        }
+                        
+                        // Handle gendered items
+                        const genderedId = reward.reward?.fid ? { fid: reward.reward.fid } : null;
+                        
+                        const result = await exports.awardInventoryItem(
+                            characterId,
+                            reward.rewardtype,
+                            itemId,
+                            1, // Always 1 for non-stackable items
+                            characterGender,
+                            genderedId,
+                            session
+                        );
+                        
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result === 'already_owned' 
+                            ? `${reward.rewardtype} already owned` 
+                            : result !== 'failed' ? `${reward.rewardtype} awarded` : `Failed to award ${reward.rewardtype}`;
+                        rewardResult.details = { 
+                            itemId, 
+                            itemType: reward.rewardtype,
+                            status: typeof result === 'object' ? 'awarded_with_bundle' : result,
+                            genderedId: characterGender === 'female' && genderedId ? genderedId.fid : itemId
+                        };
+                        break;
+                    }
+
+                    case 'chest':
+                    case 'chests': {
+                        // Chests are stackable - multiply by quantity
+                        const itemId = reward.reward?.id;
+                        if (!itemId) {
+                            rewardResult.message = 'Invalid chest ID';
+                            break;
+                        }
+                        const result = await exports.awardInventoryItem(
+                            characterId,
+                            'chests',
+                            itemId,
+                            quantity, // Multiply chests by pack quantity
+                            characterGender,
+                            null,
+                            session
+                        );
+                        rewardResult.success = result !== 'failed';
+                        rewardResult.message = result === 'incremented' 
+                            ? `Added ${quantity} chest(s)` 
+                            : result !== 'failed' ? 'Chest awarded' : 'Failed to award chest';
+                        rewardResult.details = { itemId, quantity, status: result };
+                        break;
+                    }
+
+                    default:
+                        rewardResult.message = `Unknown reward type: ${reward.rewardtype}`;
+                        console.warn(`Unhandled pack reward type: ${reward.rewardtype}`);
+                        break;
+                }
+
+            } catch (error) {
+                console.error(`Error applying pack reward ${reward.rewardtype}:`, error);
+                rewardResult.message = `Exception during reward application: ${error.message}`;
+            }
+
+            // If any reward fails critically, abort the whole pack
+            if (!rewardResult.success && !['already_owned'].includes(rewardResult.message)) {
+                return {
+                    success: false,
+                    results,
+                    failedReward: { reward, error: rewardResult.message }
+                };
+            }
+
+            results.push(rewardResult);
+        }
+
+        return {
+            success: true,
+            results
+        };
+
+    } catch (error) {
+        console.error('Error in applyPackRewards:', error);
+        return {
+            success: false,
+            results: [],
+            failedReward: { error: error.message }
+        };
     }
 };
 

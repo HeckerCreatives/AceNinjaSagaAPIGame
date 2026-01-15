@@ -4,7 +4,7 @@ const { Market, CharacterInventory, Item } = require("../models/Market")
 const Characterdata = require("../models/Characterdata")
 const { CharacterSkillTree, Skill } = require("../models/Skills")
 const { checkmaintenance } = require("../utils/maintenance")
-const { addanalytics } = require("../utils/analyticstools")
+const { addanalytics, addanalyticsTransactional } = require("../utils/analyticstools")
 const Analytics = require("../models/Analytics")
 const CharacterStats = require("../models/Characterstats")
 const { checkcharacter } = require("../utils/character")
@@ -13,6 +13,8 @@ const { addreset, existsreset } = require("../utils/reset")
 const { addXPAndLevel } = require("../utils/leveluptools")
 const { addwallet, checkwallet, reducewallet } = require("../utils/wallettools")
 const { getEnhancedChestData } = require('../utils/chesttools')
+const { getPackByItemId } = require('../utils/packtools')
+const { applyPackRewards } = require('../utils/rewardtools')
 
 exports.getMarketItems = async (req, res) => {
     const { page, limit, type, rarity, search, markettype, gender, characterid } = req.query
@@ -392,7 +394,7 @@ exports.buyitem = async (req, res) => {
             ).session(session);
 
             // Types that are stackable (we allow quantity for these)
-            const stackableTypes = new Set(['chests', 'crystalpacks', 'goldpacks', 'topupcredit']);
+            const stackableTypes = new Set(['chests', 'crystalpacks', 'goldpacks', 'topupcredit', 'packs']);
 
             if (inventory?.items[0] && !stackableTypes.has(itemData.type)) {
                 // Non-stackable item already owned
@@ -510,6 +512,80 @@ exports.buyitem = async (req, res) => {
                         message: "failed",
                         data: "Failed to add coins to wallet"
                     });
+                }
+            } else if (itemData.type === "packs") {
+                // Handle pack purchases - apply all rewards from the pack
+                const pack = await getPackByItemId(itemData._id, session);
+                if (!pack) {
+                    await session.abortTransaction();
+                    return res.status(404).json({
+                        message: "failed",
+                        data: "Pack data not found"
+                    });
+                }
+
+                if (!pack.rewards || pack.rewards.length === 0) {
+                    await session.abortTransaction();
+                    return res.status(400).json({
+                        message: "failed",
+                        data: "Pack has no rewards configured"
+                    });
+                }
+
+                // Apply all pack rewards with quantity multiplier
+                const rewardsResult = await applyPackRewards(characterid, pack.rewards, qtyToBuy, session);
+                
+                if (!rewardsResult.success) {
+                    await session.abortTransaction();
+                    const errorMsg = rewardsResult.failedReward 
+                        ? `Failed to apply reward: ${rewardsResult.failedReward.error}` 
+                        : 'Failed to apply pack rewards';
+                    return res.status(500).json({
+                        message: "failed",
+                        data: errorMsg
+                    });
+                }
+
+                // Add pack to inventory for tracking
+                const invType = itemData.inventorytype || 'packs';
+                const existingInv = await CharacterInventory.findOne({ owner: characterid, type: invType, 'items.item': itemData._id }).session(session);
+                if (existingInv) {
+                    await CharacterInventory.updateOne(
+                        { owner: characterid, type: invType, 'items.item': itemData._id },
+                        { $inc: { 'items.$.quantity': qtyToBuy } },
+                        { session }
+                    );
+                } else {
+                    await CharacterInventory.findOneAndUpdate(
+                        { owner: characterid, type: invType },
+                        { $push: { items: { item: itemData._id, quantity: qtyToBuy } } },
+                        { upsert: true, new: true, session }
+                    );
+                }
+
+                // Log analytics for each reward type granted
+                for (const rewardResult of rewardsResult.results) {
+                    if (rewardResult.success) {
+                        const rewardDesc = `Pack reward: ${rewardResult.message} from ${itemData.name}`;
+                        const analyticResult = await addanalyticsTransactional(
+                            characterid.toString(),
+                            itemData._id.toString(),
+                            "grant",
+                            "pack",
+                            rewardResult.rewardtype,
+                            rewardDesc,
+                            rewardResult.details?.amount || 0,
+                            session
+                        );
+
+                        if (analyticResult === "failed") {
+                            await session.abortTransaction();
+                            return res.status(500).json({
+                                message: "failed",
+                                data: "Failed to log analytics for pack reward"
+                            });
+                        }
+                    }
                 }
             } else {
                 // Add to inventory respecting quantity: if existing item (stackable) increment, else push with quantity
