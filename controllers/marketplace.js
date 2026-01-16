@@ -514,79 +514,13 @@ exports.buyitem = async (req, res) => {
                     });
                 }
             } else if (itemData.type === "packs") {
-                // Handle pack purchases - apply all rewards from the pack
-                const pack = await getPackByItemId(itemData._id, session);
-                if (!pack) {
-                    await session.abortTransaction();
-                    return res.status(404).json({
-                        message: "failed",
-                        data: "Pack data not found"
-                    });
-                }
-
-                if (!pack.rewards || pack.rewards.length === 0) {
-                    await session.abortTransaction();
-                    return res.status(400).json({
-                        message: "failed",
-                        data: "Pack has no rewards configured"
-                    });
-                }
-
-                // Apply all pack rewards with quantity multiplier
-                const rewardsResult = await applyPackRewards(characterid, pack.rewards, qtyToBuy, session);
-                
-                if (!rewardsResult.success) {
-                    await session.abortTransaction();
-                    const errorMsg = rewardsResult.failedReward 
-                        ? `Failed to apply reward: ${rewardsResult.failedReward.error}` 
-                        : 'Failed to apply pack rewards';
-                    return res.status(500).json({
-                        message: "failed",
-                        data: errorMsg
-                    });
-                }
-
-                // Add pack to inventory for tracking
-                const invType = itemData.inventorytype || 'packs';
-                const existingInv = await CharacterInventory.findOne({ owner: characterid, type: invType, 'items.item': itemData._id }).session(session);
-                if (existingInv) {
-                    await CharacterInventory.updateOne(
-                        { owner: characterid, type: invType, 'items.item': itemData._id },
-                        { $inc: { 'items.$.quantity': qtyToBuy } },
-                        { session }
-                    );
-                } else {
-                    await CharacterInventory.findOneAndUpdate(
-                        { owner: characterid, type: invType },
-                        { $push: { items: { item: itemData._id, quantity: qtyToBuy } } },
-                        { upsert: true, new: true, session }
-                    );
-                }
-
-                // Log analytics for each reward type granted
-                for (const rewardResult of rewardsResult.results) {
-                    if (rewardResult.success) {
-                        const rewardDesc = `Pack reward: ${rewardResult.message} from ${itemData.name}`;
-                        const analyticResult = await addanalyticsTransactional(
-                            characterid.toString(),
-                            itemData._id.toString(),
-                            "grant",
-                            "pack",
-                            rewardResult.rewardtype,
-                            rewardDesc,
-                            rewardResult.details?.amount || 0,
-                            session
-                        );
-
-                        if (analyticResult === "failed") {
-                            await session.abortTransaction();
-                            return res.status(500).json({
-                                message: "failed",
-                                data: "Failed to log analytics for pack reward"
-                            });
-                        }
-                    }
-                }
+                // NOTE: Pack purchases should be migrated to use the buypack endpoint
+                // This logic is kept for backward compatibility but will be deprecated
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Please use the /buypack endpoint for purchasing packs"
+                });
             } else {
                 // Add to inventory respecting quantity: if existing item (stackable) increment, else push with quantity
                 const invType = itemData.inventorytype;
@@ -674,15 +608,40 @@ exports.buyitem = async (req, res) => {
             
             // Commit transaction
             await session.commitTransaction();
+            
+            // Build response array with purchased items
+            const purchasedItems = [
+                {
+                    itemId: itemData._id,
+                    name: itemData.name,
+                    price: itemData.price,
+                    type: itemData.type,
+                    quantity: qtyToBuy,
+                    currency: itemData.currency,
+                    imageUrl: itemData.imageUrl || null
+                }
+            ];
+            
+            // Add bundled item if exists
+            if (itemData1) {
+                purchasedItems.push({
+                    itemId: itemData1._id,
+                    name: itemData1.name,
+                    price: itemData1.price,
+                    type: itemData1.type,
+                    quantity: qtyToBuy,
+                    currency: itemData1.currency || null,
+                    imageUrl: itemData1.imageUrl || null,
+                    bundled: true
+                });
+            }
+            
             return res.status(200).json({ 
                 message: "success",
                 data: {
-                    item: itemData.name,
-                    price: itemData.price,
-                    type: itemData.type,
-                    item1: itemData1 ? itemData1.name : null,
-                    item1price: itemData1 ? itemData1.price : null,
-                    item1type: itemData1 ? itemData1.type : null
+                    items: purchasedItems,
+                    totalSpent: totalprice,
+                    currency: itemData.currency
                 }
             });
 
@@ -698,6 +657,249 @@ exports.buyitem = async (req, res) => {
         return res.status(500).json({ 
             message: "failed", 
             data: "Failed to complete purchase" 
+        });
+    }
+}
+
+// Buy packs - dedicated endpoint for pack purchases
+exports.buypack = async (req, res) => {
+    const { id } = req.user;
+    const { itemid, characterid, quantity = 1 } = req.body;
+
+    // Normalize quantity and enforce sensible cap
+    const qtyToBuy = Math.max(1, Math.floor(Number(quantity) || 1));
+    const MAX_QTY = 100;
+    if (qtyToBuy > MAX_QTY) {
+        return res.status(400).json({ message: 'failed', data: `Requested quantity exceeds maximum limit of ${MAX_QTY}` });
+    }
+
+    const maintenance = await checkmaintenance("market");
+    if (maintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The market is currently under maintenance. Please try again later."
+        });
+    }
+
+    const smaintenance = await checkmaintenance("store");
+    if (smaintenance === "failed") {
+        return res.status(400).json({
+            message: "failed",
+            data: "The store is currently under maintenance. Please try again later."
+        });
+    }
+
+    const checker = await checkcharacter(id, characterid);
+    if (checker === "failed") {
+        return res.status(400).json({
+            message: "Unauthorized",
+            data: "You are not authorized to view this page. Please login the right account to view the page."
+        });
+    }
+
+    try {
+        const session = await mongoose.startSession();
+        await session.startTransaction();
+
+        try {
+            // Find pack item in market
+            const item = await Market.findOne(
+                { 'items._id': itemid },
+                { 'items.$': 1 }
+            ).session(session);
+
+            if (!item?.items[0]) {
+                await session.abortTransaction();
+                return res.status(404).json({ message: "failed", data: "Pack not found" });
+            }
+
+            const itemData = item.items[0];
+
+            // Verify it's a pack
+            if (itemData.type !== "packs") {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "This item is not a pack. Please use /buyitem for other items."
+                });
+            }
+
+            // Check character gender
+            if ((itemData.gender === 'male' && checker.gender !== 0) || (itemData.gender === 'female' && checker.gender !== 1)) {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "This pack is not available for your character. Please choose a different pack."
+                });
+            }
+
+            // Check wallet balance
+            const wallet = await checkwallet(characterid, itemData.currency, session);
+            if (wallet === "failed") {
+                await session.abortTransaction();
+                return res.status(404).json({ message: "failed", data: "Wallet not found" });
+            }
+
+            const totalprice = (Number(itemData.price) || 0) * qtyToBuy;
+            if (wallet < totalprice) {
+                await session.abortTransaction();
+                return res.status(400).json({ message: "failed", data: "Insufficient balance" });
+            }
+
+            // Deduct wallet amount
+            const walletReduce = await reducewallet(characterid, totalprice, itemData.currency, session);
+            if (walletReduce === "failed") {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Failed to deduct wallet amount."
+                });
+            }
+
+            // Get pack data and rewards
+            const pack = await getPackByItemId(itemData._id, session);
+            if (!pack) {
+                await session.abortTransaction();
+                return res.status(404).json({
+                    message: "failed",
+                    data: "Pack data not found"
+                });
+            }
+
+            if (!pack.rewards || pack.rewards.length === 0) {
+                await session.abortTransaction();
+                return res.status(400).json({
+                    message: "failed",
+                    data: "Pack has no rewards configured"
+                });
+            }
+
+            // Apply all pack rewards with quantity multiplier
+            const rewardsResult = await applyPackRewards(characterid, pack.rewards, qtyToBuy, session);
+
+            if (!rewardsResult.success) {
+                await session.abortTransaction();
+                const errorMsg = rewardsResult.failedReward
+                    ? `Failed to apply reward: ${rewardsResult.failedReward.error}`
+                    : 'Failed to apply pack rewards';
+                return res.status(500).json({
+                    message: "failed",
+                    data: errorMsg
+                });
+            }
+
+            // Add pack to inventory for tracking
+            const invType = itemData.inventorytype || 'packs';
+            const existingInv = await CharacterInventory.findOne({ owner: characterid, type: invType, 'items.item': itemData._id }).session(session);
+            if (existingInv) {
+                await CharacterInventory.updateOne(
+                    { owner: characterid, type: invType, 'items.item': itemData._id },
+                    { $inc: { 'items.$.quantity': qtyToBuy } },
+                    { session }
+                );
+            } else {
+                await CharacterInventory.findOneAndUpdate(
+                    { owner: characterid, type: invType },
+                    { $push: { items: { item: itemData._id, quantity: qtyToBuy } } },
+                    { upsert: true, new: true, session }
+                );
+            }
+
+            // Log analytics for pack purchase
+            const rewardType = itemData.currency === 'crystal' ? 'crystal' : itemData.currency === 'coins' ? 'coins' : itemData.currency || null;
+            const description = `Bought ${qtyToBuy}x ${itemData.name} for ${totalprice} ${itemData.currency}`;
+
+            const analyticresponse = await addanalytics(
+                characterid.toString(),
+                itemid.toString(),
+                "buy",
+                "market",
+                rewardType,
+                description,
+                totalprice
+            );
+
+            if (analyticresponse === "failed") {
+                await session.abortTransaction();
+                return res.status(500).json({
+                    message: "failed",
+                    data: "Failed to log analytics for pack purchase"
+                });
+            }
+
+            // Log analytics for each reward type granted
+            for (const rewardResult of rewardsResult.results) {
+                if (rewardResult.success) {
+                    const rewardDesc = `Pack reward: ${rewardResult.message} from ${itemData.name}`;
+                    const analyticResult = await addanalyticsTransactional(
+                        characterid.toString(),
+                        itemData._id.toString(),
+                        "grant",
+                        "pack",
+                        rewardResult.rewardtype,
+                        rewardDesc,
+                        rewardResult.details?.amount || 0,
+                        session
+                    );
+
+                    if (analyticResult === "failed") {
+                        await session.abortTransaction();
+                        return res.status(500).json({
+                            message: "failed",
+                            data: "Failed to log analytics for pack reward"
+                        });
+                    }
+                }
+            }
+
+            // Commit transaction
+            await session.commitTransaction();
+
+            // Build response array with pack and all rewards
+            const purchasedItems = [
+                {
+                    itemId: itemData._id,
+                    name: itemData.name,
+                    price: itemData.price,
+                    type: itemData.type,
+                    quantity: qtyToBuy,
+                    currency: itemData.currency,
+                    imageUrl: itemData.imageUrl || null,
+                    isPack: true
+                }
+            ];
+
+            // Add reward details to response
+            const rewardsSummary = rewardsResult.results
+                .filter(r => r.success)
+                .map(r => ({
+                    type: r.rewardtype,
+                    message: r.message,
+                    amount: r.details?.amount || 0
+                }));
+
+            return res.status(200).json({
+                message: "success",
+                data: {
+                    items: purchasedItems,
+                    rewards: rewardsSummary,
+                    totalSpent: totalprice,
+                    currency: itemData.currency
+                }
+            });
+
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+
+    } catch (err) {
+        console.log(`Error in buy pack transaction: ${err}`);
+        return res.status(500).json({
+            message: "failed",
+            data: "Failed to complete pack purchase"
         });
     }
 }

@@ -233,13 +233,7 @@ exports.acquirespbasedskills = async (req, res) => {
 
         // Normalize and validate quantity
         const levelsToUpgrade = Math.max(1, Math.floor(Number(quantity) || 1));
-        const MAX_LEVELS = 50; // Cap to prevent abuse
-        if (levelsToUpgrade > MAX_LEVELS) {
-            return res.status(400).json({
-                message: "failed",
-                data: `Quantity exceeds maximum limit of ${MAX_LEVELS}`
-            });
-        }
+
 
         // Get skill details
         const skill = await Skill.findById(skillid);
@@ -279,6 +273,13 @@ exports.acquirespbasedskills = async (req, res) => {
         const currentLevel = existingSkill ? existingSkill.level : 0;
         const maxPossibleLevels = skill.maxLevel - currentLevel;
         const actualLevelsToUpgrade = Math.min(levelsToUpgrade, maxPossibleLevels);
+
+        if (maxPossibleLevels <  quantity) {
+            return res.status(400).json({
+                message: "failed",
+                data: `Can only upgrade ${maxPossibleLevels} more levels for this skill`
+            });
+        }
 
         if (actualLevelsToUpgrade <= 0) {
             return res.status(400).json({
