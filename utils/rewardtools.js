@@ -80,7 +80,7 @@ exports.awardBadge = async (characterid, badgeId, session = null) => {
         const exists = await q2;
         
         if (exists) {
-            return 'already_owned';
+            return badge; // Return badge object even if already owned
         }
 
         await Characterbadge.create([{
@@ -129,7 +129,7 @@ exports.awardTitle = async (characterid, titleId, session = null) => {
         const exists = await q2;
         
         if (exists) {
-            return 'already_owned';
+            return title; // Return title object even if already owned
         }
 
         await Charactertitle.create([{
@@ -170,7 +170,7 @@ exports.awardSkill = async (characterid, skillId, session = null) => {
         } else {
             const exists = skillTree.skills.some(s => String(s.skill) === String(skillId));
             if (exists) {
-                return 'already_owned';
+                return 'success'; // Return success even if already owned
             } else {
                 skillTree.skills.push({ skill: skillId, level: 1, isEquipped: false });
                 await skillTree.save({ session });
@@ -229,7 +229,7 @@ exports.awardInventoryItem = async (characterid, itemType, itemId, quantity = 1,
             const existing = await existingQ;
             
             if (existing) {
-                return 'already_owned';
+                return 'success'; // Return success even if already owned
             }
         }
 
@@ -313,7 +313,7 @@ exports.awardCompanion = async (characterid, companionId, session = null) => {
         const hasCompanion = await hasCompanionQ;
         
         if (hasCompanion) {
-            return 'already_owned';
+            return companion; // Return companion object even if already owned
         }
 
         await CharacterCompanion.create([{
@@ -401,9 +401,7 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
                         }
                         const result = await exports.awardBadge(characterId, badgeId, session);
                         rewardResult.success = result !== 'failed';
-                        rewardResult.message = result === 'already_owned' 
-                            ? 'Badge already owned' 
-                            : result !== 'failed' ? 'Badge awarded' : 'Failed to award badge';
+                        rewardResult.message = result !== 'failed' ? 'Badge awarded' : 'Failed to award badge';
                         rewardResult.details = { badgeId, status: typeof result === 'object' ? 'awarded' : result };
                         break;
                     }
@@ -417,9 +415,7 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
                         }
                         const result = await exports.awardTitle(characterId, titleId, session);
                         rewardResult.success = result !== 'failed';
-                        rewardResult.message = result === 'already_owned' 
-                            ? 'Title already owned' 
-                            : result !== 'failed' ? 'Title awarded' : 'Failed to award title';
+                        rewardResult.message = result !== 'failed' ? 'Title awarded' : 'Failed to award title';
                         rewardResult.details = { titleId, status: typeof result === 'object' ? 'awarded' : result };
                         break;
                     }
@@ -433,9 +429,7 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
                         }
                         const result = await exports.awardSkill(characterId, skillId, session);
                         rewardResult.success = result !== 'failed';
-                        rewardResult.message = result === 'already_owned' 
-                            ? 'Skill already owned' 
-                            : result === 'new_skilltree' ? 'Skill tree created with skill' 
+                        rewardResult.message = result === 'new_skilltree' ? 'Skill tree created with skill' 
                             : result === 'success' ? 'Skill awarded' : 'Failed to award skill';
                         rewardResult.details = { skillId, status: result };
                         break;
@@ -450,9 +444,7 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
                         }
                         const result = await exports.awardCompanion(characterId, companionId, session);
                         rewardResult.success = result !== 'failed';
-                        rewardResult.message = result === 'already_owned' 
-                            ? 'Companion already owned' 
-                            : result !== 'failed' ? 'Companion awarded' : 'Failed to award companion';
+                        rewardResult.message = result !== 'failed' ? 'Companion awarded' : 'Failed to award companion';
                         rewardResult.details = { companionId, status: typeof result === 'object' ? 'awarded' : result };
                         break;
                     }
@@ -486,9 +478,7 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
                         );
                         
                         rewardResult.success = result !== 'failed';
-                        rewardResult.message = result === 'already_owned' 
-                            ? `${reward.rewardtype} already owned` 
-                            : result !== 'failed' ? `${reward.rewardtype} awarded` : `Failed to award ${reward.rewardtype}`;
+                        rewardResult.message = result !== 'failed' ? `${reward.rewardtype} awarded` : `Failed to award ${reward.rewardtype}`;
                         rewardResult.details = { 
                             itemId, 
                             itemType: reward.rewardtype,
@@ -535,7 +525,7 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
             }
 
             // If any reward fails critically, abort the whole pack
-            if (!rewardResult.success && !['already_owned'].includes(rewardResult.message)) {
+            if (!rewardResult.success) {
                 return {
                     success: false,
                     results,
