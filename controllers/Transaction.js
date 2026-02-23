@@ -173,18 +173,61 @@ exports.getusertransactions = async (req, res) => {
 //  #region GOOGLE PLAY
 
 const VerifySchema = z.object({
-  packageName: z.string().min(1),
-  productType: z.enum(["inapp", "subs"]),
-  productId: z.string().optional(),        // required for inapp
-  purchaseToken: z.string().min(10),
+  event: z.literal("purchase_update"),
+  data: z.object({
+    productType: z.enum(["inapp", "subs"]),
+    purchases: z.array(z.object({
+      orderId: z.string().optional(),
+      purchaseToken: z.string(),
+      products: z.array(z.string()).min(1),
+      purchaseState: z.number().optional(),
+      isAcknowledged: z.boolean().optional(),
+      purchaseTime: z.number().optional(),
+      originalJson: z.string(),     // contains packageName + productId
+      signature: z.string().optional(),
+    })).min(1),
+  }),
+  // add characterid here if you send it alongside
+  characterid: z.string().optional(),
 });
 
 exports.googleplaycreatetransaction = async (req, res) => {
     const {id, username} = req.user
 
-    const parse = VerifySchema.safeParse(req.body)
+    const parsed = VerifySchema.safeParse(req.body);
+    if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
 
-    const { packageName, productType, productId, purchaseToken } = parse.data;
+    const purchase = parsed.data.data.purchases[0];
+
+    // ✅ productType is here
+    const productType = parsed.data.data.productType;
+
+    // ✅ purchaseToken is here
+    const purchaseToken = purchase.purchaseToken;
+
+    // ✅ productId can be derived from products[0]
+    const productId = purchase.products[0];
+
+    // ✅ packageName is inside originalJson
+    let packageName;
+    let original;
+    try {
+    original = JSON.parse(purchase.originalJson);
+    packageName = original.packageName;
+    } catch (e) {
+    return res.status(400).json({ success: false, message: "Invalid originalJson" });
+    }
+
+    if (!packageName) {
+    return res.status(400).json({ success: false, message: "Missing packageName in originalJson" });
+    }
+
+    // characterid (if you send it)
+    const characterid = parsed.data.characterid;
+    
+    
 
     if (productType === "inapp") {
         if (!productId) return res.status(400).json({ ok: false, error: "productId_required_for_inapp" });
@@ -271,8 +314,8 @@ exports.googleplaycreatetransaction = async (req, res) => {
     grantPayload = item.grant;
     finalizeMode = item.finalizeMode; // usually "consume" for credits
 
-    await Characterwallet.findOneAndUpdate(
-        { owner: characterid, type },
+    const walletdata = await Characterwallet.findOneAndUpdate(
+        { owner: characterid, type: "topupcredit" },
         { $inc: { amount: grantPayload.credits } }, 
     )
     .then(data => data)
@@ -284,6 +327,12 @@ exports.googleplaycreatetransaction = async (req, res) => {
             data: `Character wallet not found for type: ${type}`,
         });            
     })
+
+    await androidpublisher.purchases.products.consume({
+        packageName,
+        productId,
+        token: purchaseToken,
+    });
 
     const grantRecord = {
         finalizeMode,
@@ -297,12 +346,7 @@ exports.googleplaycreatetransaction = async (req, res) => {
     );
 
     // 5) Return to client so it can ack/consume after backend grants
-    return res.json({
-        ok: true,
-        status: "granted",
-        finalizeMode,     // Unity should call finalizePurchase(token, finalizeMode)
-        grant: grantPayload,
-    });
+    return res.json({message: "success", data: walletdata.amount});
 }
 
 //  #endregion
