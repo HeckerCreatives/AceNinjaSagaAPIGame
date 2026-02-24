@@ -227,12 +227,12 @@ exports.googleplaycreatetransaction = async (req, res) => {
     // characterid (if you send it)
     const characterid = parsed.data.characterid;
     
-    
+    let item;
 
     if (productType === "inapp") {
         if (!productId) return res.status(400).json({ ok: false, error: "productId_required_for_inapp" });
 
-        const item = getCatalogItem(productId);
+        item = getCatalogItem(productId);
         if (!item || item.type !== "inapp") return res.status(400).json({ ok: false, error: "unknown_product" });
     }
 
@@ -344,6 +344,8 @@ exports.googleplaycreatetransaction = async (req, res) => {
         { purchaseToken },
         { $set: { status: "granted", grant: grantRecord } }
     );
+
+    walletdata.amount += item.grant.credits
 
     // 5) Return to client so it can ack/consume after backend grants
     return res.json({message: "success", data: walletdata.amount});
