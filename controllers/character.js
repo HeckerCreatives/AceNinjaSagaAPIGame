@@ -693,13 +693,13 @@ exports.getplayerdata = async (req, res) => {
     ]);
 
     const characterData = characterDataArr;
-
+    
     if (characterData[0]) {
         characterData[0].highestmmr = highestmmrreached ? highestmmrreached.mmr : 0;
         characterData[0].highestmmrrank = highestmmrreached ? highestmmrreached.rank : "684ce1f4c61e8f1dd3ba04fa";
     }
-
-
+    
+    
     // Base stats (ensure defaults to 0 to avoid NaN in calculations)
     const base = characterData[0]?.stats || {};
     const totalStats = {
@@ -724,7 +724,7 @@ exports.getplayerdata = async (req, res) => {
     // equippedCompanions stores a `companion` ObjectId referencing Companion
     const companionIds = (equippedCompanions || []).map(c => String(c.companion));
     const uniqueIds = Array.from(new Set([...passiveIds, ...weaponIds, ...companionIds]));
-
+    
     const detailsMap = {};
     if (uniqueIds.length > 0) {
         // Wrap calls in an async function so we safely handle both sync and async implementations
@@ -737,19 +737,19 @@ exports.getplayerdata = async (req, res) => {
         }));
         uniqueIds.forEach((id, idx) => { if (details[idx]) detailsMap[id] = details[idx]; });
     }
-
+    
     // Apply passive skills
     for (const skill of (equippedPassiveSkills || [])) {
         const id = String(skill.skills.skill);
         const result = detailsMap[id];
         if (!result) continue;
             if (result.type === "add"){
-            Object.entries(result.stats || {}).forEach(([stat, value]) => {
-                if (totalStats.hasOwnProperty(stat)) totalStats[stat] += value;
-            });
+                Object.entries(result.stats || {}).forEach(([stat, value]) => {
+                    if (totalStats.hasOwnProperty(stat)) totalStats[stat] += value;
+                });
+            }
         }
-    }
-
+        
     // Apply equipped weapon stats
     for (const weapon of (equippedWeapons || [])) {
         const id = String(weapon.items.item);
@@ -758,6 +758,13 @@ exports.getplayerdata = async (req, res) => {
         if (result.type === "percentage"){
             Object.entries(result.stats || {}).forEach(([stat, value]) => {
                 if (totalStats.hasOwnProperty(stat)) {
+                    // if (stat === "critchance" || stat === "lifesteal") {
+                    //     // For crit chance and lifesteal, we add the percentage directly instead of multiplying
+                    //     totalStats[stat] += Number(value) || 0;
+                    // } else {
+                    //     const multiplier = 1 + ((Number(value) || 0) / 100);
+                    //     totalStats[stat] = Math.ceil(totalStats[stat] * multiplier);
+                    // }
                     const multiplier = 1 + ((Number(value) || 0) / 100);
                     totalStats[stat] = Math.ceil(totalStats[stat] * multiplier);
                 }

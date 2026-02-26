@@ -61,7 +61,7 @@ const weaponstatsdata = [
             health: 15,
             energy: 15,
         },
-        type: "percentage"
+        type: "add"
     },
     // {
     //     name: "Ignarok Blade",
@@ -79,7 +79,7 @@ const weaponstatsdata = [
             armor: 15,
             magicresist: 15
         },
-        type: "percentage"
+        type: "add"
     },
     {
         name: "Tectalon Blade",
@@ -88,7 +88,7 @@ const weaponstatsdata = [
             attackdamage: 15,
             magicdamage: 15
         },
-        type: "percentage"
+        type: "add"
         
     },
     // {
@@ -111,7 +111,7 @@ const weaponstatsdata = [
             lifesteal: 10,
             omnivamp: 10
         },
-        type: "percentage"
+        type: "add"
     }
 ]
 
