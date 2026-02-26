@@ -1,6 +1,7 @@
 const Chest = require('../models/Chests');
 const { CharacterInventory } = require('../models/Market');
 const Characterdata = require('../models/Characterdata');
+const { awardRankRewards } = require('./rankrewards');
 
 /**
  * Select a random reward based on probability weights
@@ -30,7 +31,6 @@ exports.selectRandomReward = (rewards) => {
  * @returns {Promise<Array>} - Array with single reward result (compatible with awardRankRewards)
  */
 exports.awardChestReward = async (characterId, reward, session = null) => {
-    const { awardRankRewards } = require('./rankrewards');
     
     // Get character data for gender
     const character = await Characterdata.findById(characterId).session(session);

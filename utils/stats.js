@@ -53,6 +53,65 @@ const weaponstatsdata = [
             speed: -5
         },
         type: "add"
+    },
+    {
+        name: "Aetherion Blade",
+        id: "6828695886cc0f2012345607",
+        stats: {
+            health: 15,
+            energy: 15,
+        },
+        type: "percentage"
+    },
+    // {
+    //     name: "Ignarok Blade",
+    //     id: "6828695886cc0f2012345606",
+    //     stats: {
+    //         immunity: 1,
+    //         damagereduction: 170
+    //     },
+    //     type: "add"
+    // },
+    {
+        name: "Ubmraxis Blade",
+        id: "6828695886cc0f2012345605",
+        stats: {
+            armor: 15,
+            magicresist: 15
+        },
+        type: "percentage"
+    },
+    {
+        name: "Tectalon Blade",
+        id: "6828695886cc0f2012345604",
+        stats: {
+            attackdamage: 15,
+            magicdamage: 15
+        },
+        type: "percentage"
+        
+    },
+    // {
+    //     name: "Collosus Blade",
+    //     id: "6828695886cc0f2012345608",
+    //     stats: {
+    //         removebuffs: 1,
+    //     },
+    //     type: "add"
+    // },
+    {
+        name: "Damascus Cleaver",
+        id: "6828695886cc0f2012345603",
+        stats: {
+            critchance: 10,
+            critdamage: 15,
+            attackdamage: 10,
+            armor: 10,
+            magicresist: 10,
+            lifesteal: 10,
+            omnivamp: 10
+        },
+        type: "percentage"
     }
 ]
 
