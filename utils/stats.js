@@ -56,7 +56,7 @@ const weaponstatsdata = [
     },
     {
         name: "Aetherion Blade",
-        id: "6828695886cc0f2012345607",
+        id: "6828695886cc0f2042749604",
         stats: {
             health: 15,
             energy: 15,
@@ -65,7 +65,7 @@ const weaponstatsdata = [
     },
     // {
     //     name: "Ignarok Blade",
-    //     id: "6828695886cc0f2012345606",
+    //     id: "6828695886cc0f2042749605",
     //     stats: {
     //         immunity: 1,
     //         damagereduction: 170
@@ -74,7 +74,7 @@ const weaponstatsdata = [
     // },
     {
         name: "Ubmraxis Blade",
-        id: "6828695886cc0f2012345605",
+        id: "6828695886cc0f2042749607",
         stats: {
             armor: 15,
             magicresist: 15
@@ -83,7 +83,7 @@ const weaponstatsdata = [
     },
     {
         name: "Tectalon Blade",
-        id: "6828695886cc0f2012345604",
+        id: "6828695886cc0f2042749606",
         stats: {
             attackdamage: 15,
             magicdamage: 15
@@ -93,7 +93,7 @@ const weaponstatsdata = [
     },
     // {
     //     name: "Collosus Blade",
-    //     id: "6828695886cc0f2012345608",
+    //     id: "6828695886cc0f2042749608",
     //     stats: {
     //         removebuffs: 1,
     //     },
@@ -101,7 +101,7 @@ const weaponstatsdata = [
     // },
     {
         name: "Damascus Cleaver",
-        id: "6828695886cc0f2012345603",
+        id: "6828695886cc0f2042749609",
         stats: {
             critchance: 10,
             critdamage: 15,
