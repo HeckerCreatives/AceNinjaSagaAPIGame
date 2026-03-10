@@ -11,7 +11,6 @@ const { gethairbundle } = require('./bundle');
 const { addXPAndLevel } = require('./leveluptools');
 const { addwallet } = require('./wallettools');
 const { validatePackReward } = require('./packtools');
-const { awardChestReward } = require('./chesttools');
 const Characterdata = require('../models/Characterdata');
 
 /**
