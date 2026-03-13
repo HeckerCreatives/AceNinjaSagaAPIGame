@@ -39,7 +39,17 @@ const UsersSchema = new mongoose.Schema(
             type: Number,
             default: 1
         },
-        slotsunlocked: [Number] // Array to track which slots are unlocked (e.g., [1, 2] means slots 1 and 2 are unlocked)
+        slotsunlocked: [Number], // Array to track which slots are unlocked (e.g., [1, 2] means slots 1 and 2 are unlocked)
+        vipHistory: [
+            {
+                characterId: { type: mongoose.Schema.Types.ObjectId, ref: "Characterdata" },
+                oldCustomId: { type: Number },
+                newCustomId: { type: Number },
+                tier: { type: String, enum: ["platinum", "gold", "silver"] },
+                transactionId: { type: String, index: true },
+                purchaseDate: { type: Date, default: Date.now }
+            }
+        ]
     },
     {
         timestamps: true

@@ -9,12 +9,11 @@ const { checkcharacter, getCharacterGenderString } = require("../utils/character
 const { CharacterInventory, Item } = require("../models/Market");
 const { checkmaintenance } = require("../utils/maintenance");
 const { addanalytics } = require("../utils/analyticstools");
-const { determineRewardType, awardBattlepassReward } = require("../utils/battlepassrewards");
+const { determineRewardType, awardBattlepassReward, filterRewardByGender } = require("../utils/rewardtools");
 const Badge = require("../models/Badge");
 const Title = require("../models/Title");
 const { addXPAndLevel } = require("../utils/leveluptools");
 const { addwallet } = require("../utils/wallettools");
-const { filterRewardByGender } = require("../utils/rewardfilter");
 
 
 exports.getbattlepass = async (req, res) => {

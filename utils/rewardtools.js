@@ -7,11 +7,11 @@ const Charactertitle = require('../models/Charactertitles');
 const { CharacterSkillTree } = require('../models/Skills');
 const { Companion, CharacterCompanion } = require('../models/Companion');
 const Chapter = require('../models/Chapter');
-const { gethairbundle } = require('./bundle');
+const { gethairbundle, getCorrelatedHairByOutfitId } = require('./bundle');
 const { addXPAndLevel } = require('./leveluptools');
 const { addwallet } = require('./wallettools');
-const { validatePackReward } = require('./packtools');
 const Characterdata = require('../models/Characterdata');
+const { validatePackReward } = require('./packtools');
 
 /**
  * Award currency (coins/crystals) to character wallet
@@ -550,5 +550,531 @@ exports.applyPackRewards = async (characterId, packRewards, quantity = 1, sessio
     }
 };
 
-// Note: Individual awarding functions above should be used directly in switch cases
-// of battlepassrewards.js and rankrewards.js, similar to how addXPAndLevel is used
+// ─────────────────────────────────────────────────────────────────────────────
+// Rank Rewards
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Award rank rewards to a player
+ * @param {Object} player - Player object (must have .owner, .rank, .character with gender)
+ * @param {Array} rankrewarddata - Array of rank reward definitions
+ * @param {Object} session - Mongoose session for transaction
+ * @returns {Promise<Array>} - Array of results for each reward
+ */
+exports.awardRankRewards = async (player, rankrewarddata, session = null) => {
+    const results = [];
+    const userId = player.owner;
+    const userRank = player.rank;
+    const userGender = player.character?.gender || 'male';
+
+    try {
+        const rewardSet = rankrewarddata.find(r => r.rank.toString() === userRank.toString());
+        if (!rewardSet) return [{ success: false, message: 'No reward for this rank' }];
+
+        for (const reward of rewardSet.rewards) {
+            try {
+                switch (reward.rewardtype) {
+                    case 'coins':
+                    case 'crystal': {
+                        const currencyResult = await exports.awardCurrency(userId, reward.rewardtype, reward.amount, session);
+                        if (currencyResult === 'success') {
+                            results.push({ success: true, type: reward.rewardtype, amount: reward.amount });
+                        } else {
+                            results.push({ success: false, type: reward.rewardtype, message: 'Failed to award currency' });
+                        }
+                        break;
+                    }
+                    case 'exp': {
+                        const xpResult = await exports.awardExperience(userId, reward.amount, session);
+                        if (xpResult === 'failed') {
+                            results.push({ success: false, type: 'exp', message: 'Failed to add experience' });
+                        } else {
+                            results.push({ success: true, type: 'exp', amount: reward.amount, details: xpResult });
+                        }
+                        break;
+                    }
+                    case 'title': {
+                        const titleResult = await exports.awardTitle(userId, reward.reward.id, session);
+                        if (titleResult === 'failed') {
+                            results.push({ success: false, type: 'title', message: 'Title not found' });
+                        } else if (titleResult === 'already_owned') {
+                            results.push({ success: false, type: 'title', message: 'Title already owned' });
+                        } else {
+                            results.push({ success: true, type: 'title', id: titleResult.index, name: titleResult.title });
+                        }
+                        break;
+                    }
+                    case 'badge': {
+                        const badgeResult = await exports.awardBadge(userId, reward.reward.id, session);
+                        if (badgeResult === 'failed') {
+                            results.push({ success: false, type: 'badge', message: 'Badge not found' });
+                        } else if (badgeResult === 'already_owned') {
+                            results.push({ success: false, type: 'badge', message: 'Badge already owned' });
+                        } else {
+                            results.push({ success: true, type: 'badge', id: badgeResult.index, name: badgeResult.title });
+                        }
+                        break;
+                    }
+                    case 'outfit': {
+                        let outfitId = reward.reward.id;
+                        if (userGender === 'female' && reward.reward.fid) outfitId = reward.reward.fid;
+                        const outfitResult = await exports.awardInventoryItem(userId, 'outfit', outfitId, 1, null, reward.reward, session);
+                        if (outfitResult === 'already_owned') {
+                            results.push({ success: false, type: 'outfit', message: 'Outfit already owned' });
+                        } else if (outfitResult === 'failed') {
+                            results.push({ success: false, type: 'outfit', message: 'Failed to award outfit' });
+                        } else if (typeof outfitResult === 'object' && outfitResult.awarded) {
+                            results.push({ success: true, type: 'outfit', id: outfitResult.awarded });
+                            if (outfitResult.hairAwarded) {
+                                results.push({ success: true, type: 'hair', id: outfitResult.hairAwarded });
+                            } else if (outfitResult.hairAlreadyOwned) {
+                                results.push({ success: true, type: 'hair', message: 'Hair already owned' });
+                            }
+                        } else {
+                            results.push({ success: true, type: 'outfit', id: outfitId });
+                        }
+                        break;
+                    }
+                    case 'chest': {
+                        let chestToAdd = reward.reward.id;
+                        if (userGender === 'female' && reward.reward.fid) chestToAdd = reward.reward.fid;
+                        const chestResult = await exports.awardInventoryItem(userId, 'chest', chestToAdd, 1, null, reward.reward, session);
+                        if (chestResult === 'incremented') {
+                            results.push({ success: true, type: 'chest', id: chestToAdd, message: 'Chest quantity incremented' });
+                        } else if (chestResult === 'failed') {
+                            results.push({ success: false, type: 'chest', message: 'Failed to award chest' });
+                        } else {
+                            results.push({ success: true, type: 'chest', id: chestToAdd, message: 'Chest granted' });
+                        }
+                        break;
+                    }
+                    case 'weapon': {
+                        const weaponResult = await exports.awardInventoryItem(userId, 'weapon', reward.reward.id, 1, null, null, session);
+                        if (weaponResult === 'already_owned') {
+                            results.push({ success: false, type: 'weapon', message: 'Weapon already owned' });
+                        } else if (weaponResult === 'failed') {
+                            results.push({ success: false, type: 'weapon', message: 'Failed to award weapon' });
+                        } else {
+                            results.push({ success: true, type: 'weapon', id: reward.reward.id });
+                        }
+                        break;
+                    }
+                    case 'skill': {
+                        const skillResult = await exports.awardSkill(userId, reward.reward.id, session);
+                        if (skillResult === 'failed') {
+                            results.push({ success: false, type: 'skill', message: 'Failed to award skill' });
+                        } else if (skillResult === 'already_owned') {
+                            results.push({ success: false, type: 'skill', message: 'Skill already owned' });
+                        } else if (skillResult === 'new_skilltree') {
+                            results.push({ success: true, type: 'skill', id: reward.reward.id, message: 'Skill awarded (new skilltree created)' });
+                        } else {
+                            results.push({ success: true, type: 'skill', id: reward.reward.id });
+                        }
+                        break;
+                    }
+                    default:
+                        results.push({ success: false, type: reward.rewardtype, message: 'Unknown reward type' });
+                }
+            } catch (err) {
+                results.push({ success: false, type: reward.rewardtype, error: err.message });
+            }
+        }
+
+        return results;
+    } catch (err) {
+        console.error('Error awarding rank rewards:', err);
+        return [{ success: false, message: `Error awarding rank rewards: ${err.message}` }];
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Battlepass Reward Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get the appropriate item ID based on user gender (shared private helper)
+ */
+function getGenderedItem(reward, userGender) {
+    if (reward.male && reward.female) {
+        return userGender === 'male' ? reward.male.itemId : reward.female.itemId;
+    }
+    if (reward.variants && Array.isArray(reward.variants)) {
+        const variant = reward.variants.find(v => v.gender === userGender);
+        return variant ? variant.itemId : reward.variants[0]?.itemId;
+    }
+    if (reward.baseItemId && reward.femaleCounterpart) {
+        return userGender === 'female' ? reward.femaleCounterpart : reward.baseItemId;
+    }
+    return reward.itemId;
+}
+
+/**
+ * Utility to process battlepass tier rewards and determine what to award the user
+ * @param {Object} reward - The reward object from the tier
+ * @param {String} userGender - User's gender ("male" or "female")
+ * @param {Array} outfitData - Array of outfit data for hair correlation
+ * @param {Array} hairData - Array of hair data for hair correlation
+ * @returns {Object} - Processed reward with type and items to award
+ */
+exports.processBattlepassReward = (reward, userGender, outfitData = [], hairData = []) => {
+    if (!reward || typeof reward !== 'object') {
+        return { type: 'invalid', items: [] };
+    }
+
+    const result = {
+        type: reward.type || 'unknown',
+        items: [],
+        description: ''
+    };
+
+    switch (reward.type) {
+        case 'badge':
+            result.items.push({ type: 'badge', itemId: reward.itemId, amount: reward.amount || 1 });
+            result.description = `Badge: ${reward.name || 'Unknown Badge'}`;
+            break;
+
+        case 'title':
+            result.items.push({ type: 'title', itemId: reward.itemId, amount: reward.amount || 1 });
+            result.description = `Title: ${reward.name || 'Unknown Title'}`;
+            break;
+
+        case 'weapon': {
+            const weaponId = getGenderedItem(reward, userGender);
+            result.items.push({ type: 'weapon', itemId: weaponId, amount: reward.amount || 1 });
+            result.description = `Weapon: ${reward.name || 'Unknown Weapon'}`;
+            break;
+        }
+
+        case 'skill':
+            result.items.push({ type: 'skill', itemId: reward.itemId, amount: reward.amount || 1 });
+            result.description = `Skill: ${reward.name || 'Unknown Skill'}`;
+            break;
+
+        case 'skin': {
+            const skinId = getGenderedItem(reward, userGender);
+            result.items.push({ type: 'skin', itemId: skinId, amount: reward.amount || 1 });
+            if (reward.includeHair !== false && outfitData.length > 0 && hairData.length > 0) {
+                const correlatedHair = getCorrelatedHairByOutfitId(skinId, outfitData, hairData);
+                if (correlatedHair) {
+                    result.items.push({ type: 'hair', itemId: correlatedHair._id, amount: 1 });
+                    result.description = `Skin Bundle: ${reward.name || 'Unknown Skin'} with matching hair`;
+                } else {
+                    result.description = `Skin: ${reward.name || 'Unknown Skin'}`;
+                }
+            } else {
+                result.description = `Skin: ${reward.name || 'Unknown Skin'}`;
+            }
+            break;
+        }
+
+        case 'exp':
+            result.items.push({ type: 'exp', amount: reward.amount || 0 });
+            result.description = `Experience: ${reward.amount || 0} XP`;
+            break;
+
+        case 'coins':
+            result.items.push({ type: 'coins', amount: reward.amount || 0 });
+            result.description = `Coins: ${reward.amount || 0}`;
+            break;
+
+        case 'crystal':
+            result.items.push({ type: 'crystal', amount: reward.amount || 0 });
+            result.description = `Crystals: ${reward.amount || 0}`;
+            break;
+
+        case 'chest':
+            result.items.push({ type: 'chest', itemId: reward.itemId || reward.id || reward._id, amount: reward.amount || 1 });
+            result.description = `Chest: ${reward.name || 'Unknown Chest'}`;
+            break;
+
+        case 'bundle':
+            if (reward.items && Array.isArray(reward.items)) {
+                reward.items.forEach(bundleItem => {
+                    const processedItem = exports.processBattlepassReward(bundleItem, userGender, outfitData, hairData);
+                    result.items.push(...processedItem.items);
+                });
+                result.description = `Bundle: ${reward.name || 'Multiple Items'}`;
+            }
+            break;
+
+        default:
+            result.type = 'unknown';
+            result.description = 'Unknown reward type';
+            break;
+    }
+
+    return result;
+};
+
+/**
+ * Validate if a reward can be processed
+ * @param {Object} reward - The reward object to validate
+ * @returns {Boolean} - True if valid, false otherwise
+ */
+exports.validateReward = (reward) => {
+    if (!reward || typeof reward !== 'object') return false;
+    const validTypes = ['badge', 'title', 'weapon', 'skill', 'skin', 'exp', 'coins', 'crystal', 'chest', 'bundle'];
+    if (!validTypes.includes(reward.type)) return false;
+    if (['exp', 'coins', 'crystal'].includes(reward.type) && (!reward.amount || reward.amount <= 0)) return false;
+    if (['badge', 'title', 'weapon', 'skill'].includes(reward.type) && !reward.itemId) return false;
+    if (reward.type === 'skin') {
+        const hasBasicId = reward.itemId;
+        const hasGenderedIds = (reward.male && reward.female) ||
+                               (reward.variants && Array.isArray(reward.variants)) ||
+                               (reward.baseItemId);
+        if (!hasBasicId && !hasGenderedIds) return false;
+    }
+    return true;
+};
+
+/**
+ * Get reward summary for display purposes
+ * @param {Object} reward - The reward object
+ * @param {String} userGender - User's gender
+ * @returns {Object} - Summary with name, type, and count
+ */
+exports.getRewardSummary = (reward, userGender) => {
+    const processed = exports.processBattlepassReward(reward, userGender);
+    return {
+        type: processed.type,
+        description: processed.description,
+        itemCount: processed.items.length,
+        items: processed.items.map(item => ({ type: item.type, amount: item.amount || 1 }))
+    };
+};
+
+/**
+ * Simple utility to determine reward type and return essential data
+ * @param {Object} reward - The reward object from premiumReward/freeReward
+ * @param {String} userGender - User's gender (0 for male, 1 for female) or ("male"/"female")
+ * @returns {Object} - Simple reward object with type and essential data
+ */
+exports.determineRewardType = (reward, userGender = null) => {
+    if (!reward || typeof reward !== 'object') return { type: 'invalid' };
+
+    let genderStr = userGender;
+    if (typeof userGender === 'number') {
+        genderStr = userGender === 0 ? 'male' : 'female';
+    }
+
+    if (reward.type === 'exp' && reward.amount) return { type: 'exp', amount: reward.amount };
+    if (reward.type === 'coins' && reward.amount) return { type: 'coins', amount: reward.amount };
+    if (reward.type === 'crystal' && reward.amount) return { type: 'crystal', amount: reward.amount };
+
+    if (['skin', 'skins', 'weapon', 'weapons', 'outfit', 'outfits'].includes(reward.type)) {
+        let itemId = reward.id || reward._id;
+        if (genderStr) {
+            if (reward.gender && reward.gender !== genderStr) return { type: 'invalid' };
+            if (genderStr === 'female' && reward.fid) itemId = reward.fid;
+            else if (genderStr === 'male' && reward.id) itemId = reward.id;
+        }
+        let normalizedType = reward.type;
+        if (reward.type === 'skins') normalizedType = 'skin';
+        if (reward.type === 'weapons') normalizedType = 'weapon';
+        if (reward.type === 'outfits') normalizedType = 'outfit';
+        const correspondingHairId = gethairbundle(itemId);
+        const hasHairBundle = !!(correspondingHairId && correspondingHairId !== 'failed' && correspondingHairId !== '');
+        return { type: 'item', id: itemId, itemType: normalizedType, amount: reward.amount || 1, hasHairBundle };
+    }
+
+    if (reward.type === 'badge') return { type: 'badge', id: reward.id || reward._id, amount: reward.amount || 1 };
+    if (reward.type === 'chest') return { type: 'chest', id: reward.id || reward._id || reward.itemId, amount: reward.amount || 1 };
+    if (reward.type === 'title') return { type: 'title', id: reward.id || reward._id, amount: reward.amount || 1 };
+    if (reward.type === 'item') return { type: 'item', id: reward.id || reward._id, itemType: 'generic', amount: reward.amount || 1 };
+    if (reward.type === 'companion') return { type: 'companion', id: reward.id || reward._id, amount: reward.amount || 1 };
+    if (reward.type === 'freebie') return { type: 'freebie', id: reward.id || reward._id, amount: reward.amount || 1 };
+    if (reward.type === 'skill') return { type: 'skill', id: reward.id || reward._id, amount: reward.amount || 1 };
+    if (reward.type === 'chapter') return { type: 'chapter', id: reward.id || reward._id, amount: reward.amount || 1 };
+    if (reward.type === 'hair') return { type: 'item', id: reward.id || reward._id, itemType: 'hair', amount: reward.amount || 1 };
+
+    console.warn('Unknown reward type:', reward.type);
+    return { type: 'unknown' };
+};
+
+/**
+ * Award battlepass reward to character based on reward type
+ * @param {String} characterid - Character ID
+ * @param {Object} processedReward - Processed reward from determineRewardType
+ * @param {Object} session - Mongoose session for transaction
+ * @returns {Object} - Result with success/failure
+ */
+exports.awardBattlepassReward = async (characterid, processedReward, session = null) => {
+    try {
+        switch (processedReward.type) {
+            case 'exp': {
+                const xpResult = await exports.awardExperience(characterid, processedReward.amount, session);
+                if (xpResult === 'failed') return { success: false, message: 'Failed to award experience' };
+                return { success: true, message: `Awarded ${processedReward.amount} experience`, details: xpResult };
+            }
+
+            case 'coins':
+            case 'crystal': {
+                const currencyResult = await exports.awardCurrency(characterid, processedReward.type, processedReward.amount, session);
+                if (currencyResult === 'success') return { success: true, message: `Awarded ${processedReward.amount} ${processedReward.type}` };
+                return { success: false, message: `Failed to award ${processedReward.type}` };
+            }
+
+            case 'item': {
+                switch (processedReward.itemType) {
+                    case 'chest': {
+                        const chestResult = await exports.awardInventoryItem(characterid, 'chest', processedReward.id, processedReward.amount || 1, null, null, session);
+                        if (chestResult === 'incremented') return { success: true, message: 'Chest quantity incremented' };
+                        if (chestResult === 'failed') return { success: false, message: 'Failed to award chest' };
+                        return { success: true, message: 'Chest granted' };
+                    }
+                    case 'badge': {
+                        const badgeResult = await exports.awardBadge(characterid, processedReward.id, session);
+                        if (badgeResult === 'failed') return { success: false, message: 'Badge not found' };
+                        if (badgeResult === 'already_owned') return { success: false, message: 'Badge already owned' };
+                        return { success: true, message: 'Awarded badge' };
+                    }
+                    case 'title': {
+                        const titleResult = await exports.awardTitle(characterid, processedReward.id, session);
+                        if (titleResult === 'failed') return { success: false, message: 'Title not found' };
+                        if (titleResult === 'already_owned') return { success: false, message: 'Title already owned' };
+                        return { success: true, message: 'Awarded title' };
+                    }
+                    case 'weapon': {
+                        const weaponResult = await exports.awardInventoryItem(characterid, 'weapon', processedReward.id, processedReward.amount || 1, null, null, session);
+                        if (weaponResult === 'already_owned') return { success: false, message: 'Weapon already owned' };
+                        if (weaponResult === 'failed') return { success: false, message: 'Failed to award weapon' };
+                        return { success: true, message: 'Awarded weapon' };
+                    }
+                    case 'skin':
+                    case 'outfit': {
+                        const outfitResult = await exports.awardInventoryItem(characterid, processedReward.itemType, processedReward.id, processedReward.amount || 1, null, null, session);
+                        if (outfitResult === 'already_owned') return { success: false, message: 'Outfit already owned' };
+                        if (outfitResult === 'failed') return { success: false, message: 'Failed to award outfit' };
+                        if (typeof outfitResult === 'object' && outfitResult.awarded) {
+                            if (outfitResult.hairAwarded) return { success: true, message: 'Awarded skin bundle (outfit + hair)' };
+                            if (outfitResult.hairAlreadyOwned) return { success: true, message: 'Awarded skin bundle (outfit awarded, hair already owned)' };
+                        }
+                        return { success: true, message: 'Awarded skin (no matching hair found)' };
+                    }
+                    case 'hair': {
+                        const hairResult = await exports.awardInventoryItem(characterid, 'hair', processedReward.id, processedReward.amount || 1, null, null, session);
+                        if (hairResult === 'already_owned') return { success: false, message: 'Hair already owned' };
+                        if (hairResult === 'failed') return { success: false, message: 'Failed to award hair' };
+                        return { success: true, message: 'Awarded hair' };
+                    }
+                    case 'generic': {
+                        const genericResult = await exports.awardInventoryItem(characterid, 'generic', processedReward.id, processedReward.amount || 1, null, null, session);
+                        if (genericResult === 'failed') return { success: false, message: 'Failed to award item' };
+                        return { success: true, message: 'Awarded item' };
+                    }
+                    default:
+                        return { success: false, message: `Unknown item type: ${processedReward.itemType}` };
+                }
+            }
+
+            case 'chest': {
+                const chestResult = await exports.awardInventoryItem(characterid, 'chest', processedReward.id, processedReward.amount || 1, null, null, session);
+                if (chestResult === 'incremented') return { success: true, message: 'Chest quantity incremented' };
+                if (chestResult === 'failed') return { success: false, message: 'Failed to award chest' };
+                return { success: true, message: 'Chest granted' };
+            }
+
+            case 'badge': {
+                const directBadgeResult = await exports.awardBadge(characterid, processedReward.id, session);
+                if (directBadgeResult === 'failed') return { success: false, message: 'Badge not found' };
+                if (directBadgeResult === 'already_owned') return { success: false, message: 'Badge already owned' };
+                return { success: true, message: 'Awarded badge' };
+            }
+
+            case 'title': {
+                const directTitleResult = await exports.awardTitle(characterid, processedReward.id, session);
+                if (directTitleResult === 'failed') return { success: false, message: 'Title not found' };
+                if (directTitleResult === 'already_owned') return { success: false, message: 'Title already owned' };
+                return { success: true, message: 'Awarded title' };
+            }
+
+            case 'companion': {
+                const companionResult = await exports.awardCompanion(characterid, processedReward.id, session);
+                if (companionResult === 'failed') return { success: false, message: 'Companion not found' };
+                if (companionResult === 'already_owned') return { success: false, message: 'Companion already owned' };
+                return { success: true, message: 'Awarded companion' };
+            }
+
+            case 'freebie': {
+                const freebieResult = await exports.awardInventoryItem(characterid, 'freebie', processedReward.id, processedReward.amount || 1, null, null, session);
+                if (freebieResult === 'failed') return { success: false, message: 'Failed to award freebie' };
+                return { success: true, message: 'Awarded freebie' };
+            }
+
+            case 'skill': {
+                const skillResult = await exports.awardSkill(characterid, processedReward.id, session);
+                if (skillResult === 'failed') return { success: false, message: 'Skilltree not found' };
+                if (skillResult === 'already_owned') return { success: false, message: 'Skill already owned' };
+                return { success: true, message: 'Awarded skill' };
+            }
+
+            case 'chapter': {
+                const chapterResult = await exports.awardInventoryItem(characterid, 'chapter', processedReward.id, processedReward.amount || 1, null, null, session);
+                if (chapterResult === 'failed') return { success: false, message: 'Failed to award chapter' };
+                return { success: true, message: 'Awarded chapter unlock' };
+            }
+
+            case 'bundle': {
+                const bundleResults = [];
+                for (const bundleItem of processedReward.items) {
+                    const result = await exports.awardBattlepassReward(characterid, bundleItem, session);
+                    bundleResults.push(result);
+                }
+                return { success: true, message: 'Awarded bundle', details: bundleResults };
+            }
+
+            default:
+                return { success: false, message: `Unknown reward type: ${processedReward.type}` };
+        }
+    } catch (error) {
+        console.error('Error awarding battlepass reward:', error);
+        return { success: false, message: `Error awarding reward: ${error.message}` };
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reward Filter
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Filters and transforms rewards based on character gender and reward type
+ * @param {Object} reward - The reward object to filter
+ * @param {String} characterGender - The character's gender ('male' or 'female')
+ * @returns {Promise<Object>} - The filtered reward object
+ */
+exports.filterRewardByGender = async (reward, characterGender) => {
+    if (!reward || !characterGender) return reward;
+
+    if (reward.type === 'badge') {
+        try {
+            const badge = await Badge.findById(reward.id);
+            if (badge) return { type: reward.type, amount: reward.amount || 1, id: badge.index };
+        } catch (error) {
+            console.error('Error looking up badge:', error);
+        }
+        return { type: reward.type, amount: reward.amount || 1, id: reward.id };
+    }
+
+    if (reward.type === 'title') {
+        try {
+            const title = await Title.findById(reward.id);
+            if (title) return { type: reward.type, amount: reward.amount || 1, id: title.index };
+        } catch (error) {
+            console.error('Error looking up title:', error);
+        }
+        return { type: reward.type, amount: reward.amount || 1, id: reward.id };
+    }
+
+    if (!['outfit', 'skin'].includes(reward.type)) return reward;
+
+    if (reward.id && reward.fid) {
+        return { type: reward.type, amount: reward.amount || 1, id: characterGender === 'male' ? reward.id : reward.fid };
+    }
+
+    if (reward.variants && Array.isArray(reward.variants)) {
+        const appropriateVariant = reward.variants.find(v => v.gender === characterGender);
+        if (appropriateVariant) return { type: reward.type, amount: reward.amount || 1, id: appropriateVariant.itemId };
+    }
+
+    return reward;
+};

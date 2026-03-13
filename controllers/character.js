@@ -34,6 +34,7 @@ const { addXPAndLevel } = require("../utils/leveluptools")
 const { addwallet, reducewallet, checkwallet } = require("../utils/wallettools")
 const { findweaponandskillbyid } = require("../utils/stats")
 const Users = require("../models/Users")
+const { getSmallestAvailableInTier, changeVIPId, getTierRange } = require("../utils/vipidtools")
 
 exports.createcharacter = async (req, res) => {
     const session = await mongoose.startSession();
@@ -2067,3 +2068,82 @@ exports.getnotification = async (req, res) => {
         });
     }
 };
+
+// #region VIP ID Endpoints
+
+/**
+ * GET /character/available-ids
+ * Returns the smallest 5 available IDs in the character's VIP tier.
+ * VIP-only: character must have a vipTier assigned.
+ */
+exports.getAvailableIds = async (req, res) => {
+    try {
+        const { id } = req.user;
+        const { characterid } = req.query;
+
+        if (!characterid) {
+            return res.status(400).json({ message: "failed", data: "Please provide a character ID." });
+        }
+
+        const character = await Characterdata.findOne({
+            _id: new mongoose.Types.ObjectId(characterid),
+            owner: new mongoose.Types.ObjectId(id),
+            status: { $ne: "deleted" }
+        }).lean();
+
+        if (!character) {
+            return res.status(404).json({ message: "failed", data: "Character not found." });
+        }
+
+        if (!character.vipTier) {
+            return res.status(403).json({ message: "failed", data: "Only VIP users can view available IDs." });
+        }
+
+        const tier = character.vipTier;
+        const range = getTierRange(tier);
+        const smallest5 = await getSmallestAvailableInTier(tier, 5);
+
+        return res.status(200).json({
+            message: "success",
+            data: {
+                tier,
+                tierRange: range,
+                availableCount: smallest5.length,
+                smallest5,
+                currentCustomId: character.customid
+            }
+        });
+    } catch (error) {
+        console.error("Error in getAvailableIds:", error);
+        return res.status(500).json({ message: "failed", data: "Server error while fetching available IDs." });
+    }
+};
+
+/**
+ * POST /character/change-id
+ * Swap the character's customid to the smallest available ID in their VIP tier.
+ * VIP-only: character must have a vipTier assigned.
+ */
+exports.changeCharacterId = async (req, res) => {
+    try {
+        const { id } = req.user;
+        const { characterid } = req.body;
+
+        if (!characterid) {
+            return res.status(400).json({ message: "failed", data: "Please provide a character ID." });
+        }
+
+        const result = await changeVIPId(id, characterid);
+
+        if (!result.success) {
+            return res.status(400).json({ message: "failed", data: result.error });
+        }
+
+        return res.status(200).json({ message: "success", data: result.data });
+    } catch (error) {
+        console.error("Error in changeCharacterId:", error);
+        return res.status(500).json({ message: "failed", data: "Server error while changing character ID." });
+    }
+};
+
+// #endregion

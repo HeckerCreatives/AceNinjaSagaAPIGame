@@ -1,4 +1,4 @@
-const { createcharacter, getplayerdata, userplayerdata, getinventory, getxplevel, getWallet, getplayercharacters, getcharactertitles, addxp, updateplayerprofile, updateplayertitle, getcharacterstats, equipunequiptitle, equipunequipbadge, getcharacterchapters, challengechapter, challengechapterhistory, getnotification, deletecharacter, unlockcharacterslot } = require("../controllers/character")
+const { createcharacter, getplayerdata, userplayerdata, getinventory, getxplevel, getWallet, getplayercharacters, getcharactertitles, addxp, updateplayerprofile, updateplayertitle, getcharacterstats, equipunequiptitle, equipunequipbadge, getcharacterchapters, challengechapter, challengechapterhistory, getnotification, deletecharacter, unlockcharacterslot, getAvailableIds, changeCharacterId } = require("../controllers/character")
 const { protectplayer } = require("../middleware/middleware")
 
 const router = require("express").Router()
@@ -27,6 +27,10 @@ router
 .post("/deletecharacter", protectplayer, deletecharacter)
 // Unlock additional character slot (increments by 1, up to max 4)
 .post("/unlockcharacterslot", protectplayer, unlockcharacterslot)
+
+// VIP ID endpoints
+.get("/available-ids", protectplayer, getAvailableIds)
+.post("/change-id", protectplayer, changeCharacterId)
 
 
 module.exports = router

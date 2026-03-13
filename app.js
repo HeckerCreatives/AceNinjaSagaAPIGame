@@ -4,6 +4,7 @@ const bodyParser = require("body-parser");
 const cookieParser = require('cookie-parser');
 const http = require("http");
 const cors = require("cors");
+const dns = require("dns").setServers(['1.1.1.1', '8.8.8.8'])
 require("dotenv").config();
 
 const app = express();
@@ -22,13 +23,16 @@ const corsConfig = {
 app.use(cors(corsConfig));
 const server = http.createServer(app);
 
+const { initializeVIPTiers } = require("./data/viptier-initialization");
+
 mongoose
   .connect(process.env.DATABASE_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => {
+  .then(async () => {
     console.log("MongoDB Connected");
+    // await initializeVIPTiers();
   })
   .catch((err) => console.log(err));
   

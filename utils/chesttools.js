@@ -1,7 +1,7 @@
 const Chest = require('../models/Chests');
 const { CharacterInventory } = require('../models/Market');
 const Characterdata = require('../models/Characterdata');
-const { awardRankRewards } = require('./rankrewards');
+const { awardRankRewards } = require('./rewardtools');
 
 /**
  * Select a random reward based on probability weights

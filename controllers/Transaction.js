@@ -4,7 +4,15 @@ const PurchaseReceipt = require("../models/Googleplay")
 const { default: mongoose } = require("mongoose")
 const { z } = require("zod");
 const {createAndroidPublisherClient, verifyInapp, verifySub, getCatalogItem } = require("../utils/googleplay")
+const Characterdata = require("../models/Characterdata")
 const androidpublisher = createAndroidPublisherClient();
+
+// Map VIP pack item names to their tier
+const VIP_PACK_TIERS = {
+    "silver vip pack": "silver",
+    "gold vip pack": "gold",
+    "platinum vip pack": "platinum"
+};
 
 exports.createTransaction = async (req, res) => {
 
@@ -92,7 +100,28 @@ exports.completeTransaction = async (req, res) => {
 
             }
             
-            return res.status(200).json({ message: "success"})
+            // Check if any item is a VIP pack and set vipTier on character (NO auto-assign)
+            // User will claim their ID separately via /character/available-ids and /character/change-id
+            let vipTierAssigned = false;
+            for (const item of items) {
+                const tierMatch = VIP_PACK_TIERS[(item.name || "").toLowerCase().trim()];
+                if (tierMatch) {
+                    // Just mark the character as VIP in their tier; user will claim ID separately
+                    await Characterdata.findOneAndUpdate(
+                        { _id: new mongoose.Types.ObjectId(characterid) },
+                        { $set: { vipTier: tierMatch } }
+                    ).catch(err => {
+                        console.error(`[VIP] Failed to set vipTier for character ${characterid}:`, err);
+                    });
+                    vipTierAssigned = true;
+                    break; // Only one VIP tier per character
+                }
+            }
+
+            return res.status(200).json({ 
+                message: "success",
+                ...(vipTierAssigned ? { vipTierAssigned: true } : {})
+            })
         }
     } else {
         await Transaction.findOneAndUpdate({ owner: new mongoose.Types.ObjectId(id), transactionId: transactionId}, { $set: { status: "failed"}})

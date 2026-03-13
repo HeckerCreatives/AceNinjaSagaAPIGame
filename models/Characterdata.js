@@ -71,6 +71,12 @@ const CharacterDataSchema = new mongoose.Schema(
             type: String,
             index: true
         },
+        vipTier: {
+            type: String,
+            enum: ["platinum", "gold", "silver", null],
+            default: null,
+            index: true
+        },
         status: {
             type: String,
             index: true,
@@ -119,6 +125,17 @@ CharacterDataSchema.pre('save', async function(next) {
                 }
 
                 this.customid = counterDoc.seq;
+
+                // Skip IDs reserved for VIP tiers (1–899).
+                // If the counter was at a low value, jump it to 999 so the next
+                // iteration increments to 1000.
+                if (this.customid < 1000) {
+                    await Counter.findOneAndUpdate(
+                        { name: 'character_customid', seq: { $lt: 999 } },
+                        { $set: { seq: 999 } }
+                    );
+                    continue;
+                }
 
                 // Test if this customid is truly unique by trying to save
                 const testDoc = await this.constructor.findOne({ customid: this.customid });
